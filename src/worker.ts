@@ -13,6 +13,7 @@ export type WorkerEnv = {
   KEY_VERSION?: string;
   OWNER_EMAIL?: string;
   OWNER_LOGIN_SECRET?: string;
+  BETA_ADMIN_SECRET?: string;
   ALLOW_DEV_AUTH?: string;
   MAILBOX_MUTATIONS_ENABLED?: string;
   GOOGLE_CLIENT_ID?: string;
