@@ -22,6 +22,13 @@ function expirationDate(expiresIn: string): Date {
   return new Date(Date.now() + amount * multiplier);
 }
 
+type TenantOwnerBase = {
+  tenantName: string;
+  slug: string;
+  ownerEmail: string;
+  ownerDisplayName: string;
+};
+
 export class AuthService {
   async createToken(
     user: { id: string; tenantId: string; email: string; displayName: string; role?: "owner" | "admin" | "member" },
@@ -199,13 +206,11 @@ export class AuthService {
     throw new TenantIsolationError(`Access denied: ${resourceName} does not belong to your organization/tenant.`);
   }
 
-  async createTenantAndOwner(params: {
-    tenantName: string;
-    slug: string;
-    ownerEmail: string;
-    ownerDisplayName: string;
-    issueInitialToken?: boolean;
-  }): Promise<{ tenantId: string; userId: string; token?: string; sessionId?: string }> {
+  async createTenantAndOwner(params: TenantOwnerBase & { issueInitialToken: false }): Promise<{ tenantId: string; userId: string }>;
+  async createTenantAndOwner(params: TenantOwnerBase & { issueInitialToken?: true }): Promise<{ tenantId: string; userId: string; token: string; sessionId: string }>;
+  async createTenantAndOwner(
+    params: TenantOwnerBase & { issueInitialToken?: boolean }
+  ): Promise<{ tenantId: string; userId: string; token?: string; sessionId?: string }> {
     const tenantId = nanoid();
     const userId = nanoid();
     const now = new Date();
