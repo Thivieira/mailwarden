@@ -27,11 +27,16 @@ async function deriveSecretHash(secret: string, saltHex: string, iterations: num
     false,
     ["deriveBits"]
   );
+  const saltBytes = hexToBytes(saltHex);
+  const saltBuffer = saltBytes.buffer.slice(
+    saltBytes.byteOffset,
+    saltBytes.byteOffset + saltBytes.byteLength
+  ) as ArrayBuffer;
   const bits = await crypto.subtle.deriveBits(
     {
       name: "PBKDF2",
       hash: "SHA-256",
-      salt: hexToBytes(saltHex),
+      salt: saltBuffer,
       iterations,
     },
     material,
