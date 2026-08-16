@@ -15,6 +15,14 @@ const configSchema = z.object({
     .default("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"),
   KEY_VERSION: z.string().default("v1"),
 
+  // Personal dogfood / owner authentication. In production both should be configured as Worker secrets/vars.
+  OWNER_EMAIL: z.string().email().optional(),
+  OWNER_LOGIN_SECRET: z.string().min(12).optional(),
+  ALLOW_DEV_AUTH: z
+    .string()
+    .default("false")
+    .transform((val) => val === "true" || val === "1"),
+
   MAILBOX_MUTATIONS_ENABLED: z
     .string()
     .default("false")
@@ -23,12 +31,12 @@ const configSchema = z.object({
   // Google OAuth
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
-  GOOGLE_REDIRECT_URI: z.string().default("http://localhost:3000/auth/google/callback"),
+  GOOGLE_REDIRECT_URI: z.string().url().optional(),
 
   // Microsoft OAuth
   MICROSOFT_CLIENT_ID: z.string().optional(),
   MICROSOFT_CLIENT_SECRET: z.string().optional(),
-  MICROSOFT_REDIRECT_URI: z.string().default("http://localhost:3000/auth/microsoft/callback"),
+  MICROSOFT_REDIRECT_URI: z.string().url().optional(),
   MICROSOFT_TENANT_ID: z.string().default("common"),
 
   // Proton Mail Bridge
@@ -76,4 +84,3 @@ export const config: Config = new Proxy({} as Config, {
     return (current as any)[prop];
   },
 });
-
