@@ -11,25 +11,27 @@ export type WorkerEnv = {
   AUTH_SECRET?: string;
   CREDENTIAL_ENCRYPTION_KEY?: string;
   KEY_VERSION?: string;
+  OWNER_EMAIL?: string;
+  OWNER_LOGIN_SECRET?: string;
+  ALLOW_DEV_AUTH?: string;
   MAILBOX_MUTATIONS_ENABLED?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  GOOGLE_REDIRECT_URI?: string;
   MICROSOFT_CLIENT_ID?: string;
   MICROSOFT_CLIENT_SECRET?: string;
+  MICROSOFT_REDIRECT_URI?: string;
+  MICROSOFT_TENANT_ID?: string;
 };
 
 export default {
-  /**
-   * Main HTTP / MCP Fetch Handler for Cloudflare Workers
-   */
   async fetch(
     request: Request,
     env: WorkerEnv,
-    ctx: { waitUntil(promise: Promise<unknown>): void }
+    _ctx: { waitUntil(promise: Promise<unknown>): void }
   ): Promise<Response> {
     const origin = new URL(request.url).origin;
 
-    // 1. Initialize environment config from Cloudflare Worker vars/secrets & active origin
     if (env) {
       updateConfig({
         APP_BASE_URL: env.APP_BASE_URL || origin,
@@ -38,49 +40,35 @@ export default {
       });
     }
 
-    // 2. Bind D1 instance
-    if (env.DB) {
-      getDatabase(env.DB);
-    }
-
-    // 3. Forward request to Elysia application
+    if (env.DB) getDatabase(env.DB);
     return app.fetch(request);
   },
 
-  /**
-   * Scheduled Cron Handler for background sync and intelligence updates
-   */
   async scheduled(
     event: { cron: string; scheduledTime: number },
     env: WorkerEnv,
     ctx: { waitUntil(promise: Promise<unknown>): void }
   ): Promise<void> {
-    if (env) {
-      updateConfig(env);
-    }
-    if (env.DB) {
-      getDatabase(env.DB);
-    }
+    updateConfig(env || {});
+    if (env.DB) getDatabase(env.DB);
 
     ctx.waitUntil(
       (async () => {
-        logger.info(`[WORKER CRON] Scheduled background sync triggered: ${event.cron}`);
+        logger.info(`[WORKER CRON] Mailbox sync triggered: ${event.cron}`);
         if (!env.DB) {
-          logger.warn("[WORKER CRON] No D1 database binding found, skipping background sync");
+          logger.warn("[WORKER CRON] No D1 binding, skipping sync");
           return;
         }
 
-        const db = getDatabase(env.DB);
-        const { schema } = await import("./db");
-        const { eq } = await import("drizzle-orm");
-
-        // Fetch active accounts for background health & sync check
-        const activeAccounts = await db
-          .select()
-          .from(schema.emailAccounts)
-          .where(eq(schema.emailAccounts.status, "connected"));
-
-        logger.info(`[WORKER CRON] Active accounts to sync: ${activeAccounts.length}`);
+        const { syncService } = await import("./services/sync");
+        const results = await syncService.syncAllConnectedAccounts(25);
+        const successful = results.filter((r: any) => r.ok).length;
+        const failed = results.length - successful;
+        logger.info("[WORKER CRON] Mailbox sync completed", {
+          accounts: results.length,
+          successful,
+          failed,
+        });
       })()
     );
   },
