@@ -8,6 +8,7 @@ import { nanoid } from "nanoid";
 const activeSessions = new Map<string, { principal: AuthPrincipal; server: ReturnType<typeof createMcpServer> }>();
 
 function scopesForTool(name: string): string[] {
+  if (name === "get_email_connection_url" || name === "refresh_inboxes") return ["accounts.manage", "mail.read"];
   if (name === "request_send_approval" || name === "send_draft" || name.includes("send")) return ["mail.send", "mail.draft"];
   if (name.startsWith("draft_") || name.includes("draft")) return ["mail.draft", "mail.read"];
   if (name.includes("relationship") || name.includes("sender")) return ["relationships.read"];
@@ -94,7 +95,6 @@ async function authenticate(headers: Record<string, string | undefined>, queryTi
 }
 
 export const mcpRoutes = new Elysia({ aot: false })
-  // Preferred remote transport for ChatGPT. Stateless JSON-RPC over HTTPS.
   .post("/mcp", async ({ headers, body, set }) => {
     let principal: AuthPrincipal;
     try {
@@ -112,8 +112,6 @@ export const mcpRoutes = new Elysia({ aot: false })
     }
     return response;
   }, { body: t.Any() })
-
-  // Backward-compatible RPC endpoint.
   .post("/mcp/rpc", async ({ headers, body, set }) => {
     let principal: AuthPrincipal;
     try {
@@ -125,8 +123,6 @@ export const mcpRoutes = new Elysia({ aot: false })
     }
     return handleJsonRpcRequest(principal, body);
   }, { body: t.Any() })
-
-  // Legacy SSE retained for clients that still require it.
   .get("/mcp/sse", async ({ headers, query, set }) => {
     let principal: AuthPrincipal;
     try {
