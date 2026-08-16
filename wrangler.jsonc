@@ -15,7 +15,11 @@
   ],
   "vars": {
     "MAILBOX_MUTATIONS_ENABLED": "false",
+    "ALLOW_DEV_AUTH": "false",
     "KEY_VERSION": "v1"
+  },
+  "triggers": {
+    "crons": ["*/15 * * * *"]
   },
   "alias": {
     "bun:sqlite": "./src/db/bun-sqlite-shim.ts"
