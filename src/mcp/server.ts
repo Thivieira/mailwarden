@@ -69,7 +69,7 @@ export function createMcpServer(principal: AuthPrincipal): Server {
       else inputSchema = { type: "object", properties: {} };
 
       let scopes: string[] = ["mail.read"];
-      if (tool.name === "refresh_inboxes") scopes = ["accounts.manage", "mail.read"];
+      if (tool.name === "refresh_inboxes" || tool.name === "get_email_connection_url") scopes = ["accounts.manage", "mail.read"];
       else if (tool.name.startsWith("draft_") || tool.name.includes("draft")) scopes = ["mail.draft", "mail.read"];
       else if (tool.name.startsWith("send_") || tool.name.includes("send")) scopes = ["mail.send", "mail.draft"];
       else if (tool.name.includes("relationship") || tool.name.includes("sender")) scopes = ["relationships.read"];
