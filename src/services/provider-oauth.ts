@@ -282,7 +282,7 @@ export class ProviderOAuthService {
     await auditService.logEvent({
       tenantId: state.tenantId,
       userId: state.userId,
-      action: "PROVIDER_CONNECTED",
+      action: "PROVIDER_CONNECT",
       resourceType: "account",
       resourceId: account!.id,
       details: { provider, emailAddress: input.email, mode: state.mode },
