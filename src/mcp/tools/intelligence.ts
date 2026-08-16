@@ -6,7 +6,34 @@ import { db, schema } from "../../db";
 import { eq, and } from "drizzle-orm";
 import { authService } from "../../services/auth";
 import { auditService } from "../../services/audit";
+import { ValidationError } from "../../utils/errors";
 import { nanoid } from "nanoid";
+
+async function resolveOwnedAccount(
+  principal: AuthPrincipal,
+  params: { accountId?: string; emailAddress?: string }
+) {
+  if (!params.accountId && !params.emailAddress) {
+    throw new ValidationError("Specify accountId or emailAddress");
+  }
+
+  const conditions = [
+    eq(schema.emailAccounts.tenantId, principal.tenantId),
+    eq(schema.emailAccounts.userId, principal.userId),
+  ];
+
+  if (params.accountId) conditions.push(eq(schema.emailAccounts.id, params.accountId));
+  if (params.emailAddress) conditions.push(eq(schema.emailAccounts.emailAddress, params.emailAddress.toLowerCase()));
+
+  const [account] = await db
+    .select()
+    .from(schema.emailAccounts)
+    .where(and(...conditions))
+    .limit(1);
+
+  if (!account) throw new ValidationError("No connected email account matched that address or account ID");
+  return account;
+}
 
 export const intelligenceTools = [
   {
@@ -86,34 +113,96 @@ export const intelligenceTools = [
   },
   {
     name: "set_account_priority",
-    description: "Configures account level role and priority (e.g. primary_work, personal, freelance, entertainment, low_priority).",
+    description: "Configures a connected email account's role/priority. The account can be identified by its email address so users do not need internal IDs.",
     parameters: z.object({
-      accountId: z.string().describe("The email account ID"),
+      accountId: z.string().optional().describe("Optional internal email account ID"),
+      emailAddress: z.string().email().optional().describe("Human-friendly connected email address"),
       priorityRole: z.enum(["primary_work", "personal", "freelance", "entertainment", "low_priority"]).describe("Priority role"),
+    }).refine((value) => Boolean(value.accountId || value.emailAddress), {
+      message: "accountId or emailAddress is required",
     }),
-    handler: async (principal: AuthPrincipal, params: { accountId: string; priorityRole: any }) => {
+    handler: async (principal: AuthPrincipal, params: { accountId?: string; emailAddress?: string; priorityRole: any }) => {
       authService.requireScope(principal, "accounts.manage");
+      const account = await resolveOwnedAccount(principal, params);
+
       await db
         .update(schema.emailAccounts)
         .set({ priorityRole: params.priorityRole, updatedAt: new Date() })
-        .where(
-          and(
-            eq(schema.emailAccounts.id, params.accountId),
-            eq(schema.emailAccounts.tenantId, principal.tenantId),
-            eq(schema.emailAccounts.userId, principal.userId)
-          )
-        );
+        .where(and(
+          eq(schema.emailAccounts.id, account.id),
+          eq(schema.emailAccounts.tenantId, principal.tenantId),
+          eq(schema.emailAccounts.userId, principal.userId)
+        ));
 
       await auditService.logEvent({
         tenantId: principal.tenantId,
         userId: principal.userId,
         action: "ACCOUNT_PRIORITY_UPDATE",
         resourceType: "account",
-        resourceId: params.accountId,
-        details: { priorityRole: params.priorityRole },
+        resourceId: account.id,
+        details: { emailAddress: account.emailAddress, priorityRole: params.priorityRole },
       });
 
-      return { success: true, accountId: params.accountId, priorityRole: params.priorityRole };
+      return {
+        success: true,
+        accountId: account.id,
+        emailAddress: account.emailAddress,
+        displayName: account.displayName,
+        priorityRole: params.priorityRole,
+      };
+    },
+  },
+  {
+    name: "set_account_profile",
+    description: "Sets a friendly label and/or role for one of the user's connected email accounts. Use for requests like 'call this my Personal Gmail' or 'this Outlook is my work account'.",
+    parameters: z.object({
+      accountId: z.string().optional().describe("Optional internal account ID"),
+      emailAddress: z.string().email().optional().describe("Connected account email address"),
+      label: z.string().min(1).max(80).optional().describe("Friendly user-facing label, e.g. Personal Gmail, Consulting, Main Work"),
+      priorityRole: z.enum(["primary_work", "personal", "freelance", "entertainment", "low_priority"]).optional(),
+    }).refine((value) => Boolean(value.accountId || value.emailAddress), {
+      message: "accountId or emailAddress is required",
+    }).refine((value) => Boolean(value.label || value.priorityRole), {
+      message: "label or priorityRole is required",
+    }),
+    handler: async (principal: AuthPrincipal, params: { accountId?: string; emailAddress?: string; label?: string; priorityRole?: any }) => {
+      authService.requireScope(principal, "accounts.manage");
+      const account = await resolveOwnedAccount(principal, params);
+      const updates: any = { updatedAt: new Date() };
+      if (params.label) updates.displayName = params.label.trim();
+      if (params.priorityRole) updates.priorityRole = params.priorityRole;
+
+      await db
+        .update(schema.emailAccounts)
+        .set(updates)
+        .where(and(
+          eq(schema.emailAccounts.id, account.id),
+          eq(schema.emailAccounts.tenantId, principal.tenantId),
+          eq(schema.emailAccounts.userId, principal.userId)
+        ));
+
+      if (params.priorityRole) {
+        await auditService.logEvent({
+          tenantId: principal.tenantId,
+          userId: principal.userId,
+          action: "ACCOUNT_PRIORITY_UPDATE",
+          resourceType: "account",
+          resourceId: account.id,
+          details: {
+            emailAddress: account.emailAddress,
+            label: params.label,
+            priorityRole: params.priorityRole,
+          },
+        });
+      }
+
+      return {
+        success: true,
+        accountId: account.id,
+        emailAddress: account.emailAddress,
+        label: params.label || account.displayName,
+        priorityRole: params.priorityRole || account.priorityRole,
+      };
     },
   },
   {
@@ -135,14 +224,12 @@ export const intelligenceTools = [
       const [existing] = await db
         .select()
         .from(schema.threadStates)
-        .where(
-          and(
-            eq(schema.threadStates.tenantId, principal.tenantId),
-            eq(schema.threadStates.userId, principal.userId),
-            eq(schema.threadStates.accountId, params.accountId),
-            eq(schema.threadStates.providerThreadId, params.threadId)
-          )
-        )
+        .where(and(
+          eq(schema.threadStates.tenantId, principal.tenantId),
+          eq(schema.threadStates.userId, principal.userId),
+          eq(schema.threadStates.accountId, params.accountId),
+          eq(schema.threadStates.providerThreadId, params.threadId)
+        ))
         .limit(1);
 
       const now = new Date();
