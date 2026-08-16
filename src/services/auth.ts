@@ -199,7 +199,13 @@ export class AuthService {
     throw new TenantIsolationError(`Access denied: ${resourceName} does not belong to your organization/tenant.`);
   }
 
-  async createTenantAndOwner(params: { tenantName: string; slug: string; ownerEmail: string; ownerDisplayName: string }) {
+  async createTenantAndOwner(params: {
+    tenantName: string;
+    slug: string;
+    ownerEmail: string;
+    ownerDisplayName: string;
+    issueInitialToken?: boolean;
+  }): Promise<{ tenantId: string; userId: string; token?: string; sessionId?: string }> {
     const tenantId = nanoid();
     const userId = nanoid();
     const now = new Date();
@@ -224,6 +230,8 @@ export class AuthService {
         createdAt: now, updatedAt: now,
       },
     ]);
+
+    if (params.issueInitialToken === false) return { tenantId, userId };
 
     const { token, sessionId } = await this.createToken({
       id: userId, tenantId, email: params.ownerEmail, displayName: params.ownerDisplayName, role: "owner",
