@@ -20,9 +20,9 @@ Shared/company mailboxes are a future feature and must require explicit grants. 
 
 ## Authentication
 
-The deployment owner can initially bootstrap with `OWNER_EMAIL` and `OWNER_LOGIN_SECRET`.
+The deployment owner logs in with `OWNER_EMAIL` and `OWNER_LOGIN_SECRET`. The first successful login creates that owner's private vault and migrates the env bootstrap secret into a per-user hashed credential. Do not run `beta:provision` for the owner.
 
-Closed-beta users are provisioned by the deployment administrator. Mailwarden generates a strong login secret and stores only a salted PBKDF2-SHA256 hash. The plaintext secret is returned once during provisioning.
+`BETA_ADMIN_SECRET` is only for provisioning buddy #1 and buddy #2 later. Mailwarden generates a strong login secret for those users and stores only a salted PBKDF2-SHA256 hash. The plaintext secret is returned once during provisioning.
 
 Set a separate production secret:
 
@@ -34,7 +34,7 @@ Do not reuse `OWNER_LOGIN_SECRET`, `AUTH_SECRET`, provider OAuth secrets, or enc
 
 ## Provision a beta user
 
-With `APP_BASE_URL` pointing at the deployed Mailwarden Worker and `BETA_ADMIN_SECRET` available only in your local shell:
+Skip this until Gmail through Claude works for the owner. Then, with `APP_BASE_URL` pointing at the deployed Mailwarden Worker and `BETA_ADMIN_SECRET` available only in your local shell:
 
 ```bash
 bun run beta:provision buddy@example.com "Buddy Name"
@@ -44,15 +44,23 @@ Mailwarden returns the user's private vault ID, user ID, and login secret. Share
 
 If a beta login secret is lost or exposed, rotate it through the protected `/auth/beta/rotate-secret` endpoint. The previous secret stops working immediately.
 
-## ChatGPT connection
+## First dogfood client: Claude
 
-All three users add the same deployed Mailwarden server URL to ChatGPT:
+ChatGPT Plus is not currently listed for custom MCP connectors with write actions. Use Claude (Pro/Max/Team/Enterprise) for the first real inbox test.
+
+In Claude: Settings → Connectors → Add custom connector:
 
 ```text
 https://mailwarden.corenet.workers.dev/mcp
 ```
 
-During authorization, each person signs in with their own Mailwarden email and login secret. The resulting authorization code, access token, provider accounts, email data, and tool calls are scoped to that person's private vault.
+Claude discovers Mailwarden's OAuth + Dynamic Client Registration flow. The owner signs in with `OWNER_EMAIL` and `OWNER_LOGIN_SECRET`. Later beta users sign in with the email and login secret from provisioning. Tokens, provider accounts, email data, and tool calls stay scoped to that person's private vault.
+
+Prove this path before Outlook or Proton:
+
+```text
+REAL GMAIL → Google OAuth → Mailwarden sync → D1 → Claude → summary + draft
+```
 
 ## Multi-account expectation
 
@@ -120,7 +128,7 @@ Possible future plan dimensions include connected account count, synchronization
 
 Do not call the beta successful because the architecture or tests look good.
 
-The milestone is all three people independently connecting real inboxes and naturally using Mailwarden inside ChatGPT for:
+The milestone is all three people independently connecting real inboxes and naturally using Mailwarden inside Claude for:
 
 1. cross-account summaries;
 2. attention prioritization;
