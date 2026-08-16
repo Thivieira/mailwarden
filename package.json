@@ -17,6 +17,7 @@
     "db:seed": "bun run src/scripts/dev-seed.ts",
     "mcp:stdio": "bun run src/scripts/mcp-stdio.ts",
     "proton:gateway": "bun run src/services/proton-gateway.ts",
+    "beta:provision": "bun run src/scripts/invite-user.ts",
     "replay": "bun run src/scripts/replay.ts"
   },
   "dependencies": {
