@@ -22,40 +22,54 @@ export class SyncService {
 
     const provider = await providerFactory.getProviderForAccount(principal, accountId);
     const startedAt = Date.now();
+    const maxWanted = Math.min(Math.max(limit, 1), 100);
     let ingested = 0;
     let skipped = 0;
+    let fetched = 0;
+    let pageToken: string | undefined;
+    let totalEstimated: number | undefined;
 
     try {
-      const result = await provider.search(principal, accountId, { limit: Math.min(Math.max(limit, 1), 100) });
+      do {
+        const remaining = maxWanted - fetched;
+        const result = await provider.search(principal, accountId, {
+          limit: remaining,
+          pageToken,
+        });
+        totalEstimated ??= result.totalEstimated;
+        pageToken = result.nextPageToken;
 
-      for (const message of result.messages) {
-        try {
-          const {
-            id: _id,
-            tenantId: _tenantId,
-            userId: _userId,
-            createdAt: _createdAt,
-            updatedAt: _updatedAt,
-            ...input
-          } = message as any;
-          await emailService.ingestEmail(principal, input);
-          ingested += 1;
-        } catch (error: any) {
-          // Individual message failures must not abort the whole mailbox sync.
-          skipped += 1;
-          logger.warn("Message ingestion failed during provider sync", {
-            accountId,
-            provider: account.provider,
-            providerMessageId: message.providerMessageId,
-            error: error.message,
-          });
+        if (!result.messages.length) break;
+        for (const message of result.messages.slice(0, remaining)) {
+          fetched += 1;
+          try {
+            const {
+              id: _id,
+              tenantId: _tenantId,
+              userId: _userId,
+              createdAt: _createdAt,
+              updatedAt: _updatedAt,
+              ...input
+            } = message as any;
+            await emailService.ingestEmail(principal, input);
+            ingested += 1;
+          } catch (error: any) {
+            skipped += 1;
+            logger.warn("Message ingestion failed during provider sync", {
+              accountId,
+              provider: account.provider,
+              providerMessageId: message.providerMessageId,
+              error: error.message,
+            });
+          }
         }
-      }
+      } while (pageToken && fetched < maxWanted);
 
       await db.update(schema.emailAccounts).set({
         status: "connected",
         errorMessage: null,
         lastSyncedAt: new Date(),
+        syncCursor: pageToken || null,
         updatedAt: new Date(),
       }).where(eq(schema.emailAccounts.id, accountId));
 
@@ -65,7 +79,7 @@ export class SyncService {
         action: "PROVIDER_SYNC",
         resourceType: "account",
         resourceId: accountId,
-        details: { provider: account.provider, ingested, skipped, durationMs: Date.now() - startedAt },
+        details: { provider: account.provider, ingested, skipped, fetched, durationMs: Date.now() - startedAt },
       });
 
       return {
@@ -74,8 +88,8 @@ export class SyncService {
         emailAddress: account.emailAddress,
         ingested,
         skipped,
-        fetched: result.messages.length,
-        totalEstimated: result.totalEstimated,
+        fetched,
+        totalEstimated,
         syncedAt: new Date().toISOString(),
       };
     } catch (error: any) {
@@ -118,7 +132,6 @@ export class SyncService {
     return { accounts: results, syncedAccounts: results.filter((x) => x.ok).length };
   }
 
-  /** Scheduled Worker entrypoint. Principal identity is derived from each DB-owned account, never user input. */
   async syncAllConnectedAccounts(limitPerAccount = 25) {
     const accounts = await db.select().from(schema.emailAccounts).where(eq(schema.emailAccounts.status, "connected"));
     const results = [] as any[];
