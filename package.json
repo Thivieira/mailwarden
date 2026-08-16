@@ -12,6 +12,8 @@
     "test": "bun test",
     "test:watch": "bun test --watch",
     "typecheck": "tsc --noEmit",
+    "deploy": "bun run typecheck && bun test && wrangler deploy",
+    "deploy:dry": "wrangler deploy --dry-run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun run src/db/migrate.ts",
     "db:seed": "bun run src/scripts/dev-seed.ts",
