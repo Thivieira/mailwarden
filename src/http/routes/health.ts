@@ -6,7 +6,6 @@ import { sql } from "drizzle-orm";
 export const healthRoutes = new Elysia({ prefix: "/health", aot: false }).get("/", async () => {
   let dbStatus = "healthy";
   try {
-    // Quick probe
     await db.select({ count: sql`count(*)` }).from(schema.tenants);
   } catch (err: any) {
     dbStatus = `unhealthy: ${err.message}`;
@@ -19,10 +18,11 @@ export const healthRoutes = new Elysia({ prefix: "/health", aot: false }).get("/
     checks: {
       database: dbStatus,
       encryption: "configured",
+      ownerAuthConfigured: Boolean(config.OWNER_EMAIL && config.OWNER_LOGIN_SECRET),
       mailboxMutationsEnabled: config.MAILBOX_MUTATIONS_ENABLED,
       googleConfigured: Boolean(config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET),
       microsoftConfigured: Boolean(config.MICROSOFT_CLIENT_ID && config.MICROSOFT_CLIENT_SECRET),
-      protonConfigured: Boolean(config.PROTON_BRIDGE_HOST),
+      protonGateway: "external-local-service",
     },
   };
 });
