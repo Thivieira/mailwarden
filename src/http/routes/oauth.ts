@@ -1,11 +1,8 @@
 import { Elysia, t } from "elysia";
 import { oauthService } from "../../services/oauth";
-import { authService } from "../../services/auth";
+import { userAuthService } from "../../services/user-auth";
 import { ALL_SCOPES, type PermissionScope } from "../../types/auth";
 import { config } from "../../config";
-import { db, schema } from "../../db";
-import { eq } from "drizzle-orm";
-import { nanoid } from "nanoid";
 
 function esc(value: unknown) {
   return String(value ?? "")
@@ -13,21 +10,6 @@ function esc(value: unknown) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
-}
-
-async function resolveOwner(email: string) {
-  const normalized = email.toLowerCase();
-  let [user] = await db.select().from(schema.users).where(eq(schema.users.email, normalized)).limit(1);
-  if (!user) {
-    const created = await authService.createTenantAndOwner({
-      tenantName: "Personal Mailwarden",
-      slug: `personal-${nanoid(8)}`,
-      ownerEmail: normalized,
-      ownerDisplayName: normalized.split("@")[0] || "Owner",
-    });
-    [user] = await db.select().from(schema.users).where(eq(schema.users.id, created.userId)).limit(1);
-  }
-  return user!;
 }
 
 export const oauthRoutes = new Elysia({ aot: false })
@@ -80,27 +62,22 @@ export const oauthRoutes = new Elysia({ aot: false })
     };
   }, { body: t.Any() })
 
-  // Browser authorization page used by ChatGPT. For the current dogfood deployment this is intentionally single-owner.
+  // Browser authorization page used by ChatGPT. Every beta user signs in to a separate private vault.
   .get("/oauth/authorize", async ({ query, set }) => {
     const q = query as any;
     if (q.response_type !== "code") {
       set.status = 400;
       return { error: "unsupported_response_type", error_description: "Only response_type=code is supported" };
     }
-    if (!q.code_challenge) {
+    if (!q.code_challenge || (q.code_challenge_method && q.code_challenge_method !== "S256")) {
       set.status = 400;
-      return { error: "invalid_request", error_description: "PKCE code_challenge is mandatory" };
+      return { error: "invalid_request", error_description: "PKCE S256 code_challenge is mandatory" };
     }
     try {
       await oauthService.validateClient(q.client_id, q.redirect_uri);
     } catch (err: any) {
       set.status = 400;
       return { error: "invalid_client", error_description: err.message };
-    }
-
-    if (!config.OWNER_EMAIL || !config.OWNER_LOGIN_SECRET) {
-      set.status = 503;
-      return { error: "owner_auth_not_configured", error_description: "Set OWNER_EMAIL and OWNER_LOGIN_SECRET before connecting ChatGPT" };
     }
 
     const hidden = [
@@ -110,37 +87,38 @@ export const oauthRoutes = new Elysia({ aot: false })
     set.headers["Content-Type"] = "text/html; charset=utf-8";
     return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Authorize Mailwarden</title></head>
 <body style="font-family:system-ui;background:#0f172a;color:#f8fafc;padding:32px"><main style="max-width:520px;margin:5vh auto;background:#1e293b;padding:32px;border-radius:14px">
-<h1>Connect ChatGPT to Mailwarden</h1><p style="color:#94a3b8">Sign in as the owner of this Mailwarden deployment. ChatGPT will only receive the scopes shown below.</p>
-<p><strong>Scopes:</strong> ${esc(q.scope || ALL_SCOPES.join(" "))}</p>
+<h1>Connect ChatGPT to Mailwarden</h1><p style="color:#94a3b8">Sign in to your private Mailwarden vault. Your connected email accounts, credentials, memory, drafts, and rules stay isolated from every other Mailwarden user.</p>
+<p><strong>Requested permissions:</strong> ${esc(q.scope || ALL_SCOPES.join(" "))}</p>
 <form method="POST" action="/oauth/authorize">${hidden}
-<label style="display:block;margin:16px 0 6px">Email</label><input name="email" type="email" required value="${esc(config.OWNER_EMAIL)}" style="width:100%;padding:12px;box-sizing:border-box">
-<label style="display:block;margin:16px 0 6px">Mailwarden login secret</label><input name="login_secret" type="password" required style="width:100%;padding:12px;box-sizing:border-box">
+<label style="display:block;margin:16px 0 6px">Mailwarden email</label><input name="email" type="email" autocomplete="username" required style="width:100%;padding:12px;box-sizing:border-box">
+<label style="display:block;margin:16px 0 6px">Mailwarden login secret</label><input name="login_secret" type="password" autocomplete="current-password" required style="width:100%;padding:12px;box-sizing:border-box">
 <button type="submit" style="margin-top:22px;width:100%;padding:13px;background:#10b981;border:0;border-radius:8px;font-weight:700">Authorize ChatGPT</button>
-</form></main></body></html>`;
+</form><p style="margin-top:20px;color:#64748b;font-size:13px">Mailwarden never gives ChatGPT your Gmail, Outlook, or Proton credentials.</p></main></body></html>`;
   })
 
   .post("/oauth/authorize", async ({ body, set }) => {
     const b = body as any;
+    let client;
     try {
-      await oauthService.validateClient(b.client_id, b.redirect_uri);
+      client = await oauthService.validateClient(b.client_id, b.redirect_uri);
     } catch (err: any) {
       set.status = 400;
       return { error: "invalid_client", error_description: err.message };
     }
 
-    if (!config.OWNER_EMAIL || !config.OWNER_LOGIN_SECRET) {
-      set.status = 503;
-      return { error: "owner_auth_not_configured" };
-    }
-    if (String(b.email || "").toLowerCase() !== config.OWNER_EMAIL.toLowerCase() || b.login_secret !== config.OWNER_LOGIN_SECRET) {
+    let user;
+    try {
+      user = await userAuthService.authenticateUser(String(b.email || ""), String(b.login_secret || ""));
+    } catch {
       set.status = 401;
       set.headers["Content-Type"] = "text/html; charset=utf-8";
-      return "<h1>Authorization denied</h1><p>Invalid Mailwarden owner credentials.</p>";
+      return "<h1>Authorization denied</h1><p>Invalid Mailwarden credentials.</p>";
     }
 
-    const user = await resolveOwner(b.email);
     const requestedScopes = b.scope ? (String(b.scope).split(" ") as PermissionScope[]) : ALL_SCOPES;
-    const allowedScopes = requestedScopes.filter((s) => ALL_SCOPES.includes(s));
+    const allowedScopes = requestedScopes.filter(
+      (scope) => ALL_SCOPES.includes(scope) && client.allowedScopes.includes(scope)
+    );
     const code = await oauthService.createAuthorizationCode({
       clientId: b.client_id,
       tenantId: user.tenantId,
@@ -149,7 +127,7 @@ export const oauthRoutes = new Elysia({ aot: false })
       resource: b.resource || config.APP_BASE_URL,
       redirectUri: b.redirect_uri,
       codeChallenge: b.code_challenge,
-      codeChallengeMethod: b.code_challenge_method || "S256",
+      codeChallengeMethod: "S256",
     });
 
     const redirectUrl = new URL(b.redirect_uri);
