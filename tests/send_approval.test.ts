@@ -317,7 +317,7 @@ describe("Exact Payload Send Confirmation & Idempotency", () => {
       );
       expect(getResp.status).toBe(200);
       const html = await getResp.text();
-      expect(html).toContain("Review Outgoing Email");
+      expect(html).toContain("Send this email?");
       expect(html).toContain(approval.payloadHash);
     }
 

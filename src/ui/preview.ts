@@ -9,6 +9,7 @@ import { renderToString } from "solid-js/web";
 import { document_ } from "./document";
 import { ALL_SCOPES } from "../types/auth";
 import { AuthorizePage, CallbackPage, DeniedPage } from "./pages.gen.js";
+import { ApprovalReviewPage } from "./approval.gen.js";
 
 const OUT = join(process.cwd(), ".impeccable", "review");
 const HOST = "mailwarden.corenet.workers.dev";
@@ -67,4 +68,17 @@ await write("page-callback-failed", "Gmail connection failed", () =>
   })
 );
 
-console.log(`preview: 4 pages -> ${OUT}`);
+await write("page-approval", "Review outgoing email", () =>
+  ApprovalReviewPage({
+    host: HOST,
+    state: "pending",
+    recipients: "Ana Ribeiro <ana@cliente.com.br>, Tom Fisher <tom@fisher.co>",
+    subject: "Re: Q3 handover — revised dates",
+    body: "Hi Ana,\n\nThanks for the nudge. The revised handover dates work on our side:\n\n  Kickoff    12 September\n  Handover   30 September\n\nI have looped Tom in so he can pick up the billing questions.\n\nBest,\nThiago\n\n--\nThiago Vieira · FoxDev Studio",
+    fingerprint: "3f8a1c9d4e7b2058c6f1a3d90b74e28d5c1f6a09b3e847d2a5c90f1b6e3d8a47",
+    approvalId: "apr_9Kd2Rn4pQvXw",
+    confirmationNonce: "cn_7f3ba71c04e8",
+  })
+);
+
+console.log(`preview: 5 pages -> ${OUT}`);

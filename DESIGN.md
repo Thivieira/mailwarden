@@ -80,6 +80,25 @@ The face is the one extra request these pages make. It is same-origin, ~16 KB pe
   key struck through for what is refused. Icons are drawn at one stroke weight (1.6,
   round caps), never glyphs or emoji.
 - **`.signin`** — the rule spans the sheet, the fields inside are held to `27rem`.
+- **`.letter`** — the send-approval page's quoted document: recipients, subject, and body
+  set apart in a bordered card with `white-space: pre-wrap`, visibly *not* the page's own
+  voice.
+
+### The letter carries untrusted content
+
+Everything inside `.letter` can contain text that arrived in an email. It must never be
+assembled by string interpolation.
+
+This page previously built its HTML by hand and interpolated `draft.subject`,
+`draft.textBody`, `renderedSignature`, and recipient addresses unescaped, with no CSP —
+on a page that also carries the `confirmationNonce` in a hidden input, and whose POST
+endpoint accepts that nonce *without a session*. An email carrying markup, quoted into a
+draft, could therefore have approved its own send with no human involved, defeating both
+the exact-payload invariant and the prompt-injection invariant.
+
+It renders through Solid now, which escapes every interpolation, behind `renderPage`'s
+script-forbidding CSP. `tests/approval_page_injection.test.ts` pins this. Never route
+this page around the component layer.
 
 ## State
 

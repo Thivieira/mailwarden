@@ -263,6 +263,50 @@ button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .handback { margin: 1.5rem 0 0; max-width: var(--measure); font-size: 0.92rem; color: var(--ink-soft); }
 
+/* ---- The letter, on the send-approval page ------------------------------ */
+
+/* Everything inside is untrusted content, so it is visibly set apart as a quoted
+   document rather than blended into the page's own voice. */
+.letter {
+  margin: 2rem 0 0;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.letter-row {
+  display: grid;
+  grid-template-columns: 6rem 1fr;
+  gap: 0.25rem 1rem;
+  padding: 0.85rem clamp(1rem, 3vw, 1.5rem);
+  border-bottom: 1px solid var(--rule);
+}
+
+.letter-label { margin: 0; font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); }
+.letter-value { margin: 0; overflow-wrap: anywhere; }
+
+.letter-body {
+  padding: clamp(1rem, 3vw, 1.5rem);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 26rem;
+  overflow-y: auto;
+  line-height: 1.65;
+}
+
+.confirm-note { margin: 0 0 1.25rem; color: var(--ink-soft); font-size: 0.92rem; }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 34rem) {
+  .letter-row { grid-template-columns: 1fr; }
+}
+
 /* ---- Outcomes ----------------------------------------------------------- */
 
 .outcome {
