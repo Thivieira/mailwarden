@@ -1,5 +1,5 @@
 import { scopeReading, scopeState, STATE_WORD } from "./scopes";
-import { frame } from "./randomart";
+import { frameCells } from "./randomart";
 
 /**
  * Shared pieces of The Fingerprint Block. These are ordinary Solid components: they are
@@ -38,12 +38,17 @@ export function FingerprintBlock(props: {
       </figcaption>
       <div class="art">
         <pre aria-label={`Visual fingerprint of this request, digest ${props.digest}`}>
-          {frame(props.rows)}
+          {frameCells(props.rows).map((row) => [
+            ...row.map((cell) =>
+              cell.tone === "dense" ? cell.ch : <span data-t={cell.tone}>{cell.ch}</span>
+            ),
+            "\n",
+          ])}
         </pre>
         <dl>
           <div>
             <dt>Request digest</dt>
-            <dd>{props.digest}</dd>
+            <dd class="digest">{props.digest}</dd>
           </div>
           {props.facts.map((fact) => (
             <div>

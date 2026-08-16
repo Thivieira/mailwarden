@@ -72,3 +72,36 @@ function rule(label: string): string {
 export function frame(rows: string[], head = "MAILWARDEN", foot = "SHA256"): string {
   return [rule(head), ...rows.map((row) => `|${row}|`), rule(foot)].join("\n");
 }
+
+/** Tone of a single cell. Density in randomart is meaning, so it is drawn as depth. */
+export type Tone = "frame" | "sparse" | "dense" | "landmark";
+
+export type Cell = { ch: string; tone: Tone };
+
+const DENSE_FROM = SYMBOLS.indexOf("B"); // visit counts at or above this read as peaks
+
+function toneOf(ch: string, inField: boolean): Tone {
+  if (!inField) return "frame";
+  if (ch === "S" || ch === "E") return "landmark";
+  const weight = SYMBOLS.indexOf(ch);
+  return weight >= DENSE_FROM ? "dense" : "sparse";
+}
+
+/**
+ * The framed artifact as toned cells, so the walk reads as a topography rather than a
+ * block of text: sparse cells recede, peaks hold full ink, and the start and end
+ * landmarks take the accent.
+ */
+export function frameCells(rows: string[], head = "MAILWARDEN", foot = "SHA256"): Cell[][] {
+  const line = (text: string, inField: boolean): Cell[] =>
+    [...text].map((ch, i) => ({
+      ch,
+      tone: toneOf(ch, inField && i > 0 && i < text.length - 1),
+    }));
+
+  return [
+    line(rule(head), false),
+    ...rows.map((row) => line(`|${row}|`, true)),
+    line(rule(foot), false),
+  ];
+}

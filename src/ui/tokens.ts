@@ -95,18 +95,21 @@ body {
   letter-spacing: 0;
 }
 
+/* The heading serves the artifact rather than competing with it: the fingerprint is the
+   page's largest object, so the title sits back at working scale. */
 h1 {
-  margin: 2.5rem 0 0.5rem;
-  font-size: clamp(1.6rem, 4vw, 2.4rem);
-  line-height: 1.1;
-  letter-spacing: -0.02em;
+  margin: 2rem 0 0.4rem;
+  font-size: clamp(1.35rem, 2.4vw, 1.75rem);
+  line-height: 1.15;
+  letter-spacing: -0.015em;
   font-weight: 600;
   text-wrap: balance;
 }
 
 .lede {
-  margin: 0 0 2.5rem;
-  max-width: var(--measure);
+  margin: 0 0 2rem;
+  max-width: 58ch;
+  font-size: 0.925rem;
   color: var(--ink-muted);
 }
 
@@ -135,24 +138,39 @@ h1 {
 
 .art {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: clamp(1rem, 3vw, 2rem);
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 3.5rem);
   align-items: center;
-  padding: clamp(1rem, 3vw, 1.75rem);
+  /* Open space around the peak: this block is the one place the page breathes. */
+  padding: clamp(1.5rem, 4vw, 3rem) clamp(1.25rem, 3vw, 2.5rem);
 }
 
+/* The walk, at the scale the thesis promised. Tight leading and open tracking pull the
+   cells toward square so the field reads as a woven topography, not a paragraph. */
 .art pre {
   margin: 0;
   font-family: var(--mono);
-  font-size: clamp(0.7rem, 2.1vw, 0.95rem);
-  line-height: 1.25;
-  letter-spacing: 0.08em;
+  font-size: clamp(0.95rem, 2.9vw, 2.05rem);
+  line-height: 1.02;
+  letter-spacing: 0.1em;
   color: var(--ink);
   white-space: pre;
-  overflow-x: auto;
+  /* The clamp keeps the field inside the sheet; scrolling only kicks in when stacked. */
+  overflow: visible;
 }
 
-.art dl { margin: 0; display: grid; gap: 0.85rem; }
+.art pre span[data-t="sparse"]   { color: #4E5651; }
+.art pre span[data-t="frame"]    { color: var(--rule-strong); }
+.art pre span[data-t="landmark"] { color: var(--granted); }
+
+.art dl { margin: 0; display: grid; gap: 1.1rem; }
+
+/* The digest is the other checkable artifact; it gets display treatment too. */
+.digest {
+  font-size: clamp(0.9rem, 1.5vw, 1.15rem) !important;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
 .art dt {
   font-family: var(--mono);
   font-size: 0.68rem;
@@ -208,9 +226,11 @@ h1 {
   font-size: 0.85rem;
   white-space: nowrap;
 }
-.mark[data-state="granted"] { color: var(--granted); }
-.mark[data-state="denied"]  { color: var(--denied); }
-.mark[data-state="held"]    { color: var(--held); }
+.mark[data-state="granted"]  { color: var(--granted); }
+.mark[data-state="approval"] { color: var(--held); }
+.mark[data-state="denied"]   { color: var(--denied); }
+/* Dry run means nothing actually happens, so it stays quiet rather than alarming. */
+.mark[data-state="dryrun"]   { color: var(--ink-muted); }
 
 /* ---- Credential entry --------------------------------------------------- */
 
@@ -308,7 +328,8 @@ button[type="submit"]:disabled { opacity: 0.45; cursor: not-allowed; background:
 
 @media (max-width: 34rem) {
   .art { grid-template-columns: 1fr; }
-  .art pre { font-size: 0.78rem; letter-spacing: 0.04em; }
+  /* At this size the 19-column field fits any phone, so no scroll container is needed. */
+  .art pre { font-size: 0.82rem; letter-spacing: 0.06em; }
 }
 
 @media (prefers-reduced-motion: reduce) {

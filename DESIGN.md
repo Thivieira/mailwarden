@@ -79,6 +79,25 @@ challenge, scopes. It is a real fingerprint rendering, **never decoration**. Do 
 it from anything other than the bytes being attested, and do not frame it without borders:
 unframed rows read as stray characters.
 
+**It is the largest object on the page**, and must stay that way — the heading sits back
+at working scale so the artifact leads. A build where the `h1` outweighs the art has
+opted out of the thesis.
+
+Density in randomart is meaning, so the field is drawn as a topography via `frameCells()`
+rather than flat text:
+
+| Tone | Color | Cells |
+|---|---|---|
+| `frame` | `--rule-strong` | The `+---[...]---+` border |
+| `sparse` | `#4E5651` | Low visit counts — these recede |
+| `dense` | `--ink` | `B` and above — the walk's peaks |
+| `landmark` | `--granted` | `S` and `E` only |
+
+Tight leading (`1.02`) with open tracking (`0.1em`) pulls the cells toward square so the
+field reads as woven rather than as a paragraph. The `<pre>` takes `overflow: visible`
+and its grid column is `max-content`; an `auto` column shrinks below content and clips
+the frame's right edge behind a spurious scrollbar.
+
 ## State
 
 State is carried by the **word** first and hue second, so every state reads correctly
