@@ -1,9 +1,9 @@
-import { FingerprintBlock, Field, OriginStrip, ScopeManifest } from "./parts";
+import { Band, Field, KeyCard, OpenDoors, Record, ShutDoors } from "./parts";
 
 /**
- * The four browser-facing surfaces. Each is a 20-40 second interstitial between an AI
- * client and a mailbox, so every one names where it is, what is being granted, and how
- * to get back to the conversation.
+ * The four browser-facing surfaces, written for someone who has never heard of OAuth.
+ * Each answers the three questions a nervous person actually has: is this safe, what
+ * exactly can it do, and can I undo it.
  */
 
 const HIDDEN_FIELDS = [
@@ -21,120 +21,101 @@ export function AuthorizePage(props: {
   clientName: string;
   scopes: string[];
   mutationsEnabled: boolean;
-  rows: string[];
-  digest: string;
   params: Record<string, string>;
 }) {
   return (
-    <main class="sheet">
-      <OriginStrip host={props.host} label="Mailwarden authorization" />
+    <>
+      <Band host={props.host} />
+      <main class="sheet">
+        <h1>Give {props.clientName} a key to your email?</h1>
+        <p class="lede">
+          Mailwarden holds your email accounts for you. Signing in here hands{" "}
+          {props.clientName} a key to <em>some</em> of what Mailwarden can do — never your
+          email password, and never anything that sends mail without your say-so.
+        </p>
 
-      <h1>Grant {props.clientName} access to your vault</h1>
-      <p class="lede">
-        Your vault is yours alone. Connected accounts, credentials, drafts, relationship
-        memory, and rules stay isolated from every other Mailwarden user — and{" "}
-        {props.clientName} never receives your Gmail, Outlook, or Proton passwords.
-      </p>
+        <KeyCard holder={props.clientName} until="Works until you hand it back." />
 
-      <FingerprintBlock
-        caption="This request"
-        rows={props.rows}
-        digest={props.digest}
-        facts={[
-          { term: "Client", value: props.clientName },
-          { term: "Returns to", value: props.params.redirect_uri ?? "—" },
-        ]}
-      />
+        <OpenDoors scopes={props.scopes} mutationsEnabled={props.mutationsEnabled} />
+        <ShutDoors />
 
-      <div style="margin-top:2rem">
-        <ScopeManifest scopes={props.scopes} mutationsEnabled={props.mutationsEnabled} />
-      </div>
+        <form method="post" action="/oauth/authorize">
+          {HIDDEN_FIELDS.map((name) => (
+            <input type="hidden" name={name} value={props.params[name] ?? ""} />
+          ))}
+          <div class="signin">
+            <Field
+              name="email"
+              label="Your email address"
+              hint="The one you use for Mailwarden."
+              type="email"
+              autocomplete="username"
+              placeholder="you@example.com"
+            />
+            <Field
+              name="login_secret"
+              label="Your Mailwarden password"
+              hint="Sometimes called your login secret — the one you were given when your account was set up."
+              type="password"
+              autocomplete="current-password"
+            />
+            <button type="submit">Give {props.clientName} the key</button>
+          </div>
+        </form>
 
-      <form method="post" action="/oauth/authorize">
-        {HIDDEN_FIELDS.map((name) => (
-          <input type="hidden" name={name} value={props.params[name] ?? ""} />
-        ))}
-        <div class="entry">
-          <Field
-            name="email"
-            label="Vault email"
-            type="email"
-            autocomplete="username"
-            placeholder="you@example.com"
-          />
-          <Field
-            name="login_secret"
-            label="Vault login secret"
-            type="password"
-            autocomplete="current-password"
-          />
-          <button type="submit">Authorize {props.clientName}</button>
-        </div>
-      </form>
-
-      <p class="note">
-        Check the fingerprint above against the one you saw last time. It is drawn from
-        this exact request, so a page that looks like this one but was not served by{" "}
-        {props.host} will draw a different picture.
-      </p>
-    </main>
+        <p class="handback">
+          You can take this key back at any time, and {props.clientName} loses access
+          immediately. Before you type anything, check your browser’s address bar says{" "}
+          <strong>{props.host}</strong> — if it says anything else, close the tab.
+        </p>
+      </main>
+    </>
   );
 }
 
-export function DeniedPage(props: { host: string; reason: string }) {
+export function DeniedPage(props: { host: string }) {
   return (
-    <main class="sheet">
-      <OriginStrip host={props.host} label="Mailwarden authorization" />
-      <h1>Authorization denied</h1>
-      <div class="outcome" data-state="denied">
-        <p>{props.reason}</p>
-        <p>
-          Nothing was granted and no vault was opened. Go back and try again with the
-          email and login secret issued for your vault.
+    <>
+      <Band host={props.host} />
+      <main class="sheet">
+        <h1>That didn’t match</h1>
+        <div class="outcome">
+          <p>
+            The email address and password you entered don’t match a Mailwarden account.
+            No key was handed over and nothing was opened.
+          </p>
+          <p>Go back and try again.</p>
+        </div>
+        <p class="handback">
+          If you’ve lost your password, it can be replaced with a new one — it can’t be
+          looked up, because Mailwarden doesn’t keep a copy of it.
         </p>
-      </div>
-      <p class="note">
-        If you have lost your login secret, it can be rotated — a lost secret is replaced,
-        never recovered.
-      </p>
-    </main>
+      </main>
+    </>
   );
 }
 
 export function CallbackPage(props: {
   host: string;
-  provider: string;
   granted: boolean;
   headline: string;
   detail: string;
   facts: { term: string; value: string }[];
 }) {
   return (
-    <main class="sheet">
-      <OriginStrip host={props.host} label={`${props.provider} connection`} />
-      <h1>{props.headline}</h1>
-      <div class="outcome" data-state={props.granted ? "granted" : "denied"}>
-        <p>{props.detail}</p>
-      </div>
-
-      {props.facts.length > 0 && (
-        <table class="manifest" style="margin-top:2rem">
-          <caption>Connection record</caption>
-          <tbody>
-            {props.facts.map((fact) => (
-              <tr>
-                <th scope="row">{fact.term}</th>
-                <td>{fact.value}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      <p class="note">
-        You can close this tab and return to your conversation. Mailwarden keeps syncing
-        in the background.
-      </p>
-    </main>
+    <>
+      <Band host={props.host} />
+      <main class="sheet">
+        <h1>{props.headline}</h1>
+        <div class="outcome">
+          <p>{props.detail}</p>
+        </div>
+        {props.facts.length > 0 && <Record facts={props.facts} />}
+        <p class="handback">
+          You can close this tab and go back to your conversation. Mailwarden keeps things
+          up to date in the background.
+        </p>
+      </main>
+    </>
   );
 }

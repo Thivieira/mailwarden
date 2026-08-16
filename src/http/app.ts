@@ -6,6 +6,7 @@ import { oauthRoutes } from "./routes/oauth";
 import { mcpRoutes } from "./routes/mcp-sse";
 import { managementRoutes } from "./routes/management";
 import { providerConnectRoutes } from "./routes/provider-connect";
+import { fontRoutes } from "./routes/fonts";
 import { logger } from "../utils/logger";
 import { MailwardenError } from "../utils/errors";
 
@@ -25,6 +26,7 @@ export function createElysiaApp() {
       set.status = 500;
       return { error: "InternalServerError", message: "An internal server error occurred" };
     })
+    .use(fontRoutes)
     .use(healthRoutes)
     .use(authRoutes)
     .use(oauthRoutes)

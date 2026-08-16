@@ -1,335 +1,288 @@
 /**
- * The Fingerprint Block — Mailwarden's visual world.
+ * The Hotel Key Card — Mailwarden's visual world.
  *
- * Shipped as an inlined <style> block rather than a linked stylesheet: these pages are
- * 20-40 second interstitials on a locked-down CSP, and one request that carries its own
- * styles beats two requests every time.
+ * The page is the printed sleeve a front desk hands you: it says which doors the key
+ * opens, which it does not, where the desk is, and that you can hand it back any time.
  *
- * Dark is chosen from the use scene, not the category: this is a technical operator
- * mid-flow in an AI client, verifying a key fingerprint. Fingerprint verification lives
- * in a terminal, and the world follows it there.
+ * Light is chosen from the use scene, not the category. PRODUCT.md's reader is a
+ * non-technical person who clicked "connect" in a chat app and is quietly asking whether
+ * they are giving a robot their inbox. That person is at a desk in daylight wanting
+ * reassurance, and a printed paper document reads calmer than a terminal.
+ *
+ * Shipped as an inlined <style> block; only the display face is a second request, served
+ * same-origin from /f/ and cached forever.
  */
 
 export const CSS = `
+@font-face {
+  font-family: "Archivo";
+  src: url("/f/a400.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Archivo";
+  src: url("/f/a600.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+
 :root {
-  /* Ground and structure */
-  --ground: #0E1110;
-  --raised: #151917;
-  --rule: #2A302D;
-  --rule-strong: #3D453F;
+  /* Printed stock and ink */
+  --stock: #EFEDE8;
+  --stock-deep: #E3E0D8;
+  --card: #FFFFFF;
+  --ink: #14384F;
+  --ink-soft: #5A6E7E;
+  --rule: #C9C6BD;
 
-  /* Ink */
-  --ink: #E4E8E3;
-  --ink-muted: #8A938C;
+  /* The one warm metal: foil on the card, and nothing else. */
+  --brass: #9A7628;
 
-  /* State. These never appear on chrome - only on marks that carry meaning. */
-  --granted: #5BE0A8;
-  --denied: #FF6B4A;
-  --held: #E8C46A;
+  /* Doors */
+  --opens: #2E6B4F;
+  --shut: #A3402F;
 
-  --measure: 68ch;
-  --gap: 1.5rem;
+  --measure: 62ch;
 
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --display: "Archivo", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  color-scheme: dark;
-  accent-color: var(--granted);
+  color-scheme: light;
+  accent-color: var(--ink);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 
 html {
-  background: var(--ground);
-  /* Themed browser surfaces: these ship as defaults belonging to no design system. */
-  scrollbar-color: var(--rule-strong) var(--ground);
+  background: var(--stock);
+  scrollbar-color: var(--rule) var(--stock);
   scrollbar-width: thin;
 }
 
 body {
   margin: 0;
-  padding: clamp(1.25rem, 4vw, 3rem) clamp(1.25rem, 5vw, 4rem);
-  background: var(--ground);
+  background: var(--stock);
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 16px;
-  line-height: 1.55;
-  font-variant-numeric: tabular-nums;
+  font-size: 17px;
+  line-height: 1.6;
   -webkit-text-size-adjust: 100%;
 }
 
-::selection { background: var(--granted); color: var(--ground); }
+::selection { background: var(--ink); color: var(--stock); }
 
-:focus-visible {
-  outline: 2px solid var(--granted);
-  outline-offset: 2px;
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+/* ---- The sleeve --------------------------------------------------------- */
+
+/* The printed band across the top of the sleeve. A committed field at page scale, not a
+   header bar: it owns its region and the name reverses out of it. */
+.band {
+  background: var(--ink);
+  color: var(--stock);
+  padding: clamp(1rem, 3vw, 1.5rem) clamp(1.25rem, 5vw, 3rem);
 }
 
-/* ---- Structure -------------------------------------------------------- */
-
-.sheet {
-  max-width: 62rem;
+.band-inner {
+  max-width: 54rem;
   margin: 0 auto;
-}
-
-/* The origin strip. The first thing on the page is where the page actually is. */
-.origin {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1.25rem;
+  gap: 0.5rem 2rem;
   align-items: baseline;
   justify-content: space-between;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--rule);
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
 }
 
-.origin b {
-  color: var(--ink);
-  font-weight: 500;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-/* The heading serves the artifact rather than competing with it: the fingerprint is the
-   page's largest object, so the title sits back at working scale. */
-h1 {
-  margin: 2rem 0 0.4rem;
-  font-size: clamp(1.35rem, 2.4vw, 1.75rem);
-  line-height: 1.15;
-  letter-spacing: -0.015em;
+.wordmark {
+  font-family: var(--display);
   font-weight: 600;
+  font-size: clamp(1.05rem, 2.4vw, 1.3rem);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+/* Where the desk is. This is the anti-forgery line, so it is printed, not whispered. */
+.desk { margin: 0; font-size: 0.9rem; opacity: 0.92; }
+.desk b { font-weight: 600; }
+
+.sheet {
+  max-width: 54rem;
+  margin: 0 auto;
+  padding: clamp(2rem, 5vw, 3.5rem) clamp(1.25rem, 5vw, 3rem) clamp(3rem, 6vw, 5rem);
+}
+
+h1 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: clamp(1.7rem, 4.4vw, 2.6rem);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin: 0 0 0.75rem;
   text-wrap: balance;
 }
 
-.lede {
-  margin: 0 0 2rem;
-  max-width: 58ch;
-  font-size: 0.925rem;
-  color: var(--ink-muted);
-}
+.lede { margin: 0 0 2.5rem; max-width: var(--measure); color: var(--ink-soft); }
 
-/* ---- The fingerprint block -------------------------------------------- */
+/* ---- The key card ------------------------------------------------------- */
 
-.block {
+/* A card in the hand: landscape proportion, a punched slot at one end, and the magnetic
+   stripe along the bottom. Those three details are what separate a key card from a box. */
+.keycard {
+  position: relative;
+  background: var(--card);
   border: 1px solid var(--rule);
-  background: var(--raised);
+  border-radius: 10px;
+  padding: clamp(1.4rem, 3vw, 1.9rem);
+  padding-bottom: clamp(2.6rem, 5vw, 3.2rem);
+  box-shadow: 0 1px 2px rgba(20, 56, 79, 0.07), 0 14px 28px -18px rgba(20, 56, 79, 0.4);
+  width: min(100%, 26rem);
+  overflow: hidden;
 }
 
-.block > figcaption,
-.block-head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 1rem;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 0.6rem 1rem;
-  border-bottom: 1px solid var(--rule);
-  font-family: var(--mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
+/* The punched slot, top right, the way it sits on a real card. */
+.keycard::before {
+  content: "";
+  position: absolute;
+  top: clamp(1.4rem, 3vw, 1.9rem);
+  right: clamp(1.4rem, 3vw, 1.9rem);
+  width: 2.6rem;
+  height: 8px;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  background: var(--stock);
 }
 
-.art {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: clamp(1.5rem, 4vw, 3.5rem);
-  align-items: center;
-  /* Open space around the peak: this block is the one place the page breathes. */
-  padding: clamp(1.5rem, 4vw, 3rem) clamp(1.25rem, 3vw, 2.5rem);
+/* The stripe. The only place brass appears on the whole page. */
+.keycard::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(0.9rem, 2vw, 1.15rem);
+  height: 0.7rem;
+  background: var(--brass);
+  opacity: 0.9;
 }
 
-/* The walk, at the scale the thesis promised. Tight leading and open tracking pull the
-   cells toward square so the field reads as a woven topography, not a paragraph. */
-.art pre {
-  margin: 0;
-  font-family: var(--mono);
-  font-size: clamp(0.95rem, 2.9vw, 2.05rem);
-  line-height: 1.02;
-  letter-spacing: 0.1em;
-  color: var(--ink);
-  white-space: pre;
-  /* The clamp keeps the field inside the sheet; scrolling only kicks in when stacked. */
-  overflow: visible;
-}
+.keycard .for { font-size: 0.76rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--ink-soft); margin: 0; }
+.keycard .holder { font-family: var(--display); font-weight: 600; font-size: clamp(1.45rem, 3.2vw, 1.9rem); line-height: 1.1; margin: 0.2rem 0 0; }
+.keycard .until { margin: 0.55rem 0 0; font-size: 0.88rem; color: var(--ink-soft); }
 
-.art pre span[data-t="sparse"]   { color: #4E5651; }
-.art pre span[data-t="frame"]    { color: var(--rule-strong); }
-.art pre span[data-t="landmark"] { color: var(--granted); }
+/* ---- Doors -------------------------------------------------------------- */
 
-.art dl { margin: 0; display: grid; gap: 1.1rem; }
+.doors { margin: 2.75rem 0 0; }
 
-/* The digest is the other checkable artifact; it gets display treatment too. */
-.digest {
-  font-size: clamp(0.9rem, 1.5vw, 1.15rem) !important;
+.doors h2 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 1.05rem;
   letter-spacing: 0.02em;
-  color: var(--ink);
+  margin: 0 0 0.85rem;
 }
-.art dt {
-  font-family: var(--mono);
-  font-size: 0.68rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
+
+.doors ul { list-style: none; margin: 0; padding: 0; }
+
+.doors li {
+  padding: 0.85rem 0;
+  border-top: 1px solid var(--rule);
+  display: grid;
+  grid-template-columns: 1.5rem 1fr;
+  gap: 0 0.85rem;
 }
-.art dd {
-  margin: 0.15rem 0 0;
-  font-family: var(--mono);
+.doors li:last-child { border-bottom: 1px solid var(--rule); }
+
+/* The mark reads without colour: a drawn key or a struck-through key, never hue alone. */
+.doors .m { font-weight: 600; line-height: 1.5; }
+.doors .m[data-d="opens"] { color: var(--opens); }
+.doors .m[data-d="shut"] { color: var(--shut); }
+.doors .m[data-d="off"] { color: var(--ink-soft); }
+
+.doors .what { margin: 0; }
+.doors .note { grid-column: 2; margin: 0.2rem 0 0; font-size: 0.9rem; color: var(--ink-soft); }
+
+.doors .off-note {
+  grid-column: 2;
+  margin: 0.35rem 0 0;
   font-size: 0.85rem;
-  /* Break long URLs only where they must, not mid-word by default. */
-  overflow-wrap: anywhere;
+  font-weight: 600;
+  color: var(--ink-soft);
 }
 
-/* ---- The scope manifest ------------------------------------------------ */
+.doors--shut { margin-top: 2.5rem; }
+.doors--shut li { border-color: var(--rule); }
 
-.manifest { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+/* ---- Sign in ------------------------------------------------------------ */
 
-.manifest caption {
-  padding: 0.6rem 1rem;
-  border: 1px solid var(--rule);
-  border-bottom: 0;
-  background: var(--raised);
-  font-family: var(--mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-  text-align: left;
+/* The rule spans the sheet; only the fields inside it are held to a comfortable width. */
+.signin {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 2px solid var(--ink);
 }
 
-.manifest th, .manifest td {
-  padding: 0.55rem 1rem;
-  border: 1px solid var(--rule);
-  text-align: left;
-  vertical-align: baseline;
-}
+.signin > * { max-width: 27rem; }
 
-.manifest th {
-  width: 1%;
-  white-space: nowrap;
-  font-family: var(--mono);
-  font-weight: 500;
-  font-size: 0.85rem;
-}
+.field { display: grid; gap: 0.35rem; margin-bottom: 1.25rem; }
 
-.manifest td { color: var(--ink-muted); }
-
-/* State is a struck mark, never a hue alone: the mark reads without color. */
-.mark {
-  font-family: var(--mono);
-  font-size: 0.85rem;
-  white-space: nowrap;
-}
-.mark[data-state="granted"]  { color: var(--granted); }
-.mark[data-state="approval"] { color: var(--held); }
-.mark[data-state="denied"]   { color: var(--denied); }
-/* Dry run means nothing actually happens, so it stays quiet rather than alarming. */
-.mark[data-state="dryrun"]   { color: var(--ink-muted); }
-
-/* ---- Credential entry --------------------------------------------------- */
-
-.entry { margin-top: 2rem; display: grid; gap: 1.25rem; max-width: 34rem; }
-
-.field { display: grid; gap: 0.4rem; }
-
-.field label {
-  font-family: var(--mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-}
+.field label { font-weight: 600; font-size: 0.92rem; }
+.field .hint { font-size: 0.85rem; color: var(--ink-soft); }
 
 .field input {
   width: 100%;
-  padding: 0.7rem 0.85rem;
-  border: 1px solid var(--rule-strong);
-  border-radius: 2px;
-  background: var(--raised);
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 4px;
+  background: var(--card);
   color: var(--ink);
-  font-family: var(--mono);
-  font-size: 0.95rem;
-  caret-color: var(--granted);
+  font-family: var(--sans);
+  font-size: 1rem;
 }
 
-.field input::placeholder { color: #6E7671; }
-.field input:hover { border-color: #4C554F; }
-.field input:focus-visible { border-color: var(--granted); outline-offset: 1px; }
+.field input::placeholder { color: #8D9AA5; }
+.field input:hover { border-color: var(--ink); }
+.field input:focus-visible { border-color: var(--ink); outline-offset: 1px; }
 
 button[type="submit"] {
-  justify-self: start;
-  padding: 0.7rem 1.4rem;
-  border: 1px solid var(--granted);
-  border-radius: 2px;
-  background: var(--granted);
-  color: var(--ground);
-  font-family: var(--mono);
-  font-size: 0.8rem;
+  padding: 0.85rem 1.6rem;
+  border: 1px solid var(--ink);
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--stock);
+  font-family: var(--display);
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 1rem;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  transition: background 160ms cubic-bezier(0.16, 1, 0.3, 1), color 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background 180ms cubic-bezier(0.16, 1, 0.3, 1), color 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-button[type="submit"]:hover { background: transparent; color: var(--granted); }
-button[type="submit"]:disabled { opacity: 0.45; cursor: not-allowed; background: transparent; color: var(--ink-muted); border-color: var(--rule-strong); }
+button[type="submit"]:hover { background: transparent; color: var(--ink); }
+button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ---- Outcome ------------------------------------------------------------ */
+.handback { margin: 1.5rem 0 0; max-width: var(--measure); font-size: 0.92rem; color: var(--ink-soft); }
 
-.outcome { margin: 2.5rem 0 0; padding-left: 1rem; border-left: 1px solid var(--rule-strong); }
-.outcome[data-state="granted"] { border-left-color: var(--granted); }
-.outcome[data-state="denied"]  { border-left-color: var(--denied); }
-.outcome p { margin: 0 0 0.6rem; max-width: var(--measure); }
+/* ---- Outcomes ----------------------------------------------------------- */
+
+.outcome {
+  margin: 0 0 2rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 6px;
+  background: var(--stock-deep);
+  max-width: var(--measure);
+}
+.outcome p { margin: 0 0 0.6rem; }
 .outcome p:last-child { margin-bottom: 0; }
 
-.note {
-  margin-top: 2.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--rule);
-  max-width: var(--measure);
-  font-size: 0.85rem;
-  color: var(--ink-muted);
-}
-
-/* Below this the three-column manifest squeezes to one word per line, so each row
-   becomes its own stacked record instead. */
-@media (max-width: 46rem) {
-  /* caption must join these: left as table-caption inside a block it shrink-wraps. */
-  .manifest, .manifest caption, .manifest tbody, .manifest tr, .manifest th, .manifest td { display: block; }
-
-  .manifest tr {
-    border: 1px solid var(--rule);
-    border-top: 0;
-    padding: 0.75rem 1rem;
-  }
-
-  .manifest th, .manifest td {
-    width: auto;
-    padding: 0;
-    border: 0;
-    white-space: normal;
-  }
-
-  .manifest td { margin-top: 0.3rem; }
-
-  .manifest .mark {
-    margin-top: 0.5rem;
-    font-size: 0.7rem;
-    letter-spacing: 0.08em;
-  }
-}
+.record { margin: 2rem 0 0; border-top: 1px solid var(--rule); }
+.record div { display: grid; grid-template-columns: 10rem 1fr; gap: 0.5rem 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--rule); }
+.record dt { font-weight: 600; font-size: 0.92rem; margin: 0; }
+.record dd { margin: 0; color: var(--ink-soft); overflow-wrap: anywhere; }
 
 @media (max-width: 34rem) {
-  .art { grid-template-columns: 1fr; }
-  /* At this size the 19-column field fits any phone, so no scroll container is needed. */
-  .art pre { font-size: 0.82rem; letter-spacing: 0.06em; }
+  .record div { grid-template-columns: 1fr; gap: 0.15rem; }
+  .keycard { padding-left: 2.75rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

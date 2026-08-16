@@ -7,7 +7,6 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { renderToString } from "solid-js/web";
 import { document_ } from "./document";
-import { fingerprint, groupHex } from "./randomart";
 import { ALL_SCOPES } from "../types/auth";
 import { AuthorizePage, CallbackPage, DeniedPage } from "./pages.gen.js";
 
@@ -30,33 +29,23 @@ async function write(name: string, title: string, view: () => unknown) {
 
 await mkdir(OUT, { recursive: true });
 
-const { rows, hex } = await fingerprint(
-  [params.client_id, params.redirect_uri, params.code_challenge, params.scope].join("\n")
-);
-
 await write("page-authorize", "Authorize Mailwarden", () =>
   AuthorizePage({
     host: HOST,
     clientName: "Claude",
     scopes: ALL_SCOPES,
     mutationsEnabled: false,
-    rows,
-    digest: groupHex(hex, 8),
     params,
   })
 );
 
 await write("page-denied", "Authorization denied", () =>
-  DeniedPage({
-    host: HOST,
-    reason: "That email and login secret do not match a Mailwarden vault.",
-  })
+  DeniedPage({ host: HOST })
 );
 
 await write("page-callback", "Gmail connected", () =>
   CallbackPage({
     host: HOST,
-    provider: "Gmail",
     granted: true,
     headline: "Gmail connected",
     detail:
@@ -71,7 +60,6 @@ await write("page-callback", "Gmail connected", () =>
 await write("page-callback-failed", "Gmail connection failed", () =>
   CallbackPage({
     host: HOST,
-    provider: "Gmail",
     granted: false,
     headline: "Gmail connection failed",
     detail: "Missing Google OAuth code/state",

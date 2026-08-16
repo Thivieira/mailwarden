@@ -15,10 +15,11 @@ const BROWSER_HTML_HEADERS: Record<string, string> = {
   "Pragma": "no-cache",
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "no-referrer",
-  // Styles are inlined and the favicon is a data URI; nothing is fetched, and no script
-  // is permitted at all - this page takes credentials.
+  // Styles are inlined, the favicon is a data URI, and the display face is served from
+  // this origin. No third party is reachable and no script is permitted at all - these
+  // pages take credentials.
   "Content-Security-Policy":
-    "default-src 'none'; style-src 'unsafe-inline'; img-src data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+    "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
 };
 
 export function renderPage<T>(title: string, view: () => T, status = 200): Response {

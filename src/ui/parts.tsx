@@ -1,105 +1,128 @@
-import { scopeReading, scopeState, STATE_WORD } from "./scopes";
-import { frameCells } from "./randomart";
+import { doorsFor, SHUT_DOORS, uncoveredScopes } from "./doors";
 
 /**
- * Shared pieces of The Fingerprint Block. These are ordinary Solid components: they are
- * compiled to SSR templates for the Worker today, and import unchanged into SolidStart
- * when the settings app lands.
+ * Pieces of The Hotel Key Card. Ordinary Solid components: compiled to SSR templates for
+ * the Worker today, imported unchanged into SolidStart when the settings app lands.
  */
 
-/** Where the page actually is. First thing rendered, because it is what gets forged. */
-export function OriginStrip(props: { host: string; label: string }) {
+/** The printed band. The desk address is the anti-forgery line, so it is printed loud. */
+export function Band(props: { host: string }) {
   return (
-    <p class="origin">
-      <span>{props.label}</span>
-      <span>
-        served by <b>{props.host}</b>
-      </span>
-    </p>
-  );
-}
-
-/**
- * The page's largest object: a visual hash of the exact request, beside its digest.
- * Two different requests draw visibly different pictures, so a returning user recognizes
- * their own and a forged page cannot reproduce one without the same inputs.
- */
-export function FingerprintBlock(props: {
-  caption: string;
-  rows: string[];
-  digest: string;
-  facts: { term: string; value: string }[];
-}) {
-  return (
-    <figure class="block" style="margin:0">
-      <figcaption>
-        <span>{props.caption}</span>
-        <span>SHA-256</span>
-      </figcaption>
-      <div class="art">
-        <pre aria-label={`Visual fingerprint of this request, digest ${props.digest}`}>
-          {frameCells(props.rows).map((row) => [
-            ...row.map((cell) =>
-              cell.tone === "dense" ? cell.ch : <span data-t={cell.tone}>{cell.ch}</span>
-            ),
-            "\n",
-          ])}
-        </pre>
-        <dl>
-          <div>
-            <dt>Request digest</dt>
-            <dd class="digest">{props.digest}</dd>
-          </div>
-          {props.facts.map((fact) => (
-            <div>
-              <dt>{fact.term}</dt>
-              <dd>{fact.value}</dd>
-            </div>
-          ))}
-        </dl>
+    <header class="band">
+      <div class="band-inner">
+        <p class="wordmark">Mailwarden</p>
+        <p class="desk">
+          This page is at <b>{props.host}</b>
+        </p>
       </div>
-    </figure>
+    </header>
   );
 }
 
 /**
- * Every requested power, in plain language. State is carried by the word first and the
- * hue second, so the manifest reads correctly without color.
+ * One drawn mark, two states. An authored key rather than a glyph, so the stroke matches
+ * across every door and the meaning survives without colour.
  */
-export function ScopeManifest(props: { scopes: string[]; mutationsEnabled: boolean }) {
+function KeyMark(props: { struck?: boolean }) {
   return (
-    <table class="manifest">
-      <caption>Powers this grant confers</caption>
-      <tbody>
-        {props.scopes.map((scope) => {
-          const state = scopeState(scope, props.mutationsEnabled);
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.6"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="6.2" cy="10" r="3.2" />
+      <path d="M9.4 10 H17" />
+      <path d="M14 10 V13" />
+      <path d="M16.6 10 V12.2" />
+      {props.struck && <path d="M3.4 16.6 L16.6 3.4" />}
+    </svg>
+  );
+}
+
+export function OpenDoors(props: { scopes: string[]; mutationsEnabled: boolean }) {
+  const doors = doorsFor(props.scopes);
+  const leftover = uncoveredScopes(props.scopes);
+
+  return (
+    <section class="doors">
+      <h2>What this key opens</h2>
+      <ul>
+        {doors.map((door) => {
+          const off = door.simulatedWhenDryRun && !props.mutationsEnabled;
           return (
-            <tr>
-              <th scope="row" data-label="Scope">
-                {scope}
-              </th>
-              <td data-label="Permits">{scopeReading(scope)}</td>
-              <td class="mark" data-state={state} data-label="State">
-                {STATE_WORD[state]}
-              </td>
-            </tr>
+            <li>
+              <span class="m" data-d={off ? "off" : "opens"}>
+                <KeyMark />
+              </span>
+              <p class="what">{door.opens}</p>
+              {off && (
+                <p class="off-note">Switched off right now — Mailwarden will only pretend.</p>
+              )}
+              {door.note && <p class="note">{door.note}</p>}
+            </li>
           );
         })}
-      </tbody>
-    </table>
+        {/* Never hide a granted power because the plain-language list has not caught up. */}
+        {leftover.map((scope) => (
+          <li>
+            <span class="m" data-d="opens">
+              <KeyMark />
+            </span>
+            <p class="what">{scope}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+export function ShutDoors() {
+  return (
+    <section class="doors doors--shut">
+      <h2>What it never opens</h2>
+      <ul>
+        {SHUT_DOORS.map((line) => (
+          <li>
+            <span class="m" data-d="shut">
+              <KeyMark struck />
+            </span>
+            <p class="what">{line}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** The key itself: who holds it, and for how long. */
+export function KeyCard(props: { holder: string; until: string }) {
+  return (
+    <div class="keycard">
+      <p class="for">This key is for</p>
+      <p class="holder">{props.holder}</p>
+      <p class="until">{props.until}</p>
+    </div>
   );
 }
 
 export function Field(props: {
   name: string;
   label: string;
+  hint?: string;
   type: string;
   autocomplete: string;
   placeholder?: string;
 }) {
   return (
-    <p class="field" style="margin:0">
+    <p class="field">
       <label for={props.name}>{props.label}</label>
+      {props.hint && <span class="hint">{props.hint}</span>}
       <input
         id={props.name}
         name={props.name}
@@ -111,5 +134,18 @@ export function Field(props: {
         autocapitalize="none"
       />
     </p>
+  );
+}
+
+export function Record(props: { facts: { term: string; value: string }[] }) {
+  return (
+    <dl class="record">
+      {props.facts.map((fact) => (
+        <div>
+          <dt>{fact.term}</dt>
+          <dd>{fact.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }

@@ -4,7 +4,6 @@ import { userAuthService } from "../../services/user-auth";
 import { ALL_SCOPES, type PermissionScope } from "../../types/auth";
 import { config } from "../../config";
 import { renderPage } from "../../ui/render";
-import { fingerprint, groupHex } from "../../ui/randomart";
 import { AuthorizePage, DeniedPage } from "../../ui/pages.gen.js";
 
 function hostOf(url: string) {
@@ -13,19 +12,6 @@ function hostOf(url: string) {
   } catch {
     return url;
   }
-}
-
-/**
- * Visual + hex fingerprint of the exact authorization request. Bound to the client, the
- * return address, and the PKCE challenge, so a request that differs in any of them draws
- * a different picture.
- */
-async function requestFingerprint(params: Record<string, string>) {
-  const attested = [params.client_id, params.redirect_uri, params.code_challenge, params.scope]
-    .map((v) => v ?? "")
-    .join("\n");
-  const { rows, hex } = await fingerprint(attested);
-  return { rows, digest: groupHex(hex, 8) };
 }
 
 export const oauthRoutes = new Elysia({ aot: false })
@@ -102,17 +88,12 @@ export const oauthRoutes = new Elysia({ aot: false })
       params[name] = String(q[name] ?? "");
     }
 
-    // Drawn from the exact request, so the picture changes if any of it is forged.
-    const { rows, digest } = await requestFingerprint(params);
-
     return renderPage("Authorize Mailwarden", () =>
       AuthorizePage({
         host: hostOf(config.APP_BASE_URL),
         clientName: (client as any)?.clientName || "this client",
         scopes: q.scope ? String(q.scope).split(" ").filter(Boolean) : ALL_SCOPES,
         mutationsEnabled: config.MAILBOX_MUTATIONS_ENABLED,
-        rows,
-        digest,
         params,
       })
     );
@@ -135,10 +116,7 @@ export const oauthRoutes = new Elysia({ aot: false })
       return renderPage(
         "Authorization denied",
         () =>
-          DeniedPage({
-            host: hostOf(config.APP_BASE_URL),
-            reason: "That email and login secret do not match a Mailwarden vault.",
-          }),
+          DeniedPage({ host: hostOf(config.APP_BASE_URL) }),
         401
       );
     }

@@ -38,7 +38,6 @@ function callbackPage(
     () =>
       CallbackPage({
         host: hostOf(config.APP_BASE_URL),
-        provider,
         granted,
         headline,
         detail,

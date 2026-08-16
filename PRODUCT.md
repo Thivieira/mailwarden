@@ -20,13 +20,24 @@ so that choice stays open.
 
 ## Users
 
-Three named people in a private beta — the deployment owner (Thiago) and two invited
-buddies. Each has a completely separate private vault. There is no public signup.
+**Design baseline (set 2026-08-16): general consumers, non-technical by default.** Assume
+the typical user has never heard of OAuth, MCP, scopes, or tokens, and has no mental model
+for "authorizing a client." That is the baseline every surface is designed for, not an
+accommodation layered on afterward.
 
-Their situation: they run multiple email accounts across personal, work, and consulting
-contexts (Gmail, Outlook, Proton) and do not want to live inside an inbox. Their job is
-to find out what actually needs them, understand history with a person or thread, and
-prepare replies — by talking to an AI assistant rather than by triaging mail by hand.
+They run several email accounts across personal and work life (Gmail, Outlook, Proton) and
+do not want to live inside an inbox. Their job is to find out what actually needs them,
+understand history with a person, and prepare replies — by talking to an AI assistant
+rather than triaging mail by hand.
+
+At a boundary moment their question is never "is this cryptographically sound." It is:
+**is this safe, what exactly can it do, and can I undo it?** Design answers that, in words
+they already use.
+
+Operationally the beta is still three named people — the deployment owner and two invited
+buddies, each with a completely separate private vault, no public signup (see
+`docs/PRIVATE_BETA.md`). The buddies are not developers. What is built stays inside the
+beta's scope; who it is designed for is the general consumer above.
 
 Critically, **the product's primary interface is not this web UI.** Daily use happens
 inside Claude (and later ChatGPT) over MCP. The web pages exist only at boundary moments:
@@ -136,3 +147,12 @@ No formal standard was established with the user. Product-derived requirements: 
 authorize page must work without JavaScript, must be operable by keyboard alone, and must
 support password managers (correct autocomplete semantics on the credential fields).
 Copy must be translatable — PT-BR is a confirmed first-class language.
+
+Plain language is an accessibility requirement here, not a style preference. A permission
+a user cannot read is a permission they cannot meaningfully grant, and the non-technical
+baseline above makes jargon a functional defect: *vault*, *scope*, *token*, *digest*, and
+*client* are all words to replace rather than explain.
+
+The anti-forgery job gets harder with this audience, not easier — non-technical users are
+the ones cloned auth pages actually catch. Verification must be replaced with something a
+normal person can act on, never simply removed.
