@@ -9,13 +9,11 @@ import { auditService } from "./audit";
 
 export class SyncService {
   async syncAccount(principal: AuthPrincipal, accountId: string, limit = 50) {
-    const [account] = await db.select().from(schema.emailAccounts).where(
-      and(
-        eq(schema.emailAccounts.id, accountId),
-        eq(schema.emailAccounts.tenantId, principal.tenantId),
-        eq(schema.emailAccounts.userId, principal.userId)
-      )
-    ).limit(1);
+    const [account] = await db.select().from(schema.emailAccounts).where(and(
+      eq(schema.emailAccounts.id, accountId),
+      eq(schema.emailAccounts.tenantId, principal.tenantId),
+      eq(schema.emailAccounts.userId, principal.userId)
+    )).limit(1);
 
     if (!account) throw new AccountOwnershipError(`Account '${accountId}' not found or unauthorized`);
     if (account.status === "disconnected") throw new AccountOwnershipError(`Account '${accountId}' is disconnected`);
@@ -32,10 +30,7 @@ export class SyncService {
     try {
       do {
         const remaining = maxWanted - fetched;
-        const result = await provider.search(principal, accountId, {
-          limit: remaining,
-          pageToken,
-        });
+        const result = await provider.search(principal, accountId, { limit: remaining, pageToken });
         totalEstimated ??= result.totalEstimated;
         pageToken = result.nextPageToken;
 
@@ -102,7 +97,7 @@ export class SyncService {
       await auditService.logEvent({
         tenantId: principal.tenantId,
         userId: principal.userId,
-        action: "PROVIDER_SYNC_FAILED",
+        action: "PROVIDER_SYNC",
         resourceType: "account",
         resourceId: accountId,
         status: "failure",
@@ -113,13 +108,11 @@ export class SyncService {
   }
 
   async syncAll(principal: AuthPrincipal, limitPerAccount = 50) {
-    const accounts = await db.select().from(schema.emailAccounts).where(
-      and(
-        eq(schema.emailAccounts.tenantId, principal.tenantId),
-        eq(schema.emailAccounts.userId, principal.userId),
-        eq(schema.emailAccounts.status, "connected")
-      )
-    );
+    const accounts = await db.select().from(schema.emailAccounts).where(and(
+      eq(schema.emailAccounts.tenantId, principal.tenantId),
+      eq(schema.emailAccounts.userId, principal.userId),
+      eq(schema.emailAccounts.status, "connected")
+    ));
 
     const results = [] as any[];
     for (const account of accounts) {
