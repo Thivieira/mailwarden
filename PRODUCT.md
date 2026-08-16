@@ -12,11 +12,17 @@ Existing codebase answers this: TypeScript on Bun, Elysia HTTP layer, deployed a
 single Cloudflare Worker (`src/worker.ts`) with D1 storage and a `*/15 * * * *` cron
 trigger. Browser-facing pages are server-rendered strings returned from Elysia routes.
 
-Open decision (raised 2026-08-16, deferred): whether a client framework (SolidStart was
-proposed) owns the future settings dashboard. Rejected for the current four pages because
-they carry no reactive state and the OAuth authorize page must keep `script-src 'none'`.
-Revisit when the dashboard is actually built. Design tokens are authored to be portable
-so that choice stays open.
+Settled 2026-08-16: the settings dashboard will be built on **SolidStart v2 + Kobalte +
+shadcn-solid** (`new-york` style). Kobalte is the Solid equivalent of Radix, which is
+React-only; `shadcn-solid` is the port built on it. Those are interactive client
+components and are **not** installed yet — the settings app does not exist, and adding
+Tailwind plus a component runtime before there is a page to put them on would be
+scaffolding for its own sake. Install when the first settings screen starts.
+
+The four boundary pages stay server-rendered with zero client JavaScript. They carry no
+reactive state, and the authorize page must keep `script-src 'none'` because it takes
+credentials. They borrow New York's craft-level refinements in CSS instead (see
+DESIGN.md), which needs no runtime.
 
 ## Users
 

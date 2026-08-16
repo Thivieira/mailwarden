@@ -30,19 +30,43 @@ export const CSS = `
 :root {
   /* Printed stock and ink */
   --stock: #EFEDE8;
-  --stock-deep: #E3E0D8;
+  --stock-deep: #E5E2DA;
   --card: #FFFFFF;
   --ink: #14384F;
   --ink-soft: #5A6E7E;
-  --rule: #C9C6BD;
 
-  /* The one warm metal: foil on the card, and nothing else. */
+  /* One border colour, used by every bordered thing on the page. */
+  --border: #D3CFC4;
+  --border-strong: #B7B2A5;
+
+  /* The one warm metal: the card's stripe, and nothing else. */
   --brass: #9A7628;
 
   /* Doors */
   --opens: #2E6B4F;
   --shut: #A3402F;
 
+  /* Radius, tightened. Everything derives from one value. */
+  --radius: 0.5rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+
+  /* Shadows: two steps, both restrained. */
+  --shadow-sm: 0 1px 2px 0 rgb(20 56 79 / 0.06);
+  --shadow-md: 0 4px 10px -3px rgb(20 56 79 / 0.12), 0 2px 4px -3px rgb(20 56 79 / 0.1);
+
+  /* Type scale */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+
+  /* One control height, so inputs and buttons line up. Sized for touch, not desktop. */
+  --control-h: 2.75rem;
+  --control-px: 0.875rem;
+
+  --ring: #2C6E9B;
   --measure: 62ch;
 
   --display: "Archivo", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -56,7 +80,7 @@ export const CSS = `
 
 html {
   background: var(--stock);
-  scrollbar-color: var(--rule) var(--stock);
+  scrollbar-color: var(--border-strong) var(--stock);
   scrollbar-width: thin;
 }
 
@@ -65,14 +89,18 @@ body {
   background: var(--stock);
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.6;
   -webkit-text-size-adjust: 100%;
 }
 
 ::selection { background: var(--ink); color: var(--stock); }
 
-:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
 
 /* ---- The sleeve --------------------------------------------------------- */
 
@@ -104,7 +132,7 @@ body {
 }
 
 /* Where the desk is. This is the anti-forgery line, so it is printed, not whispered. */
-.desk { margin: 0; font-size: 0.9rem; opacity: 0.92; }
+.desk { margin: 0; font-size: var(--text-sm); opacity: 0.92; }
 .desk b { font-weight: 600; }
 
 .sheet {
@@ -116,9 +144,9 @@ body {
 h1 {
   font-family: var(--display);
   font-weight: 600;
-  font-size: clamp(1.7rem, 4.4vw, 2.6rem);
-  line-height: 1.12;
-  letter-spacing: -0.015em;
+  font-size: clamp(1.65rem, 4vw, 2.35rem);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
   margin: 0 0 0.75rem;
   text-wrap: balance;
 }
@@ -132,11 +160,11 @@ h1 {
 .keycard {
   position: relative;
   background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: clamp(1.4rem, 3vw, 1.9rem);
   padding-bottom: clamp(2.6rem, 5vw, 3.2rem);
-  box-shadow: 0 1px 2px rgba(20, 56, 79, 0.07), 0 14px 28px -18px rgba(20, 56, 79, 0.4);
+  box-shadow: var(--shadow-md);
   width: min(100%, 26rem);
   overflow: hidden;
 }
@@ -149,8 +177,8 @@ h1 {
   right: clamp(1.4rem, 3vw, 1.9rem);
   width: 2.6rem;
   height: 8px;
-  border: 1px solid var(--rule);
-  border-radius: 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
   background: var(--stock);
 }
 
@@ -166,9 +194,9 @@ h1 {
   opacity: 0.9;
 }
 
-.keycard .for { font-size: 0.76rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--ink-soft); margin: 0; }
+.keycard .for { font-size: var(--text-xs); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); margin: 0; }
 .keycard .holder { font-family: var(--display); font-weight: 600; font-size: clamp(1.45rem, 3.2vw, 1.9rem); line-height: 1.1; margin: 0.2rem 0 0; }
-.keycard .until { margin: 0.55rem 0 0; font-size: 0.88rem; color: var(--ink-soft); }
+.keycard .until { margin: 0.55rem 0 0; font-size: var(--text-sm); color: var(--ink-soft); }
 
 /* ---- Doors -------------------------------------------------------------- */
 
@@ -177,8 +205,8 @@ h1 {
 .doors h2 {
   font-family: var(--display);
   font-weight: 600;
-  font-size: 1.05rem;
-  letter-spacing: 0.02em;
+  font-size: var(--text-base);
+  letter-spacing: -0.005em;
   margin: 0 0 0.85rem;
 }
 
@@ -186,82 +214,88 @@ h1 {
 
 .doors li {
   padding: 0.85rem 0;
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--border);
   display: grid;
   grid-template-columns: 1.5rem 1fr;
   gap: 0 0.85rem;
 }
-.doors li:last-child { border-bottom: 1px solid var(--rule); }
+.doors li:last-child { border-bottom: 1px solid var(--border); }
 
 /* The mark reads without colour: a drawn key or a struck-through key, never hue alone. */
-.doors .m { font-weight: 600; line-height: 1.5; }
+.doors .m { display: flex; align-items: center; height: 1.6em; }
 .doors .m[data-d="opens"] { color: var(--opens); }
 .doors .m[data-d="shut"] { color: var(--shut); }
 .doors .m[data-d="off"] { color: var(--ink-soft); }
 
 .doors .what { margin: 0; }
-.doors .note { grid-column: 2; margin: 0.2rem 0 0; font-size: 0.9rem; color: var(--ink-soft); }
+.doors .note { grid-column: 2; margin: 0.25rem 0 0; font-size: var(--text-sm); color: var(--ink-soft); }
 
 .doors .off-note {
   grid-column: 2;
   margin: 0.35rem 0 0;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--ink-soft);
 }
 
-.doors--shut { margin-top: 2.5rem; }
-.doors--shut li { border-color: var(--rule); }
+.doors--shut { margin-top: 2.75rem; }
 
 /* ---- Sign in ------------------------------------------------------------ */
 
 /* The rule spans the sheet; only the fields inside it are held to a comfortable width. */
 .signin {
   margin-top: 3rem;
-  padding-top: 2rem;
-  border-top: 2px solid var(--ink);
+  padding-top: 2.25rem;
+  border-top: 1px solid var(--border);
 }
 
 .signin > * { max-width: 27rem; }
 
 .field { display: grid; gap: 0.35rem; margin-bottom: 1.25rem; }
 
-.field label { font-weight: 600; font-size: 0.92rem; }
-.field .hint { font-size: 0.85rem; color: var(--ink-soft); }
+.field label { font-weight: 600; font-size: var(--text-sm); }
+.field .hint { font-size: var(--text-sm); color: var(--ink-soft); }
 
 .field input {
   width: 100%;
-  padding: 0.75rem 0.9rem;
-  border: 1px solid var(--ink-soft);
-  border-radius: 4px;
+  height: var(--control-h);
+  padding: 0 var(--control-px);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
   background: var(--card);
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 1rem;
+  font-size: var(--text-base);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 150ms ease;
 }
 
-.field input::placeholder { color: #8D9AA5; }
-.field input:hover { border-color: var(--ink); }
-.field input:focus-visible { border-color: var(--ink); outline-offset: 1px; }
+.field input::placeholder { color: #93A0AA; }
+.field input:hover { border-color: var(--ink-soft); }
 
 button[type="submit"] {
-  padding: 0.85rem 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-h);
+  padding: 0 1.35rem;
   border: 1px solid var(--ink);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   background: var(--ink);
   color: var(--stock);
   font-family: var(--display);
   font-weight: 600;
-  font-size: 1rem;
-  letter-spacing: 0.01em;
+  font-size: var(--text-sm);
+  letter-spacing: 0.005em;
   cursor: pointer;
-  transition: background 180ms cubic-bezier(0.16, 1, 0.3, 1), color 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--shadow-sm);
+  transition: background 150ms ease, color 150ms ease;
 }
 
-button[type="submit"]:hover { background: transparent; color: var(--ink); }
-button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
+button[type="submit"]:hover { background: #1B4763; }
+button[type="submit"]:active { background: #102E41; }
+button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; background: var(--ink-soft); border-color: var(--ink-soft); }
 
-.handback { margin: 1.5rem 0 0; max-width: var(--measure); font-size: 0.92rem; color: var(--ink-soft); }
+.handback { margin: 1.75rem 0 0; max-width: var(--measure); font-size: var(--text-sm); color: var(--ink-soft); }
 
 /* ---- The letter, on the send-approval page ------------------------------ */
 
@@ -270,8 +304,9 @@ button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
 .letter {
   margin: 2rem 0 0;
   background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 
@@ -280,10 +315,10 @@ button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
   grid-template-columns: 6rem 1fr;
   gap: 0.25rem 1rem;
   padding: 0.85rem clamp(1rem, 3vw, 1.5rem);
-  border-bottom: 1px solid var(--rule);
+  border-bottom: 1px solid var(--border);
 }
 
-.letter-label { margin: 0; font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); }
+.letter-label { margin: 0; font-size: var(--text-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); }
 .letter-value { margin: 0; overflow-wrap: anywhere; }
 
 .letter-body {
@@ -295,7 +330,7 @@ button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
   line-height: 1.65;
 }
 
-.confirm-note { margin: 0 0 1.25rem; color: var(--ink-soft); font-size: 0.92rem; }
+.confirm-note { margin: 0 0 1.25rem; color: var(--ink-soft); font-size: var(--text-sm); }
 
 code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -311,17 +346,19 @@ code {
 
 .outcome {
   margin: 0 0 2rem;
-  padding: 1.25rem 1.5rem;
-  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   background: var(--stock-deep);
   max-width: var(--measure);
+  font-size: var(--text-sm);
 }
 .outcome p { margin: 0 0 0.6rem; }
 .outcome p:last-child { margin-bottom: 0; }
 
-.record { margin: 2rem 0 0; border-top: 1px solid var(--rule); }
-.record div { display: grid; grid-template-columns: 10rem 1fr; gap: 0.5rem 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--rule); }
-.record dt { font-weight: 600; font-size: 0.92rem; margin: 0; }
+.record { margin: 2rem 0 0; border-top: 1px solid var(--border); }
+.record div { display: grid; grid-template-columns: 10rem 1fr; gap: 0.5rem 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
+.record dt { font-weight: 600; font-size: var(--text-sm); margin: 0; }
 .record dd { margin: 0; color: var(--ink-soft); overflow-wrap: anywhere; }
 
 @media (max-width: 34rem) {

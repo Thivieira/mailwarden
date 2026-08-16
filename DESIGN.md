@@ -46,17 +46,36 @@ daylight who wants reassurance, where a printed document reads calmer than a ter
 | Token | Value | Role |
 |---|---|---|
 | `--stock` | `#EFEDE8` | Printed paper ground |
-| `--stock-deep` | `#E3E0D8` | Outcome panels |
+| `--stock-deep` | `#E5E2DA` | Outcome panels |
 | `--card` | `#FFFFFF` | The key card, and inputs |
 | `--ink` | `#14384F` | Printed navy — text, band, primary action |
 | `--ink-soft` | `#5A6E7E` | Secondary prose and notes |
-| `--rule` | `#C9C6BD` | Hairlines |
 | `--brass` | `#9A7628` | The card's stripe, and nothing else on the page |
 | `--opens` | `#2E6B4F` | A door the key opens |
 | `--shut` | `#A3402F` | A door it never opens |
 
 The navy band is a committed field at page scale, not a header bar — it owns its region
 and the wordmark reverses out of it.
+
+## Scale tokens
+
+Craft borrowed from shadcn/ui's New York style (2026-08-16) — its refinements, not its
+look. Every radius, shadow, and control size derives from one token so nothing is set by
+hand:
+
+| Token | Value | Notes |
+|---|---|---|
+| `--radius` | `0.5rem` | `--radius-sm/md/lg` derive from it via `calc()` |
+| `--shadow-sm` | `0 1px 2px 0 rgb(20 56 79 / 0.06)` | Inputs, buttons, the letter |
+| `--shadow-md` | two-part, tight | The key card only |
+| `--control-h` | `2.75rem` | Inputs and buttons share it, so they line up |
+| `--border` / `--border-strong` | `#D3CFC4` / `#B7B2A5` | One border language for the page |
+| `--ring` | `#2C6E9B` | One focus treatment, 2px with 2px offset |
+| `--text-xs…lg` | `0.75`–`1.125rem` | Four steps; do not add a fifth by hand |
+
+New York's control height is 36px, built for desktop. Ours is 44px because this is a
+consumer product and touch targets are an accessibility floor, not a style choice. That
+is the one place the borrowed craft was deliberately overruled.
 
 ## Type
 
@@ -79,7 +98,7 @@ The face is the one extra request these pages make. It is same-origin, ~16 KB pe
 - **`.doors`** — ruled list, one door per row, an authored SVG key per line and the same
   key struck through for what is refused. Icons are drawn at one stroke weight (1.6,
   round caps), never glyphs or emoji.
-- **`.signin`** — the rule spans the sheet, the fields inside are held to `27rem`.
+- **`.signin`** — a hairline spans the sheet, the fields inside are held to `27rem`.
 - **`.letter`** — the send-approval page's quoted document: recipients, subject, and body
   set apart in a bordered card with `white-space: pre-wrap`, visibly *not* the page's own
   voice.
