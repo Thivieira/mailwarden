@@ -1,4 +1,5 @@
 import { Elysia, t } from "elysia";
+import { html } from "@elysiajs/html";
 import { oauthService } from "../../services/oauth";
 import { userAuthService } from "../../services/user-auth";
 import { ALL_SCOPES, type PermissionScope } from "../../types/auth";
@@ -12,7 +13,33 @@ function esc(value: unknown) {
     .replaceAll('"', "&quot;");
 }
 
+const HTML_CONTENT_TYPE = "text/html; charset=utf-8";
+
+const BROWSER_HTML_HEADERS = {
+  "Cache-Control": "no-store",
+  "Pragma": "no-cache",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "no-referrer",
+  "Content-Security-Policy":
+    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+};
+
+async function renderBrowserHtml(
+  html: (value: string) => string | Response | Promise<string | Response>,
+  markup: string,
+  status = 200
+) {
+  // The plugin returns a Response for strings; the string fallback keeps the Content-Type either way.
+  const rendered = await html(markup);
+  const headers = new Headers(
+    rendered instanceof Response ? rendered.headers : { "Content-Type": HTML_CONTENT_TYPE }
+  );
+  for (const [key, value] of Object.entries(BROWSER_HTML_HEADERS)) headers.set(key, value);
+  return new Response(rendered instanceof Response ? rendered.body : rendered, { status, headers });
+}
+
 export const oauthRoutes = new Elysia({ aot: false })
+  .use(html({ contentType: HTML_CONTENT_TYPE }))
   .get("/.well-known/oauth-authorization-server", () => ({
     issuer: config.APP_BASE_URL,
     authorization_endpoint: `${config.APP_BASE_URL}/oauth/authorize`,
@@ -63,7 +90,7 @@ export const oauthRoutes = new Elysia({ aot: false })
   }, { body: t.Any() })
 
   // Browser authorization page used by ChatGPT. Every beta user signs in to a separate private vault.
-  .get("/oauth/authorize", async ({ query, set }) => {
+  .get("/oauth/authorize", async ({ query, set, html }) => {
     const q = query as any;
     if (q.response_type !== "code") {
       set.status = 400;
@@ -84,8 +111,7 @@ export const oauthRoutes = new Elysia({ aot: false })
       "client_id", "redirect_uri", "code_challenge", "code_challenge_method", "state", "scope", "resource"
     ].map((name) => `<input type="hidden" name="${name}" value="${esc(q[name])}">`).join("");
 
-    set.headers["Content-Type"] = "text/html; charset=utf-8";
-    return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Authorize Mailwarden</title></head>
+    return renderBrowserHtml(html, `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Authorize Mailwarden</title></head>
 <body style="font-family:system-ui;background:#0f172a;color:#f8fafc;padding:32px"><main style="max-width:520px;margin:5vh auto;background:#1e293b;padding:32px;border-radius:14px">
 <h1>Connect ChatGPT to Mailwarden</h1><p style="color:#94a3b8">Sign in to your private Mailwarden vault. Your connected email accounts, credentials, memory, drafts, and rules stay isolated from every other Mailwarden user.</p>
 <p><strong>Requested permissions:</strong> ${esc(q.scope || ALL_SCOPES.join(" "))}</p>
@@ -93,10 +119,10 @@ export const oauthRoutes = new Elysia({ aot: false })
 <label style="display:block;margin:16px 0 6px">Mailwarden email</label><input name="email" type="email" autocomplete="username" required style="width:100%;padding:12px;box-sizing:border-box">
 <label style="display:block;margin:16px 0 6px">Mailwarden login secret</label><input name="login_secret" type="password" autocomplete="current-password" required style="width:100%;padding:12px;box-sizing:border-box">
 <button type="submit" style="margin-top:22px;width:100%;padding:13px;background:#10b981;border:0;border-radius:8px;font-weight:700">Authorize ChatGPT</button>
-</form><p style="margin-top:20px;color:#64748b;font-size:13px">Mailwarden never gives ChatGPT your Gmail, Outlook, or Proton credentials.</p></main></body></html>`;
+</form><p style="margin-top:20px;color:#64748b;font-size:13px">Mailwarden never gives ChatGPT your Gmail, Outlook, or Proton credentials.</p></main></body></html>`);
   })
 
-  .post("/oauth/authorize", async ({ body, set }) => {
+  .post("/oauth/authorize", async ({ body, set, html }) => {
     const b = body as any;
     let client;
     try {
@@ -110,9 +136,7 @@ export const oauthRoutes = new Elysia({ aot: false })
     try {
       user = await userAuthService.authenticateUser(String(b.email || ""), String(b.login_secret || ""));
     } catch {
-      set.status = 401;
-      set.headers["Content-Type"] = "text/html; charset=utf-8";
-      return "<h1>Authorization denied</h1><p>Invalid Mailwarden credentials.</p>";
+      return renderBrowserHtml(html, "<h1>Authorization denied</h1><p>Invalid Mailwarden credentials.</p>", 401);
     }
 
     const requestedScopes = b.scope ? (String(b.scope).split(" ") as PermissionScope[]) : ALL_SCOPES;
