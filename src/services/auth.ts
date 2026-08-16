@@ -9,19 +9,28 @@ import { auditService } from "./audit";
 import { nanoid } from "nanoid";
 import { createHash } from "crypto";
 
-const JWT_SECRET = new TextEncoder().encode(config.AUTH_SECRET);
+function getJwtSecret(): Uint8Array {
+  // Worker env bindings are injected per request. Never capture the development default at module load.
+  return new TextEncoder().encode(config.AUTH_SECRET);
+}
+
+function expirationDate(expiresIn: string): Date {
+  const match = /^(\d+)([mhd])$/.exec(expiresIn);
+  if (!match) return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const amount = Number(match[1]);
+  const unit = match[2];
+  const multiplier = unit === "m" ? 60_000 : unit === "h" ? 3_600_000 : 86_400_000;
+  return new Date(Date.now() + amount * multiplier);
+}
 
 export class AuthService {
-  /**
-   * Generates a signed JWT session token for an authenticated user
-   */
   async createToken(
     user: { id: string; tenantId: string; email: string; displayName: string; role?: "owner" | "admin" | "member" },
     scopes: PermissionScope[] = ALL_SCOPES,
     expiresIn = "30d"
   ): Promise<{ token: string; sessionId: string; expiresAt: Date }> {
     const sessionId = nanoid();
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days default
+    const expiresAt = expirationDate(expiresIn);
 
     const token = await new SignJWT({
       sub: user.id,
@@ -35,11 +44,10 @@ export class AuthService {
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
       .setExpirationTime(expiresIn)
-      .sign(JWT_SECRET);
+      .sign(getJwtSecret());
 
     const tokenHash = createHash("sha256").update(token).digest("hex");
 
-    // Store active session in database
     await db.insert(schema.sessions).values({
       id: sessionId,
       tenantId: user.tenantId,
@@ -62,22 +70,14 @@ export class AuthService {
     return { token, sessionId, expiresAt };
   }
 
-  /**
-   * Verifies a JWT bearer token and returns the authenticated principal
-   */
   async verifyToken(tokenInput: string): Promise<AuthPrincipal> {
-    if (!tokenInput) {
-      throw new AuthenticationError("Authentication token is required");
-    }
+    if (!tokenInput) throw new AuthenticationError("Authentication token is required");
 
     let cleanToken = tokenInput.trim();
-    if (cleanToken.startsWith("Bearer ")) {
-      cleanToken = cleanToken.slice(7).trim();
-    }
+    if (cleanToken.startsWith("Bearer ")) cleanToken = cleanToken.slice(7).trim();
 
     try {
-      const { payload } = await jwtVerify(cleanToken, JWT_SECRET);
-
+      const { payload } = await jwtVerify(cleanToken, getJwtSecret());
       const userId = payload.sub as string;
       const tenantId = payload.tenantId as string;
       const scopes = (payload.scopes as PermissionScope[]) || [];
@@ -88,41 +88,31 @@ export class AuthService {
       }
 
       const tokenHash = createHash("sha256").update(cleanToken).digest("hex");
-
-      // Check if token has been explicitly revoked
       const [revokedRecord] = await db
         .select()
         .from(schema.oauthTokens)
         .where(eq(schema.oauthTokens.tokenHash, tokenHash))
         .limit(1);
 
-      if (revokedRecord && revokedRecord.revokedAt) {
-        throw new AuthenticationError("Token has been revoked");
-      }
+      if (revokedRecord?.revokedAt) throw new AuthenticationError("Token has been revoked");
 
-      // Check session in database if sessionId is present
       if (sessionId) {
         const [session] = await db
           .select()
           .from(schema.sessions)
           .where(and(eq(schema.sessions.id, sessionId), eq(schema.sessions.tokenHash, tokenHash)))
           .limit(1);
-
         if (!session || session.expiresAt < new Date()) {
           throw new AuthenticationError("Session expired or revoked");
         }
       }
 
-      // Verify user is still active in database
       const [user] = await db
         .select()
         .from(schema.users)
-        .where(eq(schema.users.id, userId))
+        .where(and(eq(schema.users.id, userId), eq(schema.users.tenantId, tenantId)))
         .limit(1);
-
-      if (!user) {
-        throw new AuthenticationError("User account no longer exists");
-      }
+      if (!user) throw new AuthenticationError("User account no longer exists");
 
       return {
         tenantId,
@@ -139,15 +129,11 @@ export class AuthService {
     }
   }
 
-  /**
-   * Generates a short-lived (60s) single-use stream ticket for header-less SSE connections.
-   * Stored in shared database with SHA-256 hash to prevent token leakage and guarantee distributed atomicity.
-   */
   async createEphemeralStreamTicket(principal: AuthPrincipal): Promise<string> {
     this.requirePrincipal(principal);
     const ticketId = `st_${nanoid(32)}`;
     const ticketHash = createHash("sha256").update(ticketId).digest("hex");
-    const expiresAt = new Date(Date.now() + 60 * 1000); // 60 seconds TTL
+    const expiresAt = new Date(Date.now() + 60 * 1000);
 
     await db.insert(schema.streamTickets).values({
       id: nanoid(),
@@ -165,23 +151,16 @@ export class AuthService {
       action: "STREAM_TICKET_GENERATED",
       details: { ticketHashPrefix: ticketHash.slice(0, 8) },
     });
-
     return ticketId;
   }
 
-  /**
-   * Consumes a single-use ephemeral stream ticket atomically using database-level locking/update.
-   * Guarantees that two concurrent requests across different Worker instances cannot double-redeem.
-   */
   async consumeEphemeralStreamTicket(ticketId: string): Promise<AuthPrincipal> {
-    if (!ticketId || typeof ticketId !== "string" || !ticketId.startsWith("st_")) {
+    if (!ticketId || !ticketId.startsWith("st_")) {
       throw new AuthenticationError("Invalid stream ticket format");
     }
 
     const ticketHash = createHash("sha256").update(ticketId).digest("hex");
     const now = new Date();
-
-    // Atomic consumption: update consumedAt only if currently null and not expired
     const [consumed] = await db
       .update(schema.streamTickets)
       .set({ consumedAt: now })
@@ -194,10 +173,7 @@ export class AuthService {
       )
       .returning();
 
-    if (!consumed) {
-      throw new AuthenticationError("Invalid, expired, or already consumed stream ticket");
-    }
-
+    if (!consumed) throw new AuthenticationError("Invalid, expired, or already consumed stream ticket");
     return {
       tenantId: consumed.tenantId,
       userId: consumed.userId,
@@ -205,76 +181,49 @@ export class AuthService {
     };
   }
 
-  /**
-   * Helper to extract and verify token from Authorization header or single-use stream ticket.
-   * Never accepts long-lived bearer tokens in URL query or path.
-   */
   async resolvePrincipalFromRequest(request: Request): Promise<AuthPrincipal> {
     const authHeader = request.headers.get("authorization");
-    if (authHeader?.startsWith("Bearer ")) {
-      return this.verifyToken(authHeader.slice(7));
-    }
+    if (authHeader?.startsWith("Bearer ")) return this.verifyToken(authHeader.slice(7));
 
-    const url = new URL(request.url);
-    const ticket = url.searchParams.get("ticket");
-    if (ticket) {
-      return this.consumeEphemeralStreamTicket(ticket);
-    }
-
+    const ticket = new URL(request.url).searchParams.get("ticket");
+    if (ticket) return this.consumeEphemeralStreamTicket(ticket);
     throw new AuthenticationError("Authorization header (Bearer token) is required");
   }
 
-  /**
-   * Enforces that an authenticated principal exists
-   */
   requirePrincipal(principal?: AuthPrincipal): AuthPrincipal {
-    if (!principal || !principal.tenantId || !principal.userId) {
+    if (!principal?.tenantId || !principal?.userId) {
       throw new AuthenticationError("Operation requires an authenticated user and tenant session");
     }
     return principal;
   }
 
-  /**
-   * Enforces that the principal holds the required permission scope
-   */
   requireScope(principal: AuthPrincipal, requiredScope: PermissionScope): void {
-    if (principal.scopes.includes("admin.all")) return;
-    if (!principal.scopes.includes(requiredScope)) {
-      auditService.logEvent({
-        tenantId: principal.tenantId,
-        userId: principal.userId,
-        action: "AUTHORIZATION_DENIED",
-        status: "failure",
-        details: { requiredScope, currentScopes: principal.scopes },
-      });
-      throw new AuthorizationError(
-        `Operation requires scope '${requiredScope}', but current session only has: [${principal.scopes.join(", ")}]`,
-        [requiredScope]
-      );
-    }
+    if (principal.scopes.includes("admin.all") || principal.scopes.includes(requiredScope)) return;
+    auditService.logEvent({
+      tenantId: principal.tenantId,
+      userId: principal.userId,
+      action: "AUTHORIZATION_DENIED",
+      status: "failure",
+      details: { requiredScope, currentScopes: principal.scopes },
+    });
+    throw new AuthorizationError(
+      `Operation requires scope '${requiredScope}', but current session only has: [${principal.scopes.join(", ")}]`,
+      [requiredScope]
+    );
   }
 
-  /**
-   * Enforces tenant isolation: throws if a resource's tenantId does not match the principal's tenantId
-   */
   assertTenantOwnership(principal: AuthPrincipal, resourceTenantId: string, resourceName = "resource"): void {
-    if (principal.tenantId !== resourceTenantId) {
-      auditService.logEvent({
-        tenantId: principal.tenantId,
-        userId: principal.userId,
-        action: "TENANT_ACCESS_DENIED",
-        status: "failure",
-        details: { targetTenantId: resourceTenantId, resourceName },
-      });
-      throw new TenantIsolationError(
-        `Access denied: ${resourceName} does not belong to your organization/tenant.`
-      );
-    }
+    if (principal.tenantId === resourceTenantId) return;
+    auditService.logEvent({
+      tenantId: principal.tenantId,
+      userId: principal.userId,
+      action: "TENANT_ACCESS_DENIED",
+      status: "failure",
+      details: { targetTenantId: resourceTenantId, resourceName },
+    });
+    throw new TenantIsolationError(`Access denied: ${resourceName} does not belong to your organization/tenant.`);
   }
 
-  /**
-   * Creates a tenant, initial user, and default signature profile
-   */
   async createTenantAndOwner(params: {
     tenantName: string;
     slug: string;
@@ -292,7 +241,6 @@ export class AuthService {
       createdAt: now,
       updatedAt: now,
     });
-
     await db.insert(schema.users).values({
       id: userId,
       tenantId,
@@ -302,46 +250,24 @@ export class AuthService {
       createdAt: now,
       updatedAt: now,
     });
-
     await db.insert(schema.memberships).values({
-      id: nanoid(),
-      tenantId,
-      userId,
-      role: "owner",
-      createdAt: now,
+      id: nanoid(), tenantId, userId, role: "owner", createdAt: now,
     });
 
-    // Create default signature profiles
     await db.insert(schema.signatureProfiles).values([
       {
-        id: nanoid(),
-        tenantId,
-        userId,
-        name: "professional",
-        displayName: "Professional Signature",
+        id: nanoid(), tenantId, userId, name: "professional", displayName: "Professional Signature",
         plainText: `${params.ownerDisplayName}\n${params.tenantName}`,
         html: `<p><strong>${params.ownerDisplayName}</strong><br/>${params.tenantName}</p>`,
-        signOff: "Best regards,",
-        replyMode: "compact",
-        newMessageMode: "full",
-        isDefault: true,
-        createdAt: now,
-        updatedAt: now,
+        signOff: "Best regards,", replyMode: "compact", newMessageMode: "full", isDefault: true,
+        createdAt: now, updatedAt: now,
       },
       {
-        id: nanoid(),
-        tenantId,
-        userId,
-        name: "consulting",
-        displayName: "Consulting Signature",
+        id: nanoid(), tenantId, userId, name: "consulting", displayName: "Consulting Signature",
         plainText: `${params.ownerDisplayName} | Consultant\n${params.tenantName}`,
         html: `<p><strong>${params.ownerDisplayName}</strong> | <em>Consultant</em><br/>${params.tenantName}</p>`,
-        signOff: "Sincerely,",
-        replyMode: "full",
-        newMessageMode: "full",
-        isDefault: false,
-        createdAt: now,
-        updatedAt: now,
+        signOff: "Sincerely,", replyMode: "full", newMessageMode: "full", isDefault: false,
+        createdAt: now, updatedAt: now,
       },
     ]);
 
@@ -353,12 +279,7 @@ export class AuthService {
       role: "owner",
     });
 
-    return {
-      tenantId,
-      userId,
-      token,
-      sessionId,
-    };
+    return { tenantId, userId, token, sessionId };
   }
 }
 
