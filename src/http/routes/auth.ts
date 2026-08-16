@@ -1,11 +1,12 @@
 import { Elysia, t } from "elysia";
 import { authService } from "../../services/auth";
+import { userAuthService } from "../../services/user-auth";
 import { config } from "../../config";
 import { db, schema } from "../../db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
-async function getOrCreateOwner(email: string, displayName?: string) {
+async function getOrCreateDevOwner(email: string, displayName?: string) {
   const normalizedEmail = email.toLowerCase();
   let [user] = await db.select().from(schema.users).where(eq(schema.users.email, normalizedEmail)).limit(1);
 
@@ -22,10 +23,17 @@ async function getOrCreateOwner(email: string, displayName?: string) {
   return user!;
 }
 
+function readAdminSecret(headers: Record<string, string | undefined>): string {
+  const auth = headers["authorization"] || "";
+  return auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+}
+
 export const authRoutes = new Elysia({ prefix: "/auth", aot: false })
   .get("/status", () => ({
     status: "ready",
-    ownerAuthConfigured: Boolean(config.OWNER_EMAIL && config.OWNER_LOGIN_SECRET),
+    privateBeta: true,
+    ownerBootstrapConfigured: Boolean(config.OWNER_EMAIL && config.OWNER_LOGIN_SECRET),
+    betaAdminConfigured: Boolean(config.BETA_ADMIN_SECRET),
     devAuthEnabled: config.ALLOW_DEV_AUTH,
   }))
 
@@ -46,36 +54,31 @@ export const authRoutes = new Elysia({ prefix: "/auth", aot: false })
     }
   })
 
-  // Personal production bootstrap. This is intentionally single-owner and secret protected.
+  // Generic private-beta login. Every user has an isolated vault and a per-user hashed secret.
   .post(
-    "/owner/token",
+    "/token",
     async ({ body, set }) => {
-      if (!config.OWNER_EMAIL || !config.OWNER_LOGIN_SECRET) {
-        set.status = 503;
-        return { error: "Owner authentication is not configured" };
-      }
-      if (body.email.toLowerCase() !== config.OWNER_EMAIL.toLowerCase() || body.loginSecret !== config.OWNER_LOGIN_SECRET) {
+      try {
+        const user = await userAuthService.authenticateUser(body.email, body.loginSecret, body.displayName);
+        const tokenData = await authService.createToken({
+          id: user.id,
+          tenantId: user.tenantId,
+          email: user.email,
+          displayName: user.displayName,
+          role: user.role,
+        }, undefined, "1h");
+
+        return {
+          token: tokenData.token,
+          expiresAt: tokenData.expiresAt.toISOString(),
+          tenantId: user.tenantId,
+          userId: user.id,
+          mcpUrl: `${config.APP_BASE_URL}/mcp`,
+        };
+      } catch (err: any) {
         set.status = 401;
-        return { error: "Invalid owner credentials" };
+        return { error: err.message };
       }
-
-      const user = await getOrCreateOwner(body.email, body.displayName);
-      const tokenData = await authService.createToken({
-        id: user.id,
-        tenantId: user.tenantId,
-        email: user.email,
-        displayName: user.displayName,
-        role: "owner",
-      }, undefined, "1h");
-
-      return {
-        token: tokenData.token,
-        expiresAt: tokenData.expiresAt.toISOString(),
-        tenantId: user.tenantId,
-        userId: user.id,
-        mcpUrl: `${config.APP_BASE_URL}/mcp`,
-        mcpRpcUrl: `${config.APP_BASE_URL}/mcp/rpc`,
-      };
     },
     {
       body: t.Object({
@@ -84,6 +87,88 @@ export const authRoutes = new Elysia({ prefix: "/auth", aot: false })
         displayName: t.Optional(t.String()),
       }),
     }
+  )
+
+  // Backward-compatible bootstrap endpoint for the original deployment owner.
+  .post(
+    "/owner/token",
+    async ({ body, set }) => {
+      try {
+        const user = await userAuthService.authenticateUser(body.email, body.loginSecret, body.displayName);
+        if (config.OWNER_EMAIL && user.email.toLowerCase() !== config.OWNER_EMAIL.toLowerCase()) {
+          set.status = 403;
+          return { error: "This endpoint is reserved for the deployment owner" };
+        }
+        const tokenData = await authService.createToken({
+          id: user.id,
+          tenantId: user.tenantId,
+          email: user.email,
+          displayName: user.displayName,
+          role: "owner",
+        }, undefined, "1h");
+        return {
+          token: tokenData.token,
+          expiresAt: tokenData.expiresAt.toISOString(),
+          tenantId: user.tenantId,
+          userId: user.id,
+          mcpUrl: `${config.APP_BASE_URL}/mcp`,
+        };
+      } catch (err: any) {
+        set.status = 401;
+        return { error: err.message };
+      }
+    },
+    {
+      body: t.Object({
+        email: t.String(),
+        loginSecret: t.String(),
+        displayName: t.Optional(t.String()),
+      }),
+    }
+  )
+
+  // Closed-beta administration: create a completely separate private vault/user.
+  .post(
+    "/beta/provision",
+    async ({ headers, body, set }) => {
+      try {
+        userAuthService.verifyBetaAdminSecret(readAdminSecret(headers as any));
+        const created = await userAuthService.provisionPrivateBetaUser(body);
+        return {
+          ...created,
+          warning: "The loginSecret is shown only in this response. Share it privately with the user and do not store it in source control.",
+        };
+      } catch (err: any) {
+        set.status = err?.name === "AuthenticationError" ? 401 : 400;
+        return { error: err.message };
+      }
+    },
+    {
+      body: t.Object({
+        email: t.String(),
+        displayName: t.String(),
+        vaultName: t.Optional(t.String()),
+      }),
+    }
+  )
+
+  // Closed-beta recovery. Invalidates the previous per-user secret immediately.
+  .post(
+    "/beta/rotate-secret",
+    async ({ headers, body, set }) => {
+      try {
+        userAuthService.verifyBetaAdminSecret(readAdminSecret(headers as any));
+        const rotated = await userAuthService.rotatePrivateBetaSecret(body.email);
+        return {
+          ...rotated,
+          warning: "The new loginSecret is shown only in this response. The previous secret no longer works.",
+        };
+      } catch (err: any) {
+        set.status = err?.name === "AuthenticationError" ? 401 : 400;
+        return { error: err.message };
+      }
+    },
+    { body: t.Object({ email: t.String() }) }
   )
 
   // Local-only convenience. Disabled by default and must be explicitly enabled.
@@ -95,7 +180,7 @@ export const authRoutes = new Elysia({ prefix: "/auth", aot: false })
         return { error: "Not found" };
       }
 
-      const user = await getOrCreateOwner(body.email, body.displayName);
+      const user = await getOrCreateDevOwner(body.email, body.displayName);
       const tokenData = await authService.createToken({
         id: user.id,
         tenantId: user.tenantId,
