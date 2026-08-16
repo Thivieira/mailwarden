@@ -1,0 +1,198 @@
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import {
+  ListToolsRequestSchema,
+  CallToolRequestSchema,
+  ErrorCode,
+  McpError,
+} from "@modelcontextprotocol/sdk/types.js";
+import type { AuthPrincipal, PermissionScope } from "../types/auth";
+import { readTools } from "./tools/read";
+import { intelligenceTools } from "./tools/intelligence";
+import { actionTools } from "./tools/actions";
+import { draftTools } from "./tools/drafts";
+import { sendingTools } from "./tools/sending";
+import { privacyTools } from "./tools/privacy";
+import { onboardingTools } from "./tools/onboarding";
+import { policyTools } from "./tools/policies";
+import { auditService } from "../services/audit";
+import { logger } from "../utils/logger";
+import { MailwardenError, AuthorizationError } from "../utils/errors";
+import { config } from "../config";
+
+export interface McpToolDefinition {
+  name: string;
+  description: string;
+  parameters: any;
+  requiredScopes?: PermissionScope[];
+  securitySchemes?: Array<{ type: string; scopes: string[] }>;
+  handler: (principal: AuthPrincipal, params: any) => Promise<any>;
+}
+
+export const ALL_MCP_TOOLS: McpToolDefinition[] = [
+  ...readTools,
+  ...intelligenceTools,
+  ...actionTools,
+  ...draftTools,
+  ...sendingTools,
+  ...privacyTools,
+  ...onboardingTools,
+  ...policyTools,
+];
+
+export const SERVER_INSTRUCTIONS = `Mailwarden enables managing email through normal, natural conversation. Never mention MCP, tool names, schemas, OAuth internals, or database protocols to ordinary users.
+
+For general status, check get_inbox_status or get_attention_queue. Check get_onboarding_status for newly connected users or when first explaining capabilities.
+
+POLICY & RULE PERSISTENCE:
+When the user expresses a mailbox preference or rule in natural language (in any language, such as English or Portuguese), interpret the user's intent and persist it using structured Mailwarden policy operations (set_mail_policy). Do not expect the backend to understand arbitrary natural-language rule text. Resolve known senders, relationships, accounts, organizations, and projects before creating scoped rules when necessary.
+Explicit user preferences and rules strictly override inferred classifications.
+If the request is ambiguous and could hide important mail, prefer the safer rule or ask conversationally rather than creating a destructive policy.
+
+SENDING INVARIANT:
+Drafting never implies permission to send. Sending always requires calling request_send_approval to obtain the human review URL.`;
+
+export function createMcpServer(principal: AuthPrincipal): Server {
+  const server = new Server(
+    {
+      name: "mailwarden-mcp",
+      version: "1.0.0",
+    },
+    {
+      capabilities: {
+        tools: {},
+      },
+      instructions: SERVER_INSTRUCTIONS,
+    }
+  );
+
+  // Map tool handlers by name
+  const toolMap = new Map<string, McpToolDefinition>();
+  for (const tool of ALL_MCP_TOOLS) {
+    toolMap.set(tool.name, tool);
+  }
+
+  // Handle list_tools with per-tool securitySchemes
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const tools = ALL_MCP_TOOLS.map((tool) => {
+      let inputSchema: any;
+      if (typeof tool.parameters?.toJSONSchema === "function") {
+        inputSchema = tool.parameters.toJSONSchema();
+      } else {
+        inputSchema = { type: "object", properties: {} };
+      }
+
+      // Map tool categories to required OAuth scopes
+      let scopes: string[] = ["mail.read"];
+      if (tool.name.startsWith("draft_") || tool.name.includes("draft")) {
+        scopes = ["mail.draft", "mail.read"];
+      } else if (tool.name.startsWith("send_") || tool.name.includes("send")) {
+        scopes = ["mail.send", "mail.draft"];
+      } else if (tool.name.includes("relationship") || tool.name.includes("sender")) {
+        scopes = ["relationships.read"];
+      } else if (tool.name.includes("classification") || tool.name.includes("attention")) {
+        scopes = ["intelligence.read"];
+      } else if (tool.name.includes("policy") || tool.name.includes("onboarding")) {
+        scopes = ["profile.manage", "mail.read"];
+      }
+
+      return {
+        name: tool.name,
+        description: tool.description,
+        inputSchema,
+        securitySchemes: [
+          {
+            type: "oauth2",
+            scopes,
+          },
+        ],
+      };
+    });
+
+    return { tools };
+  });
+
+  // Handle call_tool
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const toolName = request.params.name;
+    const rawArgs = request.params.arguments || {};
+    const tool = toolMap.get(toolName);
+
+    if (!tool) {
+      throw new McpError(ErrorCode.MethodNotFound, `Tool '${toolName}' not found on Mailwarden server`);
+    }
+
+    // Validate parameters
+    const parseResult = tool.parameters.safeParse(rawArgs);
+    if (!parseResult.success) {
+      const errorMsg = parseResult.error.issues
+        .map((i: any) => `${i.path.join(".")}: ${i.message}`)
+        .join(", ");
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: `Validation error for tool '${toolName}': ${errorMsg}`,
+          },
+        ],
+      };
+    }
+
+    try {
+      logger.info(`MCP tool called: ${toolName}`, {
+        userId: principal.userId,
+        tenantId: principal.tenantId,
+        tool: toolName,
+      });
+
+      await auditService.logEvent({
+        tenantId: principal.tenantId,
+        userId: principal.userId,
+        action: "MCP_TOOL_INVOCATION",
+        resourceType: "mcp_tool",
+        resourceId: toolName,
+        details: { args: rawArgs },
+      });
+
+      const result = await tool.handler(principal, parseResult.data);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: typeof result === "string" ? result : JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (err: any) {
+      const isDomainError = err instanceof MailwardenError;
+      const statusCode = isDomainError ? err.code : "INTERNAL_ERROR";
+      const message = err.message || "An unexpected error occurred executing the tool";
+
+      logger.warn(`MCP tool execution error [${toolName}]: ${message}`, {
+        code: statusCode,
+        userId: principal.userId,
+      });
+
+      const isAuthError = err instanceof AuthorizationError;
+      const meta = isAuthError
+        ? {
+            "mcp/www_authenticate": `Bearer realm="mailwarden", error="insufficient_scope", scope="${(err.requiredScopes || []).join(" ")}", resource="${config.APP_BASE_URL}"`,
+          }
+        : undefined;
+
+      return {
+        isError: true,
+        _meta: meta,
+        content: [
+          {
+            type: "text",
+            text: `[${statusCode}] ${message}`,
+          },
+        ],
+      };
+    }
+  });
+
+  return server;
+}

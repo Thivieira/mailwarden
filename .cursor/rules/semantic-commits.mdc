@@ -1,0 +1,31 @@
+---
+description: Conventional Commits for every git commit and changelog entry
+alwaysApply: true
+---
+
+# Semantic commits
+
+Every commit message uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+
+Rules:
+
+- Imperative, lowercase description; no trailing period
+- `feat` / `fix` only when user-facing behavior changes
+- Breaking change: `BREAKING CHANGE:` footer and/or `!` after type (`feat!: ...`)
+- Changelog: `feat` → Added, `fix` → Fixed, `BREAKING CHANGE` → bump major
+
+```
+feat(mcp): add stream ticket for SSE auth
+fix(send): reject unconfirmed approval hashes
+docs: document dry-run mutations
+```
