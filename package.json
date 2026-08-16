@@ -14,6 +14,7 @@
     "typecheck": "bun run ui:build && tsc --noEmit",
     "ui:build": "bun run src/ui/build.ts",
     "deploy": "bun run typecheck && bun test && wrangler deploy",
+    "ship": "bash scripts/ship.sh",
     "deploy:dry": "bun run ui:build && wrangler deploy --dry-run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun run src/db/migrate.ts",
