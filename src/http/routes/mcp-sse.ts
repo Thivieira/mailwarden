@@ -1,15 +1,39 @@
 import { Elysia, t } from "elysia";
 import { authService } from "../../services/auth";
-import { createMcpServer, ALL_MCP_TOOLS } from "../../mcp/server";
+import { createMcpServer, ALL_MCP_TOOLS, SERVER_INSTRUCTIONS } from "../../mcp/server";
 import type { AuthPrincipal } from "../../types/auth";
 import { config } from "../../config";
 import { nanoid } from "nanoid";
 
-// Active sessions map for SSE transports
 const activeSessions = new Map<string, { principal: AuthPrincipal; server: ReturnType<typeof createMcpServer> }>();
+
+function scopesForTool(name: string): string[] {
+  if (name === "request_send_approval" || name === "send_draft" || name.includes("send")) return ["mail.send", "mail.draft"];
+  if (name.startsWith("draft_") || name.includes("draft")) return ["mail.draft", "mail.read"];
+  if (name.includes("relationship") || name.includes("sender")) return ["relationships.read"];
+  if (name.includes("policy") || name.includes("onboarding")) return ["profile.manage", "mail.read"];
+  if (name.includes("account")) return ["accounts.read"];
+  return ["mail.read"];
+}
 
 async function handleJsonRpcRequest(principal: AuthPrincipal, body: any) {
   const { method, params, id } = body as any;
+
+  if (method === "initialize") {
+    return {
+      jsonrpc: "2.0",
+      result: {
+        protocolVersion: params?.protocolVersion || "2025-06-18",
+        capabilities: { tools: {} },
+        serverInfo: { name: "mailwarden", version: "1.0.0" },
+        instructions: SERVER_INSTRUCTIONS,
+      },
+      id,
+    };
+  }
+
+  if (method === "ping") return { jsonrpc: "2.0", result: {}, id };
+  if (method === "notifications/initialized") return null;
 
   if (method === "tools/list") {
     const tools = ALL_MCP_TOOLS.map((tool) => ({
@@ -19,12 +43,9 @@ async function handleJsonRpcRequest(principal: AuthPrincipal, body: any) {
         typeof tool.parameters?.toJSONSchema === "function"
           ? tool.parameters.toJSONSchema()
           : { type: "object", properties: {} },
+      securitySchemes: [{ type: "oauth2", scopes: scopesForTool(tool.name) }],
     }));
-    return {
-      jsonrpc: "2.0",
-      result: { tools },
-      id,
-    };
+    return { jsonrpc: "2.0", result: { tools }, id };
   }
 
   if (method === "tools/call") {
@@ -32,13 +53,7 @@ async function handleJsonRpcRequest(principal: AuthPrincipal, body: any) {
     const toolArgs = params?.arguments || {};
     const tool = ALL_MCP_TOOLS.find((t) => t.name === toolName);
 
-    if (!tool) {
-      return {
-        jsonrpc: "2.0",
-        error: { code: -32601, message: `Tool '${toolName}' not found` },
-        id,
-      };
-    }
+    if (!tool) return { jsonrpc: "2.0", error: { code: -32601, message: `Tool '${toolName}' not found` }, id };
 
     const parseResult = tool.parameters.safeParse(toolArgs);
     if (!parseResult.success) {
@@ -46,12 +61,7 @@ async function handleJsonRpcRequest(principal: AuthPrincipal, body: any) {
         jsonrpc: "2.0",
         result: {
           isError: true,
-          content: [
-            {
-              type: "text",
-              text: `Validation error: ${parseResult.error.issues.map((i: any) => i.message).join(", ")}`,
-            },
-          ],
+          content: [{ type: "text", text: `Validation error: ${parseResult.error.issues.map((i: any) => i.message).join(", ")}` }],
         },
         id,
       };
@@ -61,90 +71,69 @@ async function handleJsonRpcRequest(principal: AuthPrincipal, body: any) {
       const result = await tool.handler(principal, parseResult.data);
       return {
         jsonrpc: "2.0",
-        result: {
-          content: [
-            {
-              type: "text",
-              text: typeof result === "string" ? result : JSON.stringify(result, null, 2),
-            },
-          ],
-        },
+        result: { content: [{ type: "text", text: typeof result === "string" ? result : JSON.stringify(result, null, 2) }] },
         id,
       };
     } catch (err: any) {
       return {
         jsonrpc: "2.0",
-        result: {
-          isError: true,
-          content: [{ type: "text", text: `[${err.name || "ERROR"}] ${err.message}` }],
-        },
+        result: { isError: true, content: [{ type: "text", text: `[${err.name || "ERROR"}] ${err.message}` }] },
         id,
       };
     }
   }
 
-  return {
-    jsonrpc: "2.0",
-    error: { code: -32601, message: `Unsupported method: ${method}` },
-    id,
-  };
+  return { jsonrpc: "2.0", error: { code: -32601, message: `Unsupported method: ${method}` }, id };
+}
+
+async function authenticate(headers: Record<string, string | undefined>, queryTicket?: string): Promise<AuthPrincipal> {
+  const authHeader = headers["authorization"];
+  if (authHeader?.startsWith("Bearer ")) return authService.verifyToken(authHeader.slice(7));
+  if (queryTicket) return authService.consumeEphemeralStreamTicket(queryTicket);
+  throw new Error("Bearer token required");
 }
 
 export const mcpRoutes = new Elysia({ aot: false })
-  // Standard Bearer Header RPC
-  .post(
-    "/mcp/rpc",
-    async ({ headers, body }) => {
-      const authHeader = headers["authorization"];
-      if (!authHeader?.startsWith("Bearer ")) {
-        return {
-          jsonrpc: "2.0",
-          error: { code: -32000, message: "Authorization header (Bearer token) required" },
-          id: (body as any)?.id || null,
-        };
-      }
-
-      let principal: AuthPrincipal;
-      try {
-        principal = await authService.verifyToken(authHeader.slice(7));
-      } catch (err: any) {
-        return {
-          jsonrpc: "2.0",
-          error: { code: -32000, message: err.message },
-          id: (body as any)?.id || null,
-        };
-      }
-
-      return handleJsonRpcRequest(principal, body);
-    },
-    {
-      body: t.Object({
-        jsonrpc: t.Optional(t.String()),
-        method: t.String(),
-        params: t.Optional(t.Any()),
-        id: t.Optional(t.Any()),
-      }),
-    }
-  )
-
-  // SSE Stream: Authenticates via Authorization: Bearer header OR single-use ephemeral stream ticket (?ticket=st_...)
-  .get("/mcp/sse", async ({ headers, query, set }) => {
+  // Preferred remote transport for ChatGPT. Stateless JSON-RPC over HTTPS.
+  .post("/mcp", async ({ headers, body, set }) => {
     let principal: AuthPrincipal;
-
     try {
-      const authHeader = headers["authorization"];
-      if (authHeader?.startsWith("Bearer ")) {
-        principal = await authService.verifyToken(authHeader.slice(7));
-      } else if (query.ticket) {
-        principal = await authService.consumeEphemeralStreamTicket(query.ticket);
-      } else {
-        set.status = 401;
-        set.headers["WWW-Authenticate"] = `Bearer realm="mailwarden", resource="${config.APP_BASE_URL}", error="invalid_token", error_description="Bearer token or ?ticket is required"`;
-        return "Unauthorized: Bearer token in Authorization header or valid ?ticket is required";
-      }
+      principal = await authenticate(headers as any);
     } catch (err: any) {
       set.status = 401;
-      set.headers["WWW-Authenticate"] = `Bearer realm="mailwarden", resource="${config.APP_BASE_URL}", error="invalid_token", error_description="${err.message}"`;
+      set.headers["WWW-Authenticate"] = `Bearer realm="mailwarden", resource="${config.APP_BASE_URL}", error="invalid_token"`;
+      return { jsonrpc: "2.0", error: { code: -32000, message: err.message }, id: (body as any)?.id || null };
+    }
+
+    const response = await handleJsonRpcRequest(principal, body);
+    if (response === null) {
+      set.status = 202;
+      return "";
+    }
+    return response;
+  }, { body: t.Any() })
+
+  // Backward-compatible RPC endpoint.
+  .post("/mcp/rpc", async ({ headers, body, set }) => {
+    let principal: AuthPrincipal;
+    try {
+      principal = await authenticate(headers as any);
+    } catch (err: any) {
+      set.status = 401;
+      set.headers["WWW-Authenticate"] = `Bearer realm="mailwarden", resource="${config.APP_BASE_URL}", error="invalid_token"`;
+      return { jsonrpc: "2.0", error: { code: -32000, message: err.message }, id: (body as any)?.id || null };
+    }
+    return handleJsonRpcRequest(principal, body);
+  }, { body: t.Any() })
+
+  // Legacy SSE retained for clients that still require it.
+  .get("/mcp/sse", async ({ headers, query, set }) => {
+    let principal: AuthPrincipal;
+    try {
+      principal = await authenticate(headers as any, query.ticket);
+    } catch (err: any) {
+      set.status = 401;
+      set.headers["WWW-Authenticate"] = `Bearer realm="mailwarden", resource="${config.APP_BASE_URL}", error="invalid_token"`;
       return `Unauthorized: ${err.message}`;
     }
 
@@ -156,15 +145,12 @@ export const mcpRoutes = new Elysia({ aot: false })
     set.headers["Cache-Control"] = "no-cache";
     set.headers["Connection"] = "keep-alive";
 
-    const stream = new ReadableStream({
+    return new ReadableStream({
       start(controller) {
-        const endpointEvent = `event: endpoint\ndata: /mcp/messages?sessionId=${sessionId}\n\n`;
-        controller.enqueue(new TextEncoder().encode(endpointEvent));
+        controller.enqueue(new TextEncoder().encode(`event: endpoint\ndata: /mcp?sessionId=${sessionId}\n\n`));
       },
       cancel() {
         activeSessions.delete(sessionId);
       },
     });
-
-    return stream;
   });
