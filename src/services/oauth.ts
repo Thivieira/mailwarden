@@ -8,6 +8,7 @@ import { ALL_SCOPES } from "../types/auth";
 import { AuthenticationError, AuthorizationError } from "../utils/errors";
 import { nanoid } from "nanoid";
 import { createHash } from "crypto";
+import { logger } from "../utils/logger";
 
 export interface OAuthClientMetadata {
   client_id: string;
@@ -34,6 +35,27 @@ function assertResource(resource?: string | null): string {
     throw new AuthenticationError(`Invalid OAuth resource '${bound}'`);
   }
   return bound;
+}
+
+/**
+ * The compatibility path below lets a client register itself simply by arriving at
+ * /oauth/authorize, which is an unauthenticated write to the clients table. It is pinned
+ * as narrowly as the real flow allows: a known client id AND an exact callback URL.
+ *
+ * Well-behaved clients never reach it. Claude uses Dynamic Client Registration
+ * (POST /oauth/register) and gets an `mw_client_*` id; only ChatGPT's developer connector
+ * arrives with a fixed id and no registration step.
+ */
+const COMPAT_CLIENT_IDS = new Set(["chatgpt_mcp_client"]);
+
+const COMPAT_REDIRECT_URIS = new Set([
+  "https://chatgpt.com/aip/plugin-oauth/callback",
+  "https://chat.openai.com/aip/plugin-oauth/callback",
+]);
+
+/** Loopback callbacks use an arbitrary port, so only host and scheme can be pinned. */
+function isLoopbackRedirect(uri: URL): boolean {
+  return uri.protocol === "http:" && (uri.hostname === "localhost" || uri.hostname === "127.0.0.1");
 }
 
 export class OAuthService {
@@ -64,11 +86,16 @@ export class OAuthService {
         if (resp.ok) {
           const doc = (await resp.json()) as OAuthClientMetadata;
           if (Array.isArray(doc.redirect_uris) && doc.redirect_uris.includes(redirectUri)) {
+            // Honor the scopes the document declares; only fall back to everything when
+            // it asks for nothing, matching how POST /oauth/register behaves.
+            const declared = doc.scope
+              ? doc.scope.split(" ").filter((s) => (ALL_SCOPES as string[]).includes(s))
+              : ALL_SCOPES;
             await this.registerClient({
               clientId,
               clientName: doc.client_name || "CIMD Client",
               redirectUris: doc.redirect_uris,
-              allowedScopes: ALL_SCOPES,
+              allowedScopes: declared,
               isPublic: true,
             });
             return {
@@ -76,7 +103,7 @@ export class OAuthService {
               clientId,
               clientName: doc.client_name || "CIMD Client",
               redirectUris: doc.redirect_uris,
-              allowedScopes: ALL_SCOPES,
+              allowedScopes: declared,
               isPublic: true,
             };
           }
@@ -89,14 +116,29 @@ export class OAuthService {
       }
     }
 
-    // Compatibility for known ChatGPT/local developer callbacks. The exact URI seen is registered.
-    const parsed = new URL(redirectUri);
-    const knownHost = parsed.protocol === "https:" && (parsed.hostname === "chatgpt.com" || parsed.hostname === "chat.openai.com");
-    const localHost = parsed.protocol === "http:" && (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
-    if (knownHost || localHost) {
+    let parsed: URL;
+    try {
+      parsed = new URL(redirectUri);
+    } catch {
+      throw new AuthorizationError(`Invalid redirect_uri '${redirectUri}'`);
+    }
+
+    // Both compatibility cases are pinned. Matching the host alone would let any path on
+    // chatgpt.com register any client id with every scope, so the callback URL must match
+    // exactly; loopback is development only and stays off unless ALLOW_DEV_AUTH is set.
+    const chatgptCompat =
+      COMPAT_CLIENT_IDS.has(clientId) && COMPAT_REDIRECT_URIS.has(redirectUri);
+    const devCompat = config.ALLOW_DEV_AUTH && isLoopbackRedirect(parsed);
+
+    if (chatgptCompat || devCompat) {
+      const clientName = chatgptCompat ? "ChatGPT Developer MCP" : "Local Development Client";
+      logger.warn(
+        `[OAUTH] Client '${clientId}' self-registered through the compatibility path`,
+        { redirectUri, path: chatgptCompat ? "chatgpt" : "loopback" }
+      );
       await this.registerClient({
         clientId,
-        clientName: "ChatGPT Developer MCP",
+        clientName,
         redirectUris: [redirectUri],
         allowedScopes: ALL_SCOPES,
         isPublic: true,
@@ -104,7 +146,7 @@ export class OAuthService {
       return {
         id: clientId,
         clientId,
-        clientName: "ChatGPT Developer MCP",
+        clientName,
         redirectUris: [redirectUri],
         allowedScopes: ALL_SCOPES,
         isPublic: true,
