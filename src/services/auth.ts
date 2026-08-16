@@ -10,7 +10,6 @@ import { nanoid } from "nanoid";
 import { createHash } from "crypto";
 
 function getJwtSecret(): Uint8Array {
-  // Worker env bindings are injected per request. Never capture the development default at module load.
   return new TextEncoder().encode(config.AUTH_SECRET);
 }
 
@@ -42,6 +41,8 @@ export class AuthService {
       sessionId,
     })
       .setProtectedHeader({ alg: "HS256" })
+      .setIssuer(config.APP_BASE_URL)
+      .setAudience(config.APP_BASE_URL)
       .setIssuedAt()
       .setExpirationTime(expiresIn)
       .sign(getJwtSecret());
@@ -64,7 +65,7 @@ export class AuthService {
       action: "AUTH_LOGIN",
       resourceType: "session",
       resourceId: sessionId,
-      details: { scopesCount: scopes.length },
+      details: { scopesCount: scopes.length, audience: config.APP_BASE_URL },
     });
 
     return { token, sessionId, expiresAt };
@@ -77,7 +78,10 @@ export class AuthService {
     if (cleanToken.startsWith("Bearer ")) cleanToken = cleanToken.slice(7).trim();
 
     try {
-      const { payload } = await jwtVerify(cleanToken, getJwtSecret());
+      const { payload } = await jwtVerify(cleanToken, getJwtSecret(), {
+        issuer: config.APP_BASE_URL,
+        audience: config.APP_BASE_URL,
+      });
       const userId = payload.sub as string;
       const tenantId = payload.tenantId as string;
       const scopes = (payload.scopes as PermissionScope[]) || [];
@@ -88,30 +92,21 @@ export class AuthService {
       }
 
       const tokenHash = createHash("sha256").update(cleanToken).digest("hex");
-      const [revokedRecord] = await db
-        .select()
-        .from(schema.oauthTokens)
-        .where(eq(schema.oauthTokens.tokenHash, tokenHash))
-        .limit(1);
-
+      const [revokedRecord] = await db.select().from(schema.oauthTokens).where(eq(schema.oauthTokens.tokenHash, tokenHash)).limit(1);
       if (revokedRecord?.revokedAt) throw new AuthenticationError("Token has been revoked");
 
       if (sessionId) {
-        const [session] = await db
-          .select()
-          .from(schema.sessions)
-          .where(and(eq(schema.sessions.id, sessionId), eq(schema.sessions.tokenHash, tokenHash)))
-          .limit(1);
-        if (!session || session.expiresAt < new Date()) {
-          throw new AuthenticationError("Session expired or revoked");
-        }
+        const [session] = await db.select().from(schema.sessions).where(and(
+          eq(schema.sessions.id, sessionId),
+          eq(schema.sessions.tokenHash, tokenHash)
+        )).limit(1);
+        if (!session || session.expiresAt < new Date()) throw new AuthenticationError("Session expired or revoked");
       }
 
-      const [user] = await db
-        .select()
-        .from(schema.users)
-        .where(and(eq(schema.users.id, userId), eq(schema.users.tenantId, tenantId)))
-        .limit(1);
+      const [user] = await db.select().from(schema.users).where(and(
+        eq(schema.users.id, userId),
+        eq(schema.users.tenantId, tenantId)
+      )).limit(1);
       if (!user) throw new AuthenticationError("User account no longer exists");
 
       return {
@@ -136,13 +131,8 @@ export class AuthService {
     const expiresAt = new Date(Date.now() + 60 * 1000);
 
     await db.insert(schema.streamTickets).values({
-      id: nanoid(),
-      ticketHash,
-      tenantId: principal.tenantId,
-      userId: principal.userId,
-      scopes: principal.scopes,
-      expiresAt,
-      createdAt: new Date(),
+      id: nanoid(), ticketHash, tenantId: principal.tenantId, userId: principal.userId,
+      scopes: principal.scopes, expiresAt, createdAt: new Date(),
     });
 
     await auditService.logEvent({
@@ -155,36 +145,21 @@ export class AuthService {
   }
 
   async consumeEphemeralStreamTicket(ticketId: string): Promise<AuthPrincipal> {
-    if (!ticketId || !ticketId.startsWith("st_")) {
-      throw new AuthenticationError("Invalid stream ticket format");
-    }
-
+    if (!ticketId || !ticketId.startsWith("st_")) throw new AuthenticationError("Invalid stream ticket format");
     const ticketHash = createHash("sha256").update(ticketId).digest("hex");
     const now = new Date();
-    const [consumed] = await db
-      .update(schema.streamTickets)
-      .set({ consumedAt: now })
-      .where(
-        and(
-          eq(schema.streamTickets.ticketHash, ticketHash),
-          isNull(schema.streamTickets.consumedAt),
-          gt(schema.streamTickets.expiresAt, now)
-        )
-      )
-      .returning();
-
+    const [consumed] = await db.update(schema.streamTickets).set({ consumedAt: now }).where(and(
+      eq(schema.streamTickets.ticketHash, ticketHash),
+      isNull(schema.streamTickets.consumedAt),
+      gt(schema.streamTickets.expiresAt, now)
+    )).returning();
     if (!consumed) throw new AuthenticationError("Invalid, expired, or already consumed stream ticket");
-    return {
-      tenantId: consumed.tenantId,
-      userId: consumed.userId,
-      scopes: consumed.scopes as PermissionScope[],
-    };
+    return { tenantId: consumed.tenantId, userId: consumed.userId, scopes: consumed.scopes as PermissionScope[] };
   }
 
   async resolvePrincipalFromRequest(request: Request): Promise<AuthPrincipal> {
     const authHeader = request.headers.get("authorization");
     if (authHeader?.startsWith("Bearer ")) return this.verifyToken(authHeader.slice(7));
-
     const ticket = new URL(request.url).searchParams.get("ticket");
     if (ticket) return this.consumeEphemeralStreamTicket(ticket);
     throw new AuthenticationError("Authorization header (Bearer token) is required");
@@ -224,35 +199,14 @@ export class AuthService {
     throw new TenantIsolationError(`Access denied: ${resourceName} does not belong to your organization/tenant.`);
   }
 
-  async createTenantAndOwner(params: {
-    tenantName: string;
-    slug: string;
-    ownerEmail: string;
-    ownerDisplayName: string;
-  }) {
+  async createTenantAndOwner(params: { tenantName: string; slug: string; ownerEmail: string; ownerDisplayName: string }) {
     const tenantId = nanoid();
     const userId = nanoid();
     const now = new Date();
 
-    await db.insert(schema.tenants).values({
-      id: tenantId,
-      name: params.tenantName,
-      slug: params.slug,
-      createdAt: now,
-      updatedAt: now,
-    });
-    await db.insert(schema.users).values({
-      id: userId,
-      tenantId,
-      email: params.ownerEmail.toLowerCase(),
-      displayName: params.ownerDisplayName,
-      role: "owner",
-      createdAt: now,
-      updatedAt: now,
-    });
-    await db.insert(schema.memberships).values({
-      id: nanoid(), tenantId, userId, role: "owner", createdAt: now,
-    });
+    await db.insert(schema.tenants).values({ id: tenantId, name: params.tenantName, slug: params.slug, createdAt: now, updatedAt: now });
+    await db.insert(schema.users).values({ id: userId, tenantId, email: params.ownerEmail.toLowerCase(), displayName: params.ownerDisplayName, role: "owner", createdAt: now, updatedAt: now });
+    await db.insert(schema.memberships).values({ id: nanoid(), tenantId, userId, role: "owner", createdAt: now });
 
     await db.insert(schema.signatureProfiles).values([
       {
@@ -272,13 +226,8 @@ export class AuthService {
     ]);
 
     const { token, sessionId } = await this.createToken({
-      id: userId,
-      tenantId,
-      email: params.ownerEmail,
-      displayName: params.ownerDisplayName,
-      role: "owner",
+      id: userId, tenantId, email: params.ownerEmail, displayName: params.ownerDisplayName, role: "owner",
     });
-
     return { tenantId, userId, token, sessionId };
   }
 }
