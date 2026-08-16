@@ -5,6 +5,7 @@ import { authRoutes } from "./routes/auth";
 import { oauthRoutes } from "./routes/oauth";
 import { mcpRoutes } from "./routes/mcp-sse";
 import { managementRoutes } from "./routes/management";
+import { providerConnectRoutes } from "./routes/provider-connect";
 import { logger } from "../utils/logger";
 import { MailwardenError } from "../utils/errors";
 
@@ -22,23 +23,21 @@ export function createElysiaApp() {
       const errMsg = (error as any)?.message || String(error);
       logger.error("Unhandled HTTP error", { code, error: errMsg });
       set.status = 500;
-      return {
-        error: "InternalServerError",
-        message: "An internal server error occurred",
-      };
+      return { error: "InternalServerError", message: "An internal server error occurred" };
     })
-    // Mount routes
     .use(healthRoutes)
     .use(authRoutes)
     .use(oauthRoutes)
     .use(mcpRoutes)
+    .use(providerConnectRoutes)
     .use(managementRoutes)
     .get("/", () => ({
       name: "Mailwarden",
-      tagline: "AI-native email operating layer",
+      tagline: "Your email, managed through normal conversation.",
       status: "online",
       documentation: "/swagger",
-      mcpEndpoint: "/mcp/rpc",
+      mcpEndpoint: "/mcp",
+      rpcEndpoint: "/mcp/rpc",
       sseEndpoint: "/mcp/sse",
       healthCheck: "/health",
     }))
@@ -47,37 +46,31 @@ export function createElysiaApp() {
       info: {
         title: "Mailwarden API",
         version: "1.0.0",
-        description: "AI-native email operating layer & secure MCP boundary",
+        description: "Secure conversational email layer",
       },
       paths: {
         "/health": { get: { summary: "Health check" } },
+        "/mcp": { post: { summary: "Remote MCP JSON-RPC endpoint" } },
         "/mcp/rpc": { post: { summary: "MCP JSON-RPC endpoint" } },
-        "/mcp/sse": { get: { summary: "MCP SSE Stream" } },
-        "/.well-known/oauth-protected-resource": { get: { summary: "OAuth 2.0 Protected Resource Metadata (RFC 9728)" } },
-        "/.well-known/oauth-authorization-server": { get: { summary: "OAuth 2.0 Authorization Server Metadata (RFC 8414)" } },
+        "/mcp/sse": { get: { summary: "Legacy MCP SSE Stream" } },
+        "/.well-known/oauth-protected-resource": { get: { summary: "OAuth Protected Resource Metadata" } },
+        "/.well-known/oauth-authorization-server": { get: { summary: "OAuth Authorization Server Metadata" } },
         "/oauth/authorize": { get: { summary: "OAuth Authorize" }, post: { summary: "OAuth Authorize Submit" } },
         "/oauth/token": { post: { summary: "OAuth Token Exchange & Refresh" } },
-        "/oauth/revoke": { post: { summary: "OAuth Token Revocation (RFC 7009)" } },
+        "/oauth/revoke": { post: { summary: "OAuth Token Revocation" } },
+        "/api/connect/google": { get: { summary: "Connect Gmail" } },
+        "/api/connect/microsoft": { get: { summary: "Connect Outlook" } },
+        "/api/connect/proton": { post: { summary: "Connect Proton Bridge gateway" } },
+        "/api/accounts/sync-all": { post: { summary: "Synchronize all connected mailboxes" } },
       },
     }));
 
-  // In Bun development environment, dynamically add full interactive Swagger UI
   if (typeof (globalThis as any).Bun !== "undefined" && !isCloudflareWorker) {
     try {
       const { swagger } = require("@elysiajs/swagger");
-      app.use(
-        swagger({
-          documentation: {
-            info: {
-              title: "Mailwarden API",
-              version: "1.0.0",
-              description: "AI-native email operating layer & secure MCP boundary",
-            },
-          },
-        })
-      );
+      app.use(swagger({ documentation: { info: { title: "Mailwarden API", version: "1.0.0", description: "Secure conversational email layer" } } }));
     } catch {
-      // Ignore if unavailable
+      // Swagger UI is optional in Worker runtime.
     }
   }
 
