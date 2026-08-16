@@ -5,7 +5,8 @@
     "target": "ESNext",
     "module": "Preserve",
     "moduleDetection": "force",
-    "jsx": "react-jsx",
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
     "allowJs": true,
     "types": ["bun"],
 
@@ -26,5 +27,8 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
-  }
+  },
+
+  // Compiled Solid SSR output; the .tsx sources next to them are the checked truth.
+  "exclude": ["node_modules", "src/ui/**/*.gen.js"]
 }

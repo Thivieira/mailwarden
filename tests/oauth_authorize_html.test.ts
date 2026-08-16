@@ -31,7 +31,7 @@ describe("GET /oauth/authorize HTML response", () => {
     expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(html.trimStart().startsWith("<!doctype html>")).toBe(true);
     expect(html.startsWith('"')).toBe(false);
-    expect(html).toContain("<form method=\"POST\" action=\"/oauth/authorize\">");
+    expect(html).toMatch(/<form method="post" action="\/oauth\/authorize"/i);
     expect(html).toContain(`name="client_id" value="${clientId}"`);
     expect(html).toContain(`name="redirect_uri" value="${redirectUri}"`);
     expect(html).toContain('name="code_challenge" value="pkce-challenge-value-for-html-test"');

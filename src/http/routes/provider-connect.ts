@@ -8,10 +8,44 @@ import { encryptionService } from "../../services/encryption";
 import { auditService } from "../../services/audit";
 import { db, schema } from "../../db";
 import { config } from "../../config";
+import { renderPage } from "../../ui/render";
+import { CallbackPage } from "../../ui/pages.gen.js";
 import { AuthenticationError, ConfigurationError } from "../../utils/errors";
 
-function callbackHtml(title: string, body: string, success = true) {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head><body style="font-family:system-ui;background:#0f172a;color:#f8fafc;padding:40px"><main style="max-width:640px;margin:auto;background:#1e293b;padding:32px;border-radius:14px"><h1 style="color:${success ? "#34d399" : "#f87171"}">${title}</h1><p style="line-height:1.6">${body}</p><p style="color:#94a3b8">You can close this tab and return to ChatGPT.</p></main></body></html>`;
+function hostOf(url: string) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Renders the provider-connect outcome. Returns a real Response: setting
+ * `set.headers["Content-Type"]` and returning a string made Elysia emit a duplicated
+ * `text/html, text/plain` header on Workers, which browsers showed as literal source.
+ */
+function callbackPage(
+  provider: string,
+  headline: string,
+  detail: string,
+  facts: { term: string; value: string }[],
+  granted: boolean,
+  status = 200
+) {
+  return renderPage(
+    headline,
+    () =>
+      CallbackPage({
+        host: hostOf(config.APP_BASE_URL),
+        provider,
+        granted,
+        headline,
+        detail,
+        facts,
+      }),
+    status
+  );
 }
 
 const ownerScopes = [
@@ -40,8 +74,7 @@ export const providerConnectRoutes = new Elysia({ aot: false })
     authService.requireScope(principal, "accounts.manage");
     return providerOAuthService.buildAuthorizationUrl(principal, "outlook", (((query as any)?.mode || "readonly") as ProviderMode));
   })
-  .get("/auth/callback/google", async ({ query, set }) => {
-    set.headers["Content-Type"] = "text/html; charset=utf-8";
+  .get("/auth/callback/google", async ({ query }) => {
     try {
       const code = String((query as any).code || "");
       const stateToken = String((query as any).state || "");
@@ -49,21 +82,35 @@ export const providerConnectRoutes = new Elysia({ aot: false })
       const state = await providerOAuthService.verifyState(stateToken, "gmail");
       const connected = await providerOAuthService.completeGoogleCallback(code, stateToken);
       const principal = { tenantId: state.tenantId, userId: state.userId, scopes: ownerScopes };
-      let syncText = "Connection saved.";
+      let syncText = "No messages were synchronized yet.";
       try {
         const result = await syncService.syncAccount(principal, connected.accountId, 50);
-        syncText = `Connection saved and ${result.ingested} recent messages were synchronized.`;
+        syncText = `${result.ingested} recent messages synchronized.`;
       } catch (syncError: any) {
-        syncText = `Connection saved, but the first synchronization failed: ${syncError.message}`;
+        syncText = `The first synchronization failed: ${syncError.message}`;
       }
-      return callbackHtml("Gmail connected", `${connected.emailAddress}<br><br>${syncText}`);
+      return callbackPage(
+        "Gmail",
+        "Gmail connected",
+        "This account is now readable by your vault. Mailwarden holds the provider credentials; your AI client never receives them.",
+        [
+          { term: "Account", value: connected.emailAddress },
+          { term: "First sync", value: syncText },
+        ],
+        true
+      );
     } catch (error: any) {
-      set.status = 400;
-      return callbackHtml("Gmail connection failed", error.message, false);
+      return callbackPage(
+        "Gmail",
+        "Gmail connection failed",
+        error.message,
+        [],
+        false,
+        400
+      );
     }
   })
-  .get("/auth/callback/microsoft", async ({ query, set }) => {
-    set.headers["Content-Type"] = "text/html; charset=utf-8";
+  .get("/auth/callback/microsoft", async ({ query }) => {
     try {
       const code = String((query as any).code || "");
       const stateToken = String((query as any).state || "");
@@ -71,17 +118,32 @@ export const providerConnectRoutes = new Elysia({ aot: false })
       const state = await providerOAuthService.verifyState(stateToken, "outlook");
       const connected = await providerOAuthService.completeMicrosoftCallback(code, stateToken);
       const principal = { tenantId: state.tenantId, userId: state.userId, scopes: ownerScopes };
-      let syncText = "Connection saved.";
+      let syncText = "No messages were synchronized yet.";
       try {
         const result = await syncService.syncAccount(principal, connected.accountId, 50);
-        syncText = `Connection saved and ${result.ingested} recent messages were synchronized.`;
+        syncText = `${result.ingested} recent messages synchronized.`;
       } catch (syncError: any) {
-        syncText = `Connection saved, but the first synchronization failed: ${syncError.message}`;
+        syncText = `The first synchronization failed: ${syncError.message}`;
       }
-      return callbackHtml("Outlook connected", `${connected.emailAddress}<br><br>${syncText}`);
+      return callbackPage(
+        "Outlook",
+        "Outlook connected",
+        "This account is now readable by your vault. Mailwarden holds the provider credentials; your AI client never receives them.",
+        [
+          { term: "Account", value: connected.emailAddress },
+          { term: "First sync", value: syncText },
+        ],
+        true
+      );
     } catch (error: any) {
-      set.status = 400;
-      return callbackHtml("Outlook connection failed", error.message, false);
+      return callbackPage(
+        "Outlook",
+        "Outlook connection failed",
+        error.message,
+        [],
+        false,
+        400
+      );
     }
   })
   .post("/api/accounts/:id/sync", async ({ principal, params, body }) => {
