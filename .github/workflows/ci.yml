@@ -31,4 +31,15 @@ jobs:
             exit "$STATUS"
           fi
       - name: Tests
-        run: bun test
+        shell: bash
+        run: |
+          set +e
+          OUTPUT=$(bun test 2>&1)
+          STATUS=$?
+          printf '%s\n' "$OUTPUT"
+          if [ "$STATUS" -ne 0 ]; then
+            while IFS= read -r LINE; do
+              [ -n "$LINE" ] && printf '::error::%s\n' "$LINE"
+            done <<< "$OUTPUT"
+            exit "$STATUS"
+          fi
