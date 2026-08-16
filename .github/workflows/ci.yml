@@ -30,6 +30,8 @@ jobs:
             done <<< "$OUTPUT"
             exit "$STATUS"
           fi
+      - name: Migrate test database
+        run: bun run db:migrate
       - name: Tests
         shell: bash
         run: |
