@@ -15,9 +15,10 @@ const configSchema = z.object({
     .default("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"),
   KEY_VERSION: z.string().default("v1"),
 
-  // Personal dogfood / owner authentication. In production both should be configured as Worker secrets/vars.
+  // Private beta authentication. OWNER_* bootstraps the first user only.
   OWNER_EMAIL: z.string().email().optional(),
   OWNER_LOGIN_SECRET: z.string().min(12).optional(),
+  BETA_ADMIN_SECRET: z.string().min(16).optional(),
   ALLOW_DEV_AUTH: z
     .string()
     .default("false")
