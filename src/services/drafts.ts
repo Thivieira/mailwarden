@@ -317,10 +317,14 @@ export class DraftService {
 
     const { draft } = await this.getDraftWithHash(principal, draftId);
 
-    // Strip previous signature if present
+    // Only strip a previously composed trailing signature suffix. Never delete
+    // coincidental signature text that appears inside the message body.
     let body = draft.textBody;
-    if (draft.renderedSignature && body.includes(draft.renderedSignature)) {
-      body = body.replace(draft.renderedSignature, "").trim();
+    if (draft.renderedSignature) {
+      const suffix = `\n\n${draft.renderedSignature}`;
+      if (body.endsWith(suffix)) {
+        body = body.slice(0, -suffix.length);
+      }
     }
 
     const newBody = `${body}\n\n${sig.plainText}`;
@@ -396,26 +400,23 @@ export class DraftService {
       updatedAt: row.updatedAt,
     };
 
+    const [account] = await db
+      .select()
+      .from(schema.emailAccounts)
+      .where(eq(schema.emailAccounts.id, draft.accountId))
+      .limit(1);
+
     const canonicalPayload: CanonicalSendPayload = {
       tenantId: draft.tenantId,
       userId: draft.userId,
       accountId: draft.accountId,
       identityId: draft.identityId,
+      fromEmail: account?.emailAddress || "",
       to: draft.to,
       cc: draft.cc,
-      bcc: draft.bcc,
       subject: draft.subject,
       textBody: draft.textBody,
-      htmlBody: draft.htmlBody,
-      signatureProfileId: draft.signatureProfileId,
-      renderedSignature: draft.renderedSignature,
-      replyToMessageId: draft.replyToMessageId,
-      attachments: draft.attachments.map((att) => ({
-        filename: att.filename,
-        contentType: att.contentType,
-        size: att.size,
-        contentHash: att.contentHash,
-      })),
+      threadId: draft.threadId || null,
     };
 
     const payloadHash = computeSendPayloadHash(canonicalPayload);

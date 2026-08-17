@@ -3,6 +3,7 @@ import { eq, and, isNull, gt } from "drizzle-orm";
 import { authService } from "./auth";
 import { draftService } from "./drafts";
 import { auditService } from "./audit";
+import { assertGmailOutboundSupported, assertEffectiveFromMatchesAccount } from "./outbound-gates";
 import { providerFactory } from "../providers/factory";
 import type { AuthPrincipal } from "../types/auth";
 import type { SendApproval, SendResult } from "../types/drafts";
@@ -37,6 +38,8 @@ export class SendingService {
     authService.requireScope(principal, "mail.draft");
 
     const { draft, payloadHash } = await draftService.getDraftWithHash(principal, draftId);
+    assertGmailOutboundSupported(draft);
+    await assertEffectiveFromMatchesAccount(draft);
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + validityMinutes * 60 * 1000);
@@ -309,6 +312,10 @@ export class SendingService {
         `Draft was modified after confirmation. Expected hash '${approval.payloadHash.slice(0, 12)}...', but current draft hash is '${currentHash.slice(0, 12)}...'. Request a new confirmation.`
       );
     }
+
+    // 6b. Reject unsupported / mismatched From before any provider call
+    assertGmailOutboundSupported(draft);
+    await assertEffectiveFromMatchesAccount(draft);
 
     // 7. Record in-progress send attempt (handles concurrent race condition safely)
     const attemptId = nanoid();

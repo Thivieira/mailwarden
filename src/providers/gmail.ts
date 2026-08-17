@@ -13,6 +13,28 @@ export interface GmailCredentials {
   expiresAt?: number;
 }
 
+/** Exact MIME serialization Gmail /messages/send receives for a plain-text draft. */
+export function buildGmailMimeMessage(draft: StoredDraft): string {
+  const toHeader = draft.to.map((t) => (t.name ? `"${t.name}" <${t.address}>` : t.address)).join(", ");
+  const ccHeader = (draft.cc || []).map((c) => (c.name ? `"${c.name}" <${c.address}>` : c.address)).join(", ");
+
+  let mime = `To: ${toHeader}\r\n`;
+  if (ccHeader) mime += `Cc: ${ccHeader}\r\n`;
+  mime += `Subject: ${draft.subject}\r\n`;
+  mime += `MIME-Version: 1.0\r\n`;
+  mime += `Content-Type: text/plain; charset=UTF-8\r\n\r\n`;
+  mime += draft.textBody;
+
+  return mime;
+}
+
+export function gmailMimeBody(draft: StoredDraft): string {
+  const mime = buildGmailMimeMessage(draft);
+  const sep = "\r\n\r\n";
+  const idx = mime.indexOf(sep);
+  return idx >= 0 ? mime.slice(idx + sep.length) : draft.textBody;
+}
+
 export class GmailProvider implements MailProvider {
   readonly provider: ProviderType = "gmail";
   private credentials: GmailCredentials;
@@ -212,17 +234,7 @@ export class GmailProvider implements MailProvider {
   }
 
   private buildMimeMessage(draft: StoredDraft): string {
-    const toHeader = draft.to.map((t) => (t.name ? `"${t.name}" <${t.address}>` : t.address)).join(", ");
-    const ccHeader = (draft.cc || []).map((c) => (c.name ? `"${c.name}" <${c.address}>` : c.address)).join(", ");
-
-    let mime = `To: ${toHeader}\r\n`;
-    if (ccHeader) mime += `Cc: ${ccHeader}\r\n`;
-    mime += `Subject: ${draft.subject}\r\n`;
-    mime += `MIME-Version: 1.0\r\n`;
-    mime += `Content-Type: text/plain; charset=UTF-8\r\n\r\n`;
-    mime += draft.textBody;
-
-    return mime;
+    return buildGmailMimeMessage(draft);
   }
 
   private mapGmailMessageToNormalized(
