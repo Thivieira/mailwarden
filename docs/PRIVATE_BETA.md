@@ -2,6 +2,8 @@
 
 The current target is deliberately small: three real people using Mailwarden every day before any public SaaS launch.
 
+Session wrap for the 2026-08-17 security hardening (commits, deploy, resume point): [`HARDENING_WRAP_2026-08-17.md`](./HARDENING_WRAP_2026-08-17.md).
+
 ## Beta structure
 
 Each person gets a completely separate private vault:
