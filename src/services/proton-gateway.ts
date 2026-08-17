@@ -1,9 +1,10 @@
-import { Elysia, t } from "elysia";
+import { Hono } from "hono";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import { nanoid } from "nanoid";
 import { logger } from "../utils/logger";
+import { readBody } from "../http/context";
 
 const GATEWAY_API_KEY = process.env.PROTON_GATEWAY_API_KEY;
 const BRIDGE_IMAP_PORT = parseInt(process.env.PROTON_BRIDGE_IMAP_PORT || "1143", 10);
@@ -95,10 +96,10 @@ async function normalizeImapMessage(message: any, context: { tenantId: string; u
   };
 }
 
-function contextFromHeaders(headers: Record<string, string | undefined>) {
-  const tenantId = headers["x-tenant-id"];
-  const userId = headers["x-user-id"];
-  const accountId = headers["x-account-id"];
+function contextFromHeaders(headers: { get(name: string): string | undefined | null }) {
+  const tenantId = headers.get("x-tenant-id");
+  const userId = headers.get("x-user-id");
+  const accountId = headers.get("x-account-id");
   if (!tenantId || !userId || !accountId) throw new Error("Missing Mailwarden tenant/user/account context headers");
   return { tenantId, userId, accountId };
 }
@@ -127,28 +128,29 @@ async function recentMessages(context: { tenantId: string; userId: string; accou
   }
 }
 
-export const protonGatewayApp = new Elysia({ prefix: "/v1" })
-  .onRequest(({ request, set }) => {
-    if (!GATEWAY_API_KEY || request.headers.get("authorization") !== `Bearer ${GATEWAY_API_KEY}`) {
-      set.status = 401;
-      return { error: "Unauthorized Proton gateway request" };
+export const protonGatewayApp = new Hono()
+  .basePath("/v1")
+  .use("*", async (c, next) => {
+    if (!GATEWAY_API_KEY || c.req.header("authorization") !== `Bearer ${GATEWAY_API_KEY}`) {
+      return c.json({ error: "Unauthorized Proton gateway request" }, 401);
     }
+    return next();
   })
-  .get("/health", async ({ set }) => {
+  .get("/health", async (c) => {
     try {
       const client = makeImapClient();
       await client.connect();
       await client.logout();
-      return { status: "healthy", bridge: { host: BRIDGE_HOST, imapPort: BRIDGE_IMAP_PORT, smtpPort: BRIDGE_SMTP_PORT } };
+      return c.json({ status: "healthy", bridge: { host: BRIDGE_HOST, imapPort: BRIDGE_IMAP_PORT, smtpPort: BRIDGE_SMTP_PORT } });
     } catch (error: any) {
-      set.status = 503;
-      return { status: "unhealthy", error: error.message };
+      return c.json({ status: "unhealthy", error: error.message }, 503);
     }
   })
-  .post("/search", async ({ body, headers }) => {
-    const context = contextFromHeaders(headers as any);
-    const limit = Math.min(Number((body as any)?.limit || 50), 100);
-    const query = String((body as any)?.query || "").trim().toLowerCase();
+  .post("/search", async (c) => {
+    const context = contextFromHeaders(c.req.raw.headers);
+    const body = await readBody(c);
+    const limit = Math.min(Number(body?.limit || 50), 100);
+    const query = String(body?.query || "").trim().toLowerCase();
     let messages = await recentMessages(context, limit);
     if (query) {
       messages = messages.filter((m: any) =>
@@ -157,38 +159,32 @@ export const protonGatewayApp = new Elysia({ prefix: "/v1" })
         m.from.address.toLowerCase().includes(query)
       );
     }
-    return { messages, totalEstimated: messages.length };
-  }, { body: t.Any() })
-  .get("/messages/:id", async ({ params, headers, set }) => {
-    const context = contextFromHeaders(headers as any);
-    const uid = Number(params.id);
-    if (!Number.isFinite(uid)) {
-      set.status = 400;
-      return { error: "Invalid Proton message UID" };
-    }
+    return c.json({ messages, totalEstimated: messages.length });
+  })
+  .get("/messages/:id", async (c) => {
+    const context = contextFromHeaders(c.req.raw.headers);
+    const uid = Number(c.req.param("id"));
+    if (!Number.isFinite(uid)) return c.json({ error: "Invalid Proton message UID" }, 400);
 
     const client = makeImapClient();
     await client.connect();
     try {
       await client.mailboxOpen("INBOX");
       const message = await client.fetchOne(String(uid), { uid: true, source: true, flags: true, internalDate: true }, { uid: true });
-      if (!message) {
-        set.status = 404;
-        return { error: "Message not found" };
-      }
-      return normalizeImapMessage(message, context);
+      if (!message) return c.json({ error: "Message not found" }, 404);
+      return c.json(await normalizeImapMessage(message, context));
     } finally {
       await client.logout().catch(() => undefined);
     }
   })
-  .get("/threads/:threadId", async ({ params, headers }) => {
-    const context = contextFromHeaders(headers as any);
+  .get("/threads/:threadId", async (c) => {
+    const context = contextFromHeaders(c.req.raw.headers);
     const messages = await recentMessages(context, 100);
-    return messages.filter((m: any) => m.providerThreadId === params.threadId);
+    return c.json(messages.filter((m: any) => m.providerThreadId === c.req.param("threadId")));
   })
-  .post("/messages/:id/mutate", async ({ params, body }) => {
-    const uid = Number(params.id);
-    const action = (body as any)?.action;
+  .post("/messages/:id/mutate", async (c) => {
+    const uid = Number(c.req.param("id"));
+    const { action } = await readBody(c);
     const client = makeImapClient();
     await client.connect();
     try {
@@ -197,16 +193,16 @@ export const protonGatewayApp = new Elysia({ prefix: "/v1" })
       else if (action === "mark_unread") await client.messageFlagsRemove(String(uid), ["\\Seen"], { uid: true });
       else if (action === "archive") await client.messageMove(String(uid), "Archive", { uid: true });
       else throw new Error(`Unsupported Proton mutation: ${action}`);
-      return { success: true };
+      return c.json({ success: true });
     } finally {
       await client.logout().catch(() => undefined);
     }
-  }, { body: t.Object({ action: t.String() }) })
-  .post("/drafts", async () => ({ providerDraftId: `proton_draft_${nanoid()}` }))
-  .put("/drafts/:id", async ({ params }) => ({ providerDraftId: params.id }))
-  .post("/send", async ({ body }) => {
+  })
+  .post("/drafts", (c) => c.json({ providerDraftId: `proton_draft_${nanoid()}` }))
+  .put("/drafts/:id", (c) => c.json({ providerDraftId: c.req.param("id") }))
+  .post("/send", async (c) => {
     assertConfigured();
-    const draft = body as any;
+    const draft = await readBody(c);
     const transporter = nodemailer.createTransport({
       host: BRIDGE_HOST,
       port: BRIDGE_SMTP_PORT,
@@ -227,18 +223,17 @@ export const protonGatewayApp = new Elysia({ prefix: "/v1" })
     });
 
     logger.info("[PROTON GATEWAY] Message sent through Proton Bridge SMTP", { messageId: info.messageId });
-    return {
+    return c.json({
       success: true,
       providerMessageId: info.messageId || `proton_sent_${Date.now()}`,
       draftId: draft.id,
       sentAt: new Date().toISOString(),
-    };
-  }, { body: t.Any() });
+    });
+  });
 
 if (import.meta.main) {
   assertConfigured();
   const port = parseInt(process.env.PORT || "8080", 10);
-  protonGatewayApp.listen(port, () => {
-    logger.info(`🛡️ Proton Bridge Gateway running on http://127.0.0.1:${port}`);
-  });
+  Bun.serve({ port, hostname: "127.0.0.1", fetch: protonGatewayApp.fetch });
+  logger.info(`🛡️ Proton Bridge Gateway running on http://127.0.0.1:${port}`);
 }

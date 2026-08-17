@@ -1,10 +1,9 @@
-import { Elysia } from "elysia";
+import { Hono } from "hono";
 import { FONTS } from "../../ui/fonts.gen";
 
 /**
  * The display face, served same-origin so the pages need no third-party request and the
- * CSP can stay at `font-src 'self'`. Content-hashed by weight and immutable, so a visitor
- * fetches each weight once ever.
+ * CSP can stay at `font-src 'self'`. Immutable, so a visitor fetches each weight once ever.
  */
 const decoded = new Map<string, Uint8Array>();
 
@@ -20,12 +19,10 @@ function bytesFor(name: string): Uint8Array | null {
   return decoded.get(name) ?? null;
 }
 
-export const fontRoutes = new Elysia({ aot: false }).get("/f/:name", ({ params, set }) => {
-  const bytes = bytesFor(params.name.replace(/\.woff2$/, ""));
-  if (!bytes) {
-    set.status = 404;
-    return { error: "not_found" };
-  }
+export const fontRoutes = new Hono().get("/f/:name", (c) => {
+  const bytes = bytesFor(c.req.param("name").replace(/\.woff2$/, ""));
+  if (!bytes) return c.json({ error: "not_found" }, 404);
+
   return new Response(bytes, {
     headers: {
       "Content-Type": "font/woff2",

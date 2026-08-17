@@ -1,13 +1,13 @@
-import { Elysia } from "elysia";
+import { Hono } from "hono";
 import { authService } from "../../services/auth";
 import { privacyService } from "../../services/privacy";
 import { auditService } from "../../services/audit";
 import { sendingService } from "../../services/sending";
-import { draftService } from "../../services/drafts";
 import { db, schema } from "../../db";
 import { eq } from "drizzle-orm";
-import { AuthenticationError, NotFoundError } from "../../utils/errors";
+import { AuthenticationError } from "../../utils/errors";
 import { config } from "../../config";
+import { readBody, withPrincipal, type Env } from "../context";
 import { renderPage } from "../../ui/render";
 import type { ApprovalState } from "../../ui/approval";
 import { ApprovalConfirmedPage, ApprovalReviewPage } from "../../ui/approval.gen.js";
@@ -20,65 +20,53 @@ function hostOf(url: string) {
   }
 }
 
-export const managementRoutes = new Elysia({ prefix: "/api", aot: false })
-  // Middleware to authenticate principal if Authorization header is present
-  .derive(async ({ headers }) => {
-    const authHeader = headers["authorization"];
-    if (!authHeader) return { principal: null };
-    try {
-      const principal = await authService.verifyToken(authHeader);
-      return { principal };
-    } catch {
-      return { principal: null };
-    }
-  })
+export const managementRoutes = new Hono<Env>()
+  .basePath("/api")
+  .use("*", withPrincipal)
 
-  // List accounts
-  .get("/accounts", async ({ principal }) => {
+  .get("/accounts", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
-    return privacyService.listAccounts(principal);
+    return c.json(await privacyService.listAccounts(principal));
   })
 
-  // Export all user data (LGPD/GDPR)
-  .get("/privacy/export", async ({ principal }) => {
+  .get("/privacy/export", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
-    return privacyService.exportUserData(principal);
+    return c.json(await privacyService.exportUserData(principal));
   })
 
-  // Purge email bodies
-  .post("/privacy/purge-bodies", async ({ principal }) => {
+  .post("/privacy/purge-bodies", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
-    return privacyService.deleteCachedEmailBodies(principal);
+    return c.json(await privacyService.deleteCachedEmailBodies(principal));
   })
 
-  // Purge relationship memory
-  .post("/privacy/purge-memory", async ({ principal }) => {
+  .post("/privacy/purge-memory", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
     await privacyService.deleteSenderMemory(principal);
-    return { success: true, message: "Sender profiles and relationship memory purged" };
+    return c.json({ success: true, message: "Sender profiles and relationship memory purged" });
   })
 
-  // Get audit log
-  .get("/audit", async ({ principal, query }) => {
+  .get("/audit", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
-    const limit = (query as any)?.limit ? parseInt((query as any).limit, 10) : 50;
-    return auditService.getEvents(principal.tenantId, principal.userId, limit);
+    const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!, 10) : 50;
+    return c.json(await auditService.getEvents(principal.tenantId, principal.userId, limit));
   })
 
   // =========================================================================
   // SEND APPROVAL REVIEW (GET - Strictly idempotent, NEVER mutates state)
   // =========================================================================
-  .get("/approvals/:id/review", async ({ params, set }) => {
+  .get("/approvals/:id/review", async (c) => {
     const [approval] = await db
       .select()
       .from(schema.sendApprovals)
-      .where(eq(schema.sendApprovals.id, params.id))
+      .where(eq(schema.sendApprovals.id, c.req.param("id")))
       .limit(1);
 
-    if (!approval) {
-      set.status = 404;
-      return "Approval challenge not found";
-    }
+    if (!approval) return c.text("Approval challenge not found", 404);
 
     const [draft] = await db
       .select()
@@ -86,14 +74,11 @@ export const managementRoutes = new Elysia({ prefix: "/api", aot: false })
       .where(eq(schema.drafts.id, approval.draftId))
       .limit(1);
 
-    if (!draft) {
-      set.status = 404;
-      return "Associated draft not found";
-    }
+    if (!draft) return c.text("Associated draft not found", 404);
 
     const rawTo = draft.to;
     const toArray = Array.isArray(rawTo) ? rawTo : typeof rawTo === "string" ? JSON.parse(rawTo) : [];
-    // Escaping is the renderer's job now; build plain text and let Solid encode it.
+    // Escaping is the renderer's job; build plain text and let Solid encode it.
     const recipients =
       toArray.map((r: any) => (r.name ? `${r.name} <${r.address}>` : r.address)).join(", ") ||
       "(nobody)";
@@ -122,32 +107,26 @@ export const managementRoutes = new Elysia({ prefix: "/api", aot: false })
   })
 
   // Alias /approvals/:id/confirm (GET) -> delegates to safe review page (NEVER mutates state)
-  .get("/approvals/:id/confirm", async ({ params, set }) => {
-    set.redirect = `/api/approvals/${params.id}/review`;
-  })
+  .get("/approvals/:id/confirm", (c) => c.redirect(`/api/approvals/${c.req.param("id")}/review`))
 
   // =========================================================================
   // SEND APPROVAL CONFIRMATION (POST - The ONLY way to transition to "confirmed")
   // =========================================================================
-  .post("/approvals/:id/confirm", async ({ principal, params, body, headers, set }) => {
-    const { db, schema } = await import("../../db");
-    const { eq } = await import("drizzle-orm");
-
+  .post("/approvals/:id/confirm", async (c) => {
+    const id = c.req.param("id");
     const [approval] = await db
       .select()
       .from(schema.sendApprovals)
-      .where(eq(schema.sendApprovals.id, params.id))
+      .where(eq(schema.sendApprovals.id, id))
       .limit(1);
 
-    if (!approval) {
-      set.status = 404;
-      return { error: "Approval not found" };
-    }
+    if (!approval) return c.json({ error: "Approval not found" }, 404);
 
-    const confirmationNonce = (body as any)?.confirmationNonce;
+    const body = await readBody(c);
+    const confirmationNonce = body?.confirmationNonce;
 
     // Build principal from authenticated session OR verified challenge nonce
-    let effectivePrincipal: any = principal;
+    let effectivePrincipal: any = c.get("principal");
     if (!effectivePrincipal) {
       if (confirmationNonce && approval.confirmationNonce === confirmationNonce) {
         effectivePrincipal = {
@@ -156,41 +135,43 @@ export const managementRoutes = new Elysia({ prefix: "/api", aot: false })
           scopes: ["mail.send", "mail.draft", "mail.read"],
         };
       } else {
-        set.status = 401;
-        return { error: "Unauthorized: valid session or matching confirmationNonce required" };
+        return c.json(
+          { error: "Unauthorized: valid session or matching confirmationNonce required" },
+          401
+        );
       }
     }
 
     const result = await sendingService.confirmSendApproval(effectivePrincipal, {
-      approvalId: params.id,
+      approvalId: id,
       confirmationNonce,
     });
 
     const isHtmlRequest =
-      headers["accept"]?.includes("text/html") ||
-      headers["content-type"]?.includes("application/x-www-form-urlencoded");
+      c.req.header("accept")?.includes("text/html") ||
+      c.req.header("content-type")?.includes("application/x-www-form-urlencoded");
 
     if (isHtmlRequest) {
       return renderPage("Approved", () =>
-        ApprovalConfirmedPage({ host: hostOf(config.APP_BASE_URL), approvalId: params.id })
+        ApprovalConfirmedPage({ host: hostOf(config.APP_BASE_URL), approvalId: id })
       );
     }
 
-    return {
+    return c.json({
       success: true,
       approvalId: result.approvalId,
       status: "confirmed",
       confirmedAt: result.confirmedAt.toISOString(),
       message: "Send approval confirmed by human user. send_draft may now be invoked.",
-    };
+    });
   })
 
   // Gmail OAuth scope helper (Capability-driven minimum privilege)
-  .get("/accounts/oauth-url/google", async ({ principal, query }) => {
+  .get("/accounts/oauth-url/google", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
-    const { config } = await import("../../config");
-    const mode = (query as any)?.mode || "readonly"; // readonly, actions, draft, full
-    
+    const mode = c.req.query("mode") || "readonly"; // readonly, actions, draft, full
+
     const scopeMap: Record<string, string[]> = {
       readonly: ["https://www.googleapis.com/auth/gmail.readonly", "email", "profile"],
       actions: ["https://www.googleapis.com/auth/gmail.modify", "email", "profile"],
@@ -208,15 +189,15 @@ export const managementRoutes = new Elysia({ prefix: "/api", aot: false })
     authUrl.searchParams.set("scope", scopes.join(" "));
     authUrl.searchParams.set("state", JSON.stringify({ tenantId: principal.tenantId, userId: principal.userId, mode }));
 
-    return { authUrl: authUrl.toString(), requestedScopes: scopes, mode };
+    return c.json({ authUrl: authUrl.toString(), requestedScopes: scopes, mode });
   })
 
   // Outlook OAuth scope helper (Capability-driven minimum privilege)
-  .get("/accounts/oauth-url/microsoft", async ({ principal, query }) => {
+  .get("/accounts/oauth-url/microsoft", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
-    const { config } = await import("../../config");
-    const mode = (query as any)?.mode || "readonly";
-    
+    const mode = c.req.query("mode") || "readonly";
+
     const scopeMap: Record<string, string[]> = {
       readonly: ["Mail.Read", "User.Read", "offline_access"],
       actions: ["Mail.ReadWrite", "User.Read", "offline_access"],
@@ -233,88 +214,99 @@ export const managementRoutes = new Elysia({ prefix: "/api", aot: false })
     authUrl.searchParams.set("scope", scopes.join(" "));
     authUrl.searchParams.set("state", JSON.stringify({ tenantId: principal.tenantId, userId: principal.userId, mode }));
 
-    return { authUrl: authUrl.toString(), requestedScopes: scopes, mode };
+    return c.json({ authUrl: authUrl.toString(), requestedScopes: scopes, mode });
   })
 
   // =========================================================================
   // PROTON LOCAL CONNECTOR / HOSTED GATEWAY API
   // =========================================================================
-  .post("/connectors/proton/register", async ({ principal, body }) => {
+  .post("/connectors/proton/register", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
     const { protonConnectorService } = await import("../../services/proton-connector");
-    const b = body as any;
-    return protonConnectorService.registerConnector(principal, {
-      accountId: b.accountId,
-      deviceName: b.deviceName,
-      connectorType: b.connectorType,
-      bridgeHost: b.bridgeHost,
-      bridgeImapPort: b.bridgeImapPort,
-      bridgeSmtpPort: b.bridgeSmtpPort,
-      metadata: b.metadata,
-    });
+    const b = await readBody(c);
+    return c.json(
+      await protonConnectorService.registerConnector(principal, {
+        accountId: b.accountId,
+        deviceName: b.deviceName,
+        connectorType: b.connectorType,
+        bridgeHost: b.bridgeHost,
+        bridgeImapPort: b.bridgeImapPort,
+        bridgeSmtpPort: b.bridgeSmtpPort,
+        metadata: b.metadata,
+      })
+    );
   })
 
-  .post("/connectors/proton/heartbeat", async ({ headers, body }) => {
+  .post("/connectors/proton/heartbeat", async (c) => {
     const { protonConnectorService } = await import("../../services/proton-connector");
-    const authHeader = headers["authorization"];
+    const b = await readBody(c);
+    const authHeader = c.req.header("authorization");
     const tokenFromHeader = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
-    const token = tokenFromHeader || (body as any)?.deviceToken;
+    const token = tokenFromHeader || b?.deviceToken;
 
     if (!token) throw new AuthenticationError("Device token required for heartbeat");
 
-    const b = body as any;
-    return protonConnectorService.processHeartbeat(token, {
-      status: b?.status,
-      errorMessage: b?.errorMessage,
-      metadata: b?.metadata,
-    });
+    return c.json(
+      await protonConnectorService.processHeartbeat(token, {
+        status: b?.status,
+        errorMessage: b?.errorMessage,
+        metadata: b?.metadata,
+      })
+    );
   })
 
-  .get("/connectors/proton/status/:accountId", async ({ principal, params, query }) => {
+  .get("/connectors/proton/status/:accountId", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
     const { protonConnectorService } = await import("../../services/proton-connector");
     const { localizationService } = await import("../../services/localization");
 
-    const connector = await protonConnectorService.getConnectorByAccountId(principal, params.accountId);
-    const locale = localizationService.resolveLocale({ requestLanguage: (query as any)?.lang });
+    const connector = await protonConnectorService.getConnectorByAccountId(
+      principal,
+      c.req.param("accountId")
+    );
+    const locale = localizationService.resolveLocale({ requestLanguage: c.req.query("lang") });
     const formatted = protonConnectorService.formatConnectorStatus(connector, locale);
 
-    return {
-      connector,
-      formatted,
-    };
+    return c.json({ connector, formatted });
   })
 
   // =========================================================================
   // USER PREFERENCES & EMAIL POLICIES
   // =========================================================================
-  .get("/preferences", async ({ principal }) => {
+  .get("/preferences", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
     const { userPreferencesService } = await import("../../services/user-preferences");
-    return userPreferencesService.getPreferences(principal);
+    return c.json(await userPreferencesService.getPreferences(principal));
   })
 
-  .post("/preferences", async ({ principal, body }) => {
+  .post("/preferences", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
     const { userPreferencesService } = await import("../../services/user-preferences");
-    return userPreferencesService.updatePreferences(principal, body as any);
+    return c.json(await userPreferencesService.updatePreferences(principal, (await readBody(c)) as any));
   })
 
-  .get("/policies", async ({ principal }) => {
+  .get("/policies", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
     const { policyService } = await import("../../services/policy");
-    return policyService.getUserPolicies(principal);
+    return c.json(await policyService.getUserPolicies(principal));
   })
 
-  .post("/policies", async ({ principal, body }) => {
+  .post("/policies", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
     const { policyService } = await import("../../services/policy");
-    return policyService.setPolicy(principal, body as any);
+    return c.json(await policyService.setPolicy(principal, (await readBody(c)) as any));
   })
 
-  .delete("/policies/:id", async ({ principal, params }) => {
+  .delete("/policies/:id", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
     const { policyService } = await import("../../services/policy");
-    const success = await policyService.removePolicy(principal, params.id);
-    return { success };
+    const success = await policyService.removePolicy(principal, c.req.param("id"));
+    return c.json({ success });
   });

@@ -22,7 +22,7 @@ describe("GET /oauth/authorize HTML response", () => {
       resource: "https://mailwarden.corenet.workers.dev",
     });
 
-    const response = await app.handle(new Request(`http://localhost:3000/oauth/authorize?${query}`));
+    const response = await app.fetch(new Request(`http://localhost:3000/oauth/authorize?${query}`));
     const html = await response.text();
 
     expect(response.status).toBe(200);
@@ -63,7 +63,7 @@ describe("GET /oauth/authorize HTML response", () => {
       login_secret: "not-a-real-secret",
     });
 
-    const response = await app.handle(
+    const response = await app.fetch(
       new Request("http://localhost:3000/oauth/authorize", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },

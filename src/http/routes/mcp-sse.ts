@@ -1,4 +1,5 @@
-import { Elysia, t } from "elysia";
+import { Hono } from "hono";
+import { readBody } from "../context";
 import { authService } from "../../services/auth";
 import { createMcpServer, ALL_MCP_TOOLS, SERVER_INSTRUCTIONS } from "../../mcp/server";
 import type { AuthPrincipal } from "../../types/auth";
@@ -87,66 +88,75 @@ async function handleJsonRpcRequest(principal: AuthPrincipal, body: any) {
   return { jsonrpc: "2.0", error: { code: -32601, message: `Unsupported method: ${method}` }, id };
 }
 
-async function authenticate(headers: Record<string, string | undefined>, queryTicket?: string): Promise<AuthPrincipal> {
-  const authHeader = headers["authorization"];
+async function authenticate(authHeader?: string, queryTicket?: string): Promise<AuthPrincipal> {
   if (authHeader?.startsWith("Bearer ")) return authService.verifyToken(authHeader.slice(7));
   if (queryTicket) return authService.consumeEphemeralStreamTicket(queryTicket);
   throw new Error("Bearer token required");
 }
 
-export const mcpRoutes = new Elysia({ aot: false })
-  .post("/mcp", async ({ headers, body, set }) => {
+export const mcpRoutes = new Hono()
+  .post("/mcp", async (c) => {
+    const body = await readBody(c);
     let principal: AuthPrincipal;
     try {
-      principal = await authenticate(headers as any);
+      principal = await authenticate(c.req.header("authorization"));
     } catch (err: any) {
-      set.status = 401;
-      set.headers["WWW-Authenticate"] = `Bearer realm="mailwarden", resource="${config.APP_BASE_URL}", error="invalid_token"`;
-      return { jsonrpc: "2.0", error: { code: -32000, message: err.message }, id: (body as any)?.id || null };
+      return c.json(
+        { jsonrpc: "2.0", error: { code: -32000, message: err.message }, id: body?.id || null },
+        401,
+        { "WWW-Authenticate": `Bearer realm="mailwarden", resource="${config.APP_BASE_URL}", error="invalid_token"` }
+      );
     }
 
     const response = await handleJsonRpcRequest(principal, body);
-    if (response === null) {
-      set.status = 202;
-      return "";
-    }
-    return response;
-  }, { body: t.Any() })
-  .post("/mcp/rpc", async ({ headers, body, set }) => {
+    if (response === null) return c.body(null, 202);
+    return c.json(response);
+  })
+
+  .post("/mcp/rpc", async (c) => {
+    const body = await readBody(c);
     let principal: AuthPrincipal;
     try {
-      principal = await authenticate(headers as any);
+      principal = await authenticate(c.req.header("authorization"));
     } catch (err: any) {
-      set.status = 401;
-      set.headers["WWW-Authenticate"] = `Bearer realm="mailwarden", resource="${config.APP_BASE_URL}", error="invalid_token"`;
-      return { jsonrpc: "2.0", error: { code: -32000, message: err.message }, id: (body as any)?.id || null };
+      return c.json(
+        { jsonrpc: "2.0", error: { code: -32000, message: err.message }, id: body?.id || null },
+        401,
+        { "WWW-Authenticate": `Bearer realm="mailwarden", resource="${config.APP_BASE_URL}", error="invalid_token"` }
+      );
     }
-    return handleJsonRpcRequest(principal, body);
-  }, { body: t.Any() })
-  .get("/mcp/sse", async ({ headers, query, set }) => {
+    return c.json(await handleJsonRpcRequest(principal, body));
+  })
+
+  .get("/mcp/sse", async (c) => {
     let principal: AuthPrincipal;
     try {
-      principal = await authenticate(headers as any, query.ticket);
+      principal = await authenticate(c.req.header("authorization"), c.req.query("ticket"));
     } catch (err: any) {
-      set.status = 401;
-      set.headers["WWW-Authenticate"] = `Bearer realm="mailwarden", resource="${config.APP_BASE_URL}", error="invalid_token"`;
-      return `Unauthorized: ${err.message}`;
+      return c.text(`Unauthorized: ${err.message}`, 401, {
+        "WWW-Authenticate": `Bearer realm="mailwarden", resource="${config.APP_BASE_URL}", error="invalid_token"`,
+      });
     }
 
     const sessionId = nanoid();
     const server = createMcpServer(principal);
     activeSessions.set(sessionId, { principal, server });
 
-    set.headers["Content-Type"] = "text/event-stream";
-    set.headers["Cache-Control"] = "no-cache";
-    set.headers["Connection"] = "keep-alive";
-
-    return new ReadableStream({
+    const stream = new ReadableStream({
       start(controller) {
         controller.enqueue(new TextEncoder().encode(`event: endpoint\ndata: /mcp?sessionId=${sessionId}\n\n`));
       },
       cancel() {
         activeSessions.delete(sessionId);
+      },
+    });
+
+    // A real Response carries the stream headers reliably; a route-set Content-Type did not.
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
       },
     });
   });

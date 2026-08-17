@@ -9,13 +9,17 @@ async function bootstrap() {
   // Run database migrations on startup
   await runMigrations();
 
-  app.listen({ port: config.PORT, hostname: config.HOST }, ({ hostname, port }) => {
-    logger.info(`🛡️ Mailwarden is listening on http://${hostname}:${port}`);
-    logger.info(`📖 API Documentation: http://${hostname}:${port}/swagger`);
-    logger.info(`🔌 MCP JSON-RPC: http://${hostname}:${port}/mcp/rpc`);
-    logger.info(`📡 MCP SSE Transport: http://${hostname}:${port}/mcp/sse`);
-    logger.info(`⚙️ Mailbox mutations enabled: ${config.MAILBOX_MUTATIONS_ENABLED}`);
+  const server = Bun.serve({
+    port: config.PORT,
+    hostname: config.HOST,
+    fetch: app.fetch,
   });
+
+  logger.info(`🛡️ Mailwarden is listening on http://${server.hostname}:${server.port}`);
+  logger.info(`📖 API Documentation: http://${server.hostname}:${server.port}/swagger`);
+  logger.info(`🔌 MCP JSON-RPC: http://${server.hostname}:${server.port}/mcp/rpc`);
+  logger.info(`📡 MCP SSE Transport: http://${server.hostname}:${server.port}/mcp/sse`);
+  logger.info(`⚙️ Mailbox mutations enabled: ${config.MAILBOX_MUTATIONS_ENABLED}`);
 }
 
 bootstrap().catch((err) => {

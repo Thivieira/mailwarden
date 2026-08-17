@@ -309,7 +309,7 @@ describe("Exact Payload Send Confirmation & Idempotency", () => {
 
     // 1. Simulate automated link scanner / browser prefetch issuing GET requests
     for (let i = 0; i < 3; i++) {
-      const getResp = await app.handle(
+      const getResp = await app.fetch(
         new Request(`http://localhost:3000/api/approvals/${approval.id}/review`, {
           method: "GET",
           headers: { Accept: "text/html" },
@@ -340,7 +340,7 @@ describe("Exact Payload Send Confirmation & Idempotency", () => {
     ).rejects.toThrow(SendApprovalNotConfirmedError);
 
     // 3. Authenticated human POST confirms the pending approval
-    const postResp = await app.handle(
+    const postResp = await app.fetch(
       new Request(`http://localhost:3000/api/approvals/${approval.id}/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

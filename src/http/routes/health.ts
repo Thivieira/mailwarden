@@ -1,10 +1,10 @@
-import { Elysia } from "elysia";
+import { Hono } from "hono";
 import { db, schema } from "../../db";
 import { config } from "../../config";
 import { sql } from "drizzle-orm";
 import { BUILD } from "../../build-info.gen";
 
-export const healthRoutes = new Elysia({ prefix: "/health", aot: false }).get("/", async () => {
+export const healthRoutes = new Hono().get("/health", async (c) => {
   let dbStatus = "healthy";
   try {
     await db.select({ count: sql`count(*)` }).from(schema.tenants);
@@ -12,7 +12,7 @@ export const healthRoutes = new Elysia({ prefix: "/health", aot: false }).get("/
     dbStatus = `unhealthy: ${err.message}`;
   }
 
-  return {
+  return c.json({
     status: dbStatus === "healthy" ? "ok" : "degraded",
     timestamp: new Date().toISOString(),
     version: "1.0.0",
@@ -27,5 +27,5 @@ export const healthRoutes = new Elysia({ prefix: "/health", aot: false }).get("/
       microsoftConfigured: Boolean(config.MICROSOFT_CLIENT_ID && config.MICROSOFT_CLIENT_SECRET),
       protonGateway: "external-local-service",
     },
-  };
+  });
 });

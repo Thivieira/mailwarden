@@ -1,4 +1,4 @@
-import { Elysia, t } from "elysia";
+import { Hono } from "hono";
 import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { authService } from "../../services/auth";
@@ -8,6 +8,7 @@ import { encryptionService } from "../../services/encryption";
 import { auditService } from "../../services/audit";
 import { db, schema } from "../../db";
 import { config } from "../../config";
+import { readBody, withPrincipal, type Env } from "../context";
 import { renderPage } from "../../ui/render";
 import { CallbackPage } from "../../ui/pages.gen.js";
 import { AuthenticationError, ConfigurationError } from "../../utils/errors";
@@ -21,12 +22,10 @@ function hostOf(url: string) {
 }
 
 /**
- * Renders the provider-connect outcome. Returns a real Response: setting
- * `set.headers["Content-Type"]` and returning a string made Elysia emit a duplicated
- * `text/html, text/plain` header on Workers, which browsers showed as literal source.
+ * Renders the provider-connect outcome. Returns a real Response so the Content-Type
+ * survives; the previous framework dropped a route-set header on string returns.
  */
 function callbackPage(
-  provider: string,
   headline: string,
   detail: string,
   facts: { term: string; value: string }[],
@@ -35,14 +34,7 @@ function callbackPage(
 ) {
   return renderPage(
     headline,
-    () =>
-      CallbackPage({
-        host: hostOf(config.APP_BASE_URL),
-        granted,
-        headline,
-        detail,
-        facts,
-      }),
+    () => CallbackPage({ host: hostOf(config.APP_BASE_URL), granted, headline, detail, facts }),
     status
   );
 }
@@ -53,45 +45,53 @@ const ownerScopes = [
   "relationships.read", "relationships.manage", "signatures.read", "signatures.manage",
 ] as any;
 
-export const providerConnectRoutes = new Elysia({ aot: false })
-  .derive(async ({ headers }) => {
-    const authHeader = headers["authorization"];
-    if (!authHeader?.startsWith("Bearer ")) return { principal: null };
-    try {
-      return { principal: await authService.verifyToken(authHeader.slice(7)) };
-    } catch {
-      return { principal: null };
-    }
-  })
-  .get("/api/connect/google", async ({ principal, query }) => {
+export const providerConnectRoutes = new Hono<Env>()
+  .use("*", withPrincipal)
+
+  .get("/api/connect/google", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
     authService.requireScope(principal, "accounts.manage");
-    return providerOAuthService.buildAuthorizationUrl(principal, "gmail", (((query as any)?.mode || "readonly") as ProviderMode));
+    return c.json(
+      await providerOAuthService.buildAuthorizationUrl(
+        principal,
+        "gmail",
+        (c.req.query("mode") || "readonly") as ProviderMode
+      )
+    );
   })
-  .get("/api/connect/microsoft", async ({ principal, query }) => {
+
+  .get("/api/connect/microsoft", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
     authService.requireScope(principal, "accounts.manage");
-    return providerOAuthService.buildAuthorizationUrl(principal, "outlook", (((query as any)?.mode || "readonly") as ProviderMode));
+    return c.json(
+      await providerOAuthService.buildAuthorizationUrl(
+        principal,
+        "outlook",
+        (c.req.query("mode") || "readonly") as ProviderMode
+      )
+    );
   })
-  .get("/auth/callback/google", async ({ query }) => {
+
+  .get("/auth/callback/google", async (c) => {
     try {
-      const code = String((query as any).code || "");
-      const stateToken = String((query as any).state || "");
+      const code = c.req.query("code") || "";
+      const stateToken = c.req.query("state") || "";
       if (!code || !stateToken) throw new Error("Missing Google OAuth code/state");
       const state = await providerOAuthService.verifyState(stateToken, "gmail");
       const connected = await providerOAuthService.completeGoogleCallback(code, stateToken);
       const principal = { tenantId: state.tenantId, userId: state.userId, scopes: ownerScopes };
-      let syncText = "No messages synced yet.";
+      let syncText = "No messages were synchronized yet.";
       try {
         const result = await syncService.syncAccount(principal, connected.accountId, 50);
-        syncText = `${result.ingested} recent messages synced.`;
+        syncText = `${result.ingested} recent messages synchronized.`;
       } catch (syncError: any) {
-        syncText = `The first sync failed: ${syncError.message}`;
+        syncText = `The first synchronization failed: ${syncError.message}`;
       }
       return callbackPage(
-        "Gmail",
         "Gmail connected",
-        "This account is connected. Mailwarden stores the connection; your AI assistant never sees it.",
+        "This account is now readable by your vault. Mailwarden holds the provider credentials; your AI client never receives them.",
         [
           { term: "Account", value: connected.emailAddress },
           { term: "First sync", value: syncText },
@@ -99,35 +99,28 @@ export const providerConnectRoutes = new Elysia({ aot: false })
         true
       );
     } catch (error: any) {
-      return callbackPage(
-        "Gmail",
-        "Gmail connection failed",
-        error.message,
-        [],
-        false,
-        400
-      );
+      return callbackPage("Gmail connection failed", error.message, [], false, 400);
     }
   })
-  .get("/auth/callback/microsoft", async ({ query }) => {
+
+  .get("/auth/callback/microsoft", async (c) => {
     try {
-      const code = String((query as any).code || "");
-      const stateToken = String((query as any).state || "");
+      const code = c.req.query("code") || "";
+      const stateToken = c.req.query("state") || "";
       if (!code || !stateToken) throw new Error("Missing Microsoft OAuth code/state");
       const state = await providerOAuthService.verifyState(stateToken, "outlook");
       const connected = await providerOAuthService.completeMicrosoftCallback(code, stateToken);
       const principal = { tenantId: state.tenantId, userId: state.userId, scopes: ownerScopes };
-      let syncText = "No messages synced yet.";
+      let syncText = "No messages were synchronized yet.";
       try {
         const result = await syncService.syncAccount(principal, connected.accountId, 50);
-        syncText = `${result.ingested} recent messages synced.`;
+        syncText = `${result.ingested} recent messages synchronized.`;
       } catch (syncError: any) {
-        syncText = `The first sync failed: ${syncError.message}`;
+        syncText = `The first synchronization failed: ${syncError.message}`;
       }
       return callbackPage(
-        "Outlook",
         "Outlook connected",
-        "This account is connected. Mailwarden stores the connection; your AI assistant never sees it.",
+        "This account is now readable by your vault. Mailwarden holds the provider credentials; your AI client never receives them.",
         [
           { term: "Account", value: connected.emailAddress },
           { term: "First sync", value: syncText },
@@ -135,36 +128,39 @@ export const providerConnectRoutes = new Elysia({ aot: false })
         true
       );
     } catch (error: any) {
-      return callbackPage(
-        "Outlook",
-        "Outlook connection failed",
-        error.message,
-        [],
-        false,
-        400
-      );
+      return callbackPage("Outlook connection failed", error.message, [], false, 400);
     }
   })
-  .post("/api/accounts/:id/sync", async ({ principal, params, body }) => {
+
+  .post("/api/accounts/:id/sync", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
     authService.requireScope(principal, "accounts.manage");
-    return syncService.syncAccount(principal, params.id, Number((body as any)?.limit || 50));
-  }, { body: t.Optional(t.Object({ limit: t.Optional(t.Number()) })) })
-  .post("/api/accounts/sync-all", async ({ principal, body }) => {
+    const body = await readBody(c);
+    return c.json(
+      await syncService.syncAccount(principal, c.req.param("id"), Number(body?.limit || 50))
+    );
+  })
+
+  .post("/api/accounts/sync-all", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
     authService.requireScope(principal, "accounts.manage");
-    return syncService.syncAll(principal, Number((body as any)?.limitPerAccount || 50));
-  }, { body: t.Optional(t.Object({ limitPerAccount: t.Optional(t.Number()) })) })
-  .post("/api/connect/proton", async ({ principal, body }) => {
+    const body = await readBody(c);
+    return c.json(await syncService.syncAll(principal, Number(body?.limitPerAccount || 50)));
+  })
+
+  .post("/api/connect/proton", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
     authService.requireScope(principal, "accounts.manage");
-    const input = body as any;
+    const input = await readBody(c);
     if (!input.gatewayUrl?.startsWith("https://") && !input.gatewayUrl?.startsWith("http://localhost")) {
       throw new ConfigurationError("Proton gatewayUrl must use HTTPS (localhost HTTP is allowed for local development)");
     }
 
     const now = new Date();
-    const email = input.email.toLowerCase();
+    const email = String(input.email).toLowerCase();
     let [account] = await db.select().from(schema.emailAccounts).where(and(
       eq(schema.emailAccounts.tenantId, principal.tenantId),
       eq(schema.emailAccounts.userId, principal.userId),
@@ -211,14 +207,11 @@ export const providerConnectRoutes = new Elysia({ aot: false })
     });
 
     const syncResult = input.syncNow === false ? null : await syncService.syncAccount(principal, account!.id, input.limit || 50);
-    return { accountId: account!.id, provider: "proton", emailAddress: email, sync: syncResult };
-  }, {
-    body: t.Object({
-      email: t.String(), displayName: t.Optional(t.String()), gatewayUrl: t.String(), gatewayApiKey: t.String(),
-      priorityRole: t.Optional(t.String()), syncNow: t.Optional(t.Boolean()), limit: t.Optional(t.Number()),
-    }),
+    return c.json({ accountId: account!.id, provider: "proton", emailAddress: email, sync: syncResult });
   })
-  .get("/api/connect/status", async ({ principal }) => {
+
+  .get("/api/connect/status", async (c) => {
+    const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
     const accounts = await db.select({
       id: schema.emailAccounts.id, provider: schema.emailAccounts.provider, emailAddress: schema.emailAccounts.emailAddress,
@@ -227,5 +220,5 @@ export const providerConnectRoutes = new Elysia({ aot: false })
     }).from(schema.emailAccounts).where(and(
       eq(schema.emailAccounts.tenantId, principal.tenantId), eq(schema.emailAccounts.userId, principal.userId)
     ));
-    return { appBaseUrl: config.APP_BASE_URL, mailboxMutationsEnabled: config.MAILBOX_MUTATIONS_ENABLED, providers: accounts };
+    return c.json({ appBaseUrl: config.APP_BASE_URL, mailboxMutationsEnabled: config.MAILBOX_MUTATIONS_ENABLED, providers: accounts });
   });

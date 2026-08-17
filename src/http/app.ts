@@ -1,5 +1,5 @@
-import { Elysia } from "elysia";
-import { cors } from "@elysiajs/cors";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { healthRoutes } from "./routes/health";
 import { authRoutes } from "./routes/auth";
 import { oauthRoutes } from "./routes/oauth";
@@ -10,30 +10,31 @@ import { fontRoutes } from "./routes/fonts";
 import { logger } from "../utils/logger";
 import { MailwardenError } from "../utils/errors";
 
-export function createElysiaApp() {
-  const isCloudflareWorker = typeof (globalThis as any).WebSocketPair !== "undefined" || (typeof process !== "undefined" && !process.versions?.bun);
+export function createHonoApp() {
+  const app = new Hono();
 
-  const app = new Elysia({ aot: false })
-    .use(cors())
-    .onError(({ code, error, set }) => {
-      if (error instanceof MailwardenError) {
-        set.status = error.statusCode;
-        return error.toJSON();
-      }
+  app.use("*", cors());
 
-      const errMsg = (error as any)?.message || String(error);
-      logger.error("Unhandled HTTP error", { code, error: errMsg });
-      set.status = 500;
-      return { error: "InternalServerError", message: "An internal server error occurred" };
-    })
-    .use(fontRoutes)
-    .use(healthRoutes)
-    .use(authRoutes)
-    .use(oauthRoutes)
-    .use(mcpRoutes)
-    .use(providerConnectRoutes)
-    .use(managementRoutes)
-    .get("/", () => ({
+  app.onError((error, c) => {
+    if (error instanceof MailwardenError) {
+      return c.json(error.toJSON(), error.statusCode as any);
+    }
+
+    const errMsg = (error as any)?.message || String(error);
+    logger.error("Unhandled HTTP error", { error: errMsg });
+    return c.json({ error: "InternalServerError", message: "An internal server error occurred" }, 500);
+  });
+
+  app.route("/", fontRoutes);
+  app.route("/", healthRoutes);
+  app.route("/", authRoutes);
+  app.route("/", oauthRoutes);
+  app.route("/", mcpRoutes);
+  app.route("/", providerConnectRoutes);
+  app.route("/", managementRoutes);
+
+  app.get("/", (c) =>
+    c.json({
       name: "Mailwarden",
       tagline: "Your email, managed through normal conversation.",
       status: "online",
@@ -42,13 +43,16 @@ export function createElysiaApp() {
       rpcEndpoint: "/mcp/rpc",
       sseEndpoint: "/mcp/sse",
       healthCheck: "/health",
-    }))
-    .get("/swagger", () => ({
+    })
+  );
+
+  app.get("/swagger", (c) =>
+    c.json({
       openapi: "3.0.0",
       info: {
         title: "Mailwarden API",
         version: "1.0.0",
-        description: "Conversational email with human-approved sending",
+        description: "Secure conversational email layer",
       },
       paths: {
         "/health": { get: { summary: "Health check" } },
@@ -65,18 +69,10 @@ export function createElysiaApp() {
         "/api/connect/proton": { post: { summary: "Connect Proton Bridge gateway" } },
         "/api/accounts/sync-all": { post: { summary: "Synchronize all connected mailboxes" } },
       },
-    }));
-
-  if (typeof (globalThis as any).Bun !== "undefined" && !isCloudflareWorker) {
-    try {
-      const { swagger } = require("@elysiajs/swagger");
-      app.use(swagger({ documentation: { info: { title: "Mailwarden API", version: "1.0.0", description: "Conversational email with human-approved sending" } } }));
-    } catch {
-      // Swagger UI is optional in Worker runtime.
-    }
-  }
+    })
+  );
 
   return app;
 }
 
-export const app = createElysiaApp();
+export const app = createHonoApp();
