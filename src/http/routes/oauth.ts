@@ -1,6 +1,12 @@
 import { Hono } from "hono";
 import { oauthService } from "../../services/oauth";
 import { userAuthService } from "../../services/user-auth";
+import {
+  humanSessionService,
+  humanSessionCookie,
+  humanSessionMaxAge,
+  readHumanSessionCookie,
+} from "../../services/human-session";
 import { ALL_SCOPES, type PermissionScope } from "../../types/auth";
 import { config } from "../../config";
 import { readBody } from "../context";
@@ -160,10 +166,24 @@ export const oauthRoutes = new Hono()
       codeChallengeMethod: "S256",
     });
 
+    // Mint a human browser session on the Mailwarden origin so later approval review/confirm
+    // can require a real human cookie. Never put this token in the OAuth code or MCP bearer.
+    const prior = readHumanSessionCookie(c.req.header("cookie"));
+    const { token: humanToken, expiresAt } = await humanSessionService.mintRotating(
+      { id: user.id, tenantId: user.tenantId, email: user.email },
+      prior
+    );
+
     const redirectUrl = new URL(b.redirect_uri);
     redirectUrl.searchParams.set("code", code);
     if (b.state) redirectUrl.searchParams.set("state", b.state);
-    return c.redirect(redirectUrl.toString());
+
+    const response = c.redirect(redirectUrl.toString());
+    response.headers.append(
+      "Set-Cookie",
+      humanSessionCookie(humanToken, humanSessionMaxAge(expiresAt))
+    );
+    return response;
   })
 
   .post("/oauth/token", async (c) => {

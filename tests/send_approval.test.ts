@@ -296,6 +296,10 @@ describe("Exact Payload Send Confirmation & Idempotency", () => {
 
   it("GET review requests and automated link prefetchers NEVER mutate approval state", async () => {
     const { app } = await import("../src/http/app");
+    const {
+      humanSessionService,
+      HUMAN_SESSION_COOKIE,
+    } = await import("../src/services/human-session");
 
     const { draft } = await draftService.createDraft(principal, {
       accountId,
@@ -307,7 +311,7 @@ describe("Exact Payload Send Confirmation & Idempotency", () => {
 
     const { approval } = await sendingService.requestSendApproval(principal, draft.id);
 
-    // 1. Simulate automated link scanner / browser prefetch issuing GET requests
+    // 1. Unauthenticated prefetchers see sign-in only — never draft content or nonce
     for (let i = 0; i < 3; i++) {
       const getResp = await app.fetch(
         new Request(`http://localhost:3000/api/approvals/${approval.id}/review`, {
@@ -317,8 +321,10 @@ describe("Exact Payload Send Confirmation & Idempotency", () => {
       );
       expect(getResp.status).toBe(200);
       const html = await getResp.text();
-      expect(html).toContain("Send this email?");
-      expect(html).toContain(approval.payloadHash);
+      expect(html).toContain("Sign in to review");
+      expect(html).not.toContain("Testing safe GET semantics");
+      expect(html).not.toContain(approval.confirmationNonce);
+      expect(html).not.toContain(approval.payloadHash);
     }
 
     // Verify approval state in DB remains strictly "pending"
@@ -339,11 +345,25 @@ describe("Exact Payload Send Confirmation & Idempotency", () => {
       })
     ).rejects.toThrow(SendApprovalNotConfirmedError);
 
-    // 3. Authenticated human POST confirms the pending approval
+    // 3. Human browser session + nonce confirms the pending approval
+    const [user] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.id, principal.userId))
+      .limit(1);
+    const { token } = await humanSessionService.mint({
+      id: principal.userId,
+      tenantId: principal.tenantId,
+      email: user.email,
+    });
+
     const postResp = await app.fetch(
       new Request(`http://localhost:3000/api/approvals/${approval.id}/confirm`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${HUMAN_SESSION_COOKIE}=${token}`,
+        },
         body: JSON.stringify({ confirmationNonce: approval.confirmationNonce }),
       })
     );

@@ -1,5 +1,5 @@
 import { db, schema } from "../db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull, gt } from "drizzle-orm";
 import { authService } from "./auth";
 import { draftService } from "./drafts";
 import { auditService } from "./audit";
@@ -99,17 +99,21 @@ export class SendingService {
   /**
    * Explicit Human Confirmation Boundary.
    * Confirms a pending approval challenge. Transition from 'pending' -> 'confirmed'.
-   * Can only be executed by the authenticated human owner of the draft.
+   * PENDING → CONFIRMED is a single compare-and-set so concurrent confirms cannot both win.
    */
   async confirmSendApproval(
     principal: AuthPrincipal,
     params: {
       approvalId: string;
-      confirmationNonce?: string;
+      confirmationNonce: string;
     }
   ): Promise<{ success: boolean; approvalId: string; status: "confirmed"; confirmedAt: Date }> {
     authService.requirePrincipal(principal);
     authService.requireScope(principal, "mail.send");
+
+    if (!params.confirmationNonce) {
+      throw new SendApprovalInvalidError("Confirmation nonce required");
+    }
 
     const [approval] = await db
       .select()
@@ -143,9 +147,14 @@ export class SendingService {
       );
     }
 
-    // If nonce is provided, verify matching
-    if (params.confirmationNonce && approval.confirmationNonce !== params.confirmationNonce) {
+    if (approval.confirmationNonce !== params.confirmationNonce) {
       throw new SendApprovalInvalidError("Confirmation nonce mismatch");
+    }
+
+    if (approval.status === "confirmed") {
+      throw new SendApprovalInvalidError(
+        `Approval '${params.approvalId}' is already confirmed and cannot be confirmed again.`
+      );
     }
 
     // Verify current draft hash matches approved hash (no edits occurred)
@@ -156,15 +165,32 @@ export class SendingService {
       );
     }
 
-    // Transition status to confirmed atomically
-    await db
+    // Atomic PENDING → CONFIRMED. Exactly one concurrent caller wins.
+    const [updated] = await db
       .update(schema.sendApprovals)
       .set({
         status: "confirmed",
         confirmedByUserId: principal.userId,
         confirmedAt: now,
       })
-      .where(eq(schema.sendApprovals.id, approval.id));
+      .where(
+        and(
+          eq(schema.sendApprovals.id, approval.id),
+          eq(schema.sendApprovals.tenantId, principal.tenantId),
+          eq(schema.sendApprovals.userId, principal.userId),
+          eq(schema.sendApprovals.status, "pending"),
+          isNull(schema.sendApprovals.usedAt),
+          gt(schema.sendApprovals.expiresAt, now),
+          eq(schema.sendApprovals.confirmationNonce, params.confirmationNonce)
+        )
+      )
+      .returning();
+
+    if (!updated) {
+      throw new SendApprovalInvalidError(
+        `Approval '${params.approvalId}' could not be confirmed (already confirmed, expired, or raced).`
+      );
+    }
 
     await auditService.logEvent({
       tenantId: principal.tenantId,

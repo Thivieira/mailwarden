@@ -1,5 +1,8 @@
 export type AuditAction =
   | "AUTH_LOGIN"
+  // A human browser session was established. Distinct from AUTH_LOGIN, which covers
+  // API/MCP tokens: only this one can later authorize an irreversible send.
+  | "HUMAN_SESSION_START"
   | "AUTH_LOGOUT"
   | "MCP_AUTHENTICATE"
   | "MCP_TOOL_INVOCATION"

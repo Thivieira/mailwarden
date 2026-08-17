@@ -45,14 +45,12 @@ describe("Browser-reachable surfaces carry the design system", () => {
     expect(await res.json()).toMatchObject({ error: "NotFound" });
   });
 
-  it("an expired or unknown approval link renders the designed notice", async () => {
+  it("an unknown approval link without a human session offers sign-in, not draft content", async () => {
     const res = await html("/api/approvals/does-not-exist/review");
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
     const body = await designed(res);
+    expect(body).toContain("Sign in to review this email");
     expect(body).not.toContain("Approval challenge not found");
-    expect(body).toContain("This link has expired");
-    // It must say plainly that nothing went out - this is the reassurance the page exists for.
-    expect(body).toMatch(/nothing was sent/i);
   });
 
   it("the notice page never leaks an internal error message to a browser", async () => {

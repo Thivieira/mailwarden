@@ -1,4 +1,4 @@
-import { Alert, SiteHeader } from "./parts";
+import { Alert, Field, SiteHeader } from "./parts";
 
 /**
  * The send-approval pages: the human-in-the-loop moment the whole safety model rests on.
@@ -24,12 +24,74 @@ const STATE: Record<ApprovalState, { tone: "yes" | "no" | "info"; line: string }
   sent: { tone: "yes", line: "This email has already been sent." },
 };
 
+/** Sign-in gate before any draft content or confirmation nonce is revealed. */
+export function ApprovalSignInPage(props: {
+  host: string;
+  approvalId: string;
+  error?: string;
+}) {
+  return (
+    <>
+      <SiteHeader host={props.host} />
+      <main class="sheet">
+        <h1>Sign in to review this email</h1>
+        <p class="lede">
+          Mailwarden will only show the draft after you sign in as the person who owns it.
+          The link alone is not enough.
+        </p>
+
+        {props.error && <Alert tone="no" title={props.error} />}
+
+        <form method="post" action={`/api/approvals/${props.approvalId}/signin`}>
+          <section class="card">
+            <div class="card-header">
+              <h2 class="card-title">Your Mailwarden account</h2>
+              <p class="card-desc">Not your Gmail password — the Mailwarden login secret.</p>
+            </div>
+            <div class="card-content">
+              <Field
+                name="email"
+                label="Email address"
+                type="email"
+                autocomplete="username"
+                placeholder="you@example.com"
+                error="That does not look like an email address. Check for a typo."
+              />
+              <Field
+                name="login_secret"
+                label="Password"
+                hint="Sometimes called your login secret: the one you were given when your account was set up."
+                type="password"
+                autocomplete="current-password"
+                placeholder="mw_…"
+                peek
+                error="Enter your password to continue."
+              />
+              <button type="submit">Continue to review</button>
+            </div>
+          </section>
+        </form>
+
+        <p class="footnote">
+          Before you type anything, check your browser’s address bar says{" "}
+          <strong>{props.host}</strong>. If it says anything else, close the tab.
+        </p>
+      </main>
+    </>
+  );
+}
+
 export function ApprovalReviewPage(props: {
   host: string;
   state: ApprovalState;
+  fromAddress: string;
   recipients: string;
+  cc: string;
+  bcc: string;
   subject: string;
   body: string;
+  threadContext: string;
+  attachments: string;
   fingerprint: string;
   approvalId: string;
   confirmationNonce: string;
@@ -49,12 +111,32 @@ export function ApprovalReviewPage(props: {
 
         <article class="card">
           <div class="letter-meta">
+            <p class="letter-key">From</p>
+            <p class="letter-val">{props.fromAddress}</p>
+          </div>
+          <div class="letter-meta">
             <p class="letter-key">To</p>
             <p class="letter-val">{props.recipients}</p>
           </div>
           <div class="letter-meta">
+            <p class="letter-key">Cc</p>
+            <p class="letter-val">{props.cc}</p>
+          </div>
+          <div class="letter-meta">
+            <p class="letter-key">Bcc</p>
+            <p class="letter-val">{props.bcc}</p>
+          </div>
+          <div class="letter-meta">
             <p class="letter-key">Subject</p>
             <p class="letter-val">{props.subject}</p>
+          </div>
+          <div class="letter-meta">
+            <p class="letter-key">Thread</p>
+            <p class="letter-val">{props.threadContext}</p>
+          </div>
+          <div class="letter-meta">
+            <p class="letter-key">Attachments</p>
+            <p class="letter-val">{props.attachments}</p>
           </div>
           <div class="letter-body">{props.body}</div>
         </article>

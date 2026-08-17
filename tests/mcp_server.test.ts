@@ -167,9 +167,17 @@ describe("High-Value Conversational MCP Workflow", () => {
 
     // Step 10b: Human user explicitly confirms the exact draft preview out-of-band via review URL
     expect(approvalResult.reviewUrl).toBeDefined();
+    // Model must never receive confirmationNonce; load it from the approval row as the human form would.
+    const [pendingApproval] = await db
+      .select()
+      .from(schema.sendApprovals)
+      .where(eq(schema.sendApprovals.id, approvalResult.approvalId))
+      .limit(1);
+    expect(pendingApproval).toBeDefined();
     const { sendingService } = await import("../src/services/sending");
     const confirmResponse = await sendingService.confirmSendApproval(principal, {
       approvalId: approvalResult.approvalId,
+      confirmationNonce: pendingApproval!.confirmationNonce,
     });
     expect(confirmResponse.status).toBe("confirmed");
 

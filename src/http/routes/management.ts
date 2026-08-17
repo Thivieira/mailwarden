@@ -3,6 +3,14 @@ import { authService } from "../../services/auth";
 import { privacyService } from "../../services/privacy";
 import { auditService } from "../../services/audit";
 import { sendingService } from "../../services/sending";
+import { userAuthService } from "../../services/user-auth";
+import {
+  humanSessionService,
+  humanSessionCookie,
+  humanSessionMaxAge,
+  readHumanSessionCookie,
+  type HumanSession,
+} from "../../services/human-session";
 import { db, schema } from "../../db";
 import { eq } from "drizzle-orm";
 import { AuthenticationError } from "../../utils/errors";
@@ -10,7 +18,11 @@ import { config } from "../../config";
 import { readBody, withPrincipal, type Env } from "../context";
 import { renderPage } from "../../ui/render";
 import type { ApprovalState } from "../../ui/approval";
-import { ApprovalConfirmedPage, ApprovalReviewPage } from "../../ui/approval.gen.js";
+import {
+  ApprovalConfirmedPage,
+  ApprovalReviewPage,
+  ApprovalSignInPage,
+} from "../../ui/approval.gen.js";
 import { NoticePage } from "../../ui/pages.gen.js";
 
 function hostOf(url: string) {
@@ -19,6 +31,50 @@ function hostOf(url: string) {
   } catch {
     return url;
   }
+}
+
+function formatAddresses(raw: unknown): string {
+  const list = Array.isArray(raw) ? raw : typeof raw === "string" ? JSON.parse(raw) : [];
+  const formatted = list
+    .map((r: { name?: string; address?: string }) =>
+      r.name ? `${r.name} <${r.address}>` : r.address || ""
+    )
+    .filter(Boolean)
+    .join(", ");
+  return formatted || "None";
+}
+
+function notFoundNotice() {
+  return renderPage(
+    "Request not found",
+    () =>
+      NoticePage({
+        host: hostOf(config.APP_BASE_URL),
+        headline: "This link has expired",
+        detail: "There is no pending email waiting for approval at this address.",
+        hint: "Approval links are single-use and time-limited. Go back to your conversation and ask for the email again; nothing was sent.",
+      }),
+    404
+  );
+}
+
+function originMatchesApp(origin: string | undefined): boolean {
+  if (!origin) return true;
+  try {
+    return new URL(origin).origin === new URL(config.APP_BASE_URL).origin;
+  } catch {
+    return false;
+  }
+}
+
+async function requireHumanOwner(
+  cookieHeader: string | undefined,
+  approval: { tenantId: string; userId: string }
+): Promise<HumanSession | null> {
+  const human = await humanSessionService.tryVerify(readHumanSessionCookie(cookieHeader));
+  if (!human) return null;
+  if (human.tenantId !== approval.tenantId || human.userId !== approval.userId) return null;
+  return human;
 }
 
 export const managementRoutes = new Hono<Env>()
@@ -59,26 +115,38 @@ export const managementRoutes = new Hono<Env>()
 
   // =========================================================================
   // SEND APPROVAL REVIEW (GET - Strictly idempotent, NEVER mutates state)
+  // Requires a valid mw_human_session cookie owned by the approval's human.
+  // API/MCP bearers are deliberately ignored here.
   // =========================================================================
   .get("/approvals/:id/review", async (c) => {
+    const approvalId = c.req.param("id");
+    const humanToken = readHumanSessionCookie(c.req.header("cookie"));
+    const human = await humanSessionService.tryVerify(humanToken);
+
+    if (!human) {
+      return renderPage(
+        "Sign in to review",
+        () =>
+          ApprovalSignInPage({
+            host: hostOf(config.APP_BASE_URL),
+            approvalId,
+          }),
+        200,
+        { peek: true }
+      );
+    }
+
     const [approval] = await db
       .select()
       .from(schema.sendApprovals)
-      .where(eq(schema.sendApprovals.id, c.req.param("id")))
+      .where(eq(schema.sendApprovals.id, approvalId))
       .limit(1);
 
-    if (!approval)
-      return renderPage(
-        "Request not found",
-        () =>
-          NoticePage({
-            host: hostOf(config.APP_BASE_URL),
-            headline: "This link has expired",
-            detail: "There is no pending email waiting for approval at this address.",
-            hint: "Approval links are single-use and time-limited. Go back to your conversation and ask for the email again; nothing was sent.",
-          }),
-        404
-      );
+    // Missing and cross-user look identical — do not reveal that another person's
+    // approval exists.
+    if (!approval || approval.tenantId !== human.tenantId || approval.userId !== human.userId) {
+      return notFoundNotice();
+    }
 
     const [draft] = await db
       .select()
@@ -86,7 +154,7 @@ export const managementRoutes = new Hono<Env>()
       .where(eq(schema.drafts.id, approval.draftId))
       .limit(1);
 
-    if (!draft)
+    if (!draft) {
       return renderPage(
         "Request not found",
         () =>
@@ -98,30 +166,40 @@ export const managementRoutes = new Hono<Env>()
           }),
         404
       );
+    }
 
-    const rawTo = draft.to;
-    const toArray = Array.isArray(rawTo) ? rawTo : typeof rawTo === "string" ? JSON.parse(rawTo) : [];
-    // Escaping is the renderer's job; build plain text and let Solid encode it.
-    const recipients =
-      toArray.map((r: any) => (r.name ? `${r.name} <${r.address}>` : r.address)).join(", ") ||
-      "(nobody)";
+    const [account] = await db
+      .select()
+      .from(schema.emailAccounts)
+      .where(eq(schema.emailAccounts.id, draft.accountId))
+      .limit(1);
 
     const state: ApprovalState =
       approval.status === "sent" || approval.usedAt
         ? "sent"
         : approval.status === "confirmed"
-        ? "confirmed"
-        : approval.expiresAt < new Date()
-        ? "expired"
-        : "pending";
+          ? "confirmed"
+          : approval.expiresAt < new Date()
+            ? "expired"
+            : "pending";
+
+    const bccList = Array.isArray(draft.bccAddresses) ? draft.bccAddresses : [];
+    const attachmentList = Array.isArray(draft.attachments) ? draft.attachments : [];
 
     return renderPage("Review outgoing email", () =>
       ApprovalReviewPage({
         host: hostOf(config.APP_BASE_URL),
         state,
-        recipients,
+        fromAddress: account?.emailAddress || "(unknown)",
+        recipients: formatAddresses(draft.toAddresses),
+        cc: formatAddresses(draft.ccAddresses),
+        bcc: bccList.length > 0 ? formatAddresses(draft.bccAddresses) : "None / unsupported",
         subject: draft.subject || "(no subject)",
-        body: `${draft.textBody || ""}${draft.renderedSignature ? `\n\n--\n${draft.renderedSignature}` : ""}`,
+        body: draft.textBody || "",
+        threadContext: draft.threadId
+          ? "Replying in an existing Gmail thread"
+          : "New conversation",
+        attachments: attachmentList.length > 0 ? `${attachmentList.length} attachment(s)` : "None",
         fingerprint: approval.payloadHash,
         approvalId: approval.id,
         confirmationNonce: approval.confirmationNonce,
@@ -132,11 +210,62 @@ export const managementRoutes = new Hono<Env>()
   // Alias /approvals/:id/confirm (GET) -> delegates to safe review page (NEVER mutates state)
   .get("/approvals/:id/confirm", (c) => c.redirect(`/api/approvals/${c.req.param("id")}/review`))
 
+  // Sign in on the Mailwarden origin, then return to this approval's review URL only.
+  .post("/approvals/:id/signin", async (c) => {
+    const approvalId = c.req.param("id");
+    const body = await readBody(c);
+    const email = String(body.email || "");
+    const loginSecret = String(body.login_secret || "");
+
+    let user;
+    try {
+      user = await userAuthService.authenticateUser(email, loginSecret);
+    } catch {
+      return renderPage(
+        "Sign in to review",
+        () =>
+          ApprovalSignInPage({
+            host: hostOf(config.APP_BASE_URL),
+            approvalId,
+            error: "That email and password do not match a Mailwarden account.",
+          }),
+        401,
+        { peek: true }
+      );
+    }
+
+    const [approval] = await db
+      .select()
+      .from(schema.sendApprovals)
+      .where(eq(schema.sendApprovals.id, approvalId))
+      .limit(1);
+
+    if (!approval || approval.tenantId !== user.tenantId || approval.userId !== user.id) {
+      return notFoundNotice();
+    }
+
+    const prior = readHumanSessionCookie(c.req.header("cookie"));
+    const { token, expiresAt } = await humanSessionService.mintRotating(
+      { id: user.id, tenantId: user.tenantId, email: user.email },
+      prior
+    );
+
+    const response = c.redirect(`/api/approvals/${approvalId}/review`, 303);
+    response.headers.append("Set-Cookie", humanSessionCookie(token, humanSessionMaxAge(expiresAt)));
+    return response;
+  })
+
   // =========================================================================
   // SEND APPROVAL CONFIRMATION (POST - The ONLY way to transition to "confirmed")
+  // Requires human session ownership AND matching one-time confirmationNonce.
+  // Nonce alone is not authentication. API/MCP bearers are not accepted here.
   // =========================================================================
   .post("/approvals/:id/confirm", async (c) => {
     const id = c.req.param("id");
+    if (!originMatchesApp(c.req.header("origin"))) {
+      return c.json({ error: "Origin mismatch" }, 403);
+    }
+
     const [approval] = await db
       .select()
       .from(schema.sendApprovals)
@@ -145,27 +274,26 @@ export const managementRoutes = new Hono<Env>()
 
     if (!approval) return c.json({ error: "Approval not found" }, 404);
 
-    const body = await readBody(c);
-    const confirmationNonce = body?.confirmationNonce;
-
-    // Build principal from authenticated session OR verified challenge nonce
-    let effectivePrincipal: any = c.get("principal");
-    if (!effectivePrincipal) {
-      if (confirmationNonce && approval.confirmationNonce === confirmationNonce) {
-        effectivePrincipal = {
-          tenantId: approval.tenantId,
-          userId: approval.userId,
-          scopes: ["mail.send", "mail.draft", "mail.read"],
-        };
-      } else {
-        return c.json(
-          { error: "Unauthorized: valid session or matching confirmationNonce required" },
-          401
-        );
-      }
+    const human = await requireHumanOwner(c.req.header("cookie"), approval);
+    if (!human) {
+      return c.json({ error: "Human session required" }, 401);
     }
 
-    const result = await sendingService.confirmSendApproval(effectivePrincipal, {
+    const body = await readBody(c);
+    const confirmationNonce = body?.confirmationNonce;
+    if (!confirmationNonce) {
+      return c.json({ error: "confirmationNonce required" }, 400);
+    }
+
+    // Synthesize a scoped principal only after human session ownership is proven.
+    // The human cookie carries no mail scopes; confirmation is authorized by ownership.
+    const effectivePrincipal = {
+      tenantId: human.tenantId,
+      userId: human.userId,
+      scopes: ["mail.send", "mail.draft", "mail.read"] as const,
+    };
+
+    const result = await sendingService.confirmSendApproval(effectivePrincipal as any, {
       approvalId: id,
       confirmationNonce,
     });
