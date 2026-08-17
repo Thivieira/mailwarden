@@ -257,6 +257,20 @@ export function Alert(props: { tone: "yes" | "no" | "info"; title: string; detai
   );
 }
 
+/**
+ * A field, validated without a line of JavaScript.
+ *
+ * Validation is the browser's own: `type` plus `required` drive it, and `:user-invalid`
+ * styles the result. `:user-invalid` rather than `:invalid` matters - `:invalid` marks an
+ * untouched empty required field as wrong the moment the page paints, which is how a
+ * consent screen greets a first-time visitor with two red boxes.
+ *
+ * No show-password eye. It cannot be built here: no script ships, and the CSS-only route
+ * does not work - Chrome computes `-webkit-text-security: none` back to `disc` on a real
+ * password input, while `CSS.supports()` still reports true, so the failure is undetectable
+ * at runtime. Masking a `type="text"` field with CSS instead would reveal the credential in
+ * cleartext whenever the stylesheet fails to load. Verified Chrome 151, 2026-08-17.
+ */
 export function Field(props: {
   name: string;
   label: string;
@@ -264,21 +278,29 @@ export function Field(props: {
   type: string;
   autocomplete: string;
   placeholder?: string;
+  error: string;
 }) {
   return (
     <p class="field">
       <label for={props.name}>{props.label}</label>
       {props.hint && <span class="hint">{props.hint}</span>}
-      <input
-        id={props.name}
-        name={props.name}
-        type={props.type}
-        autocomplete={props.autocomplete}
-        placeholder={props.placeholder}
-        required
-        spellcheck={false}
-        autocapitalize="none"
-      />
+      <span class="field-control">
+        <input
+          id={props.name}
+          name={props.name}
+          type={props.type}
+          autocomplete={props.autocomplete}
+          placeholder={props.placeholder}
+          required
+          spellcheck={false}
+          autocapitalize="none"
+          aria-describedby={`err_${props.name}`}
+        />
+        <span class="error" id={`err_${props.name}`}>
+          <CircleAlert />
+          {props.error}
+        </span>
+      </span>
     </p>
   );
 }

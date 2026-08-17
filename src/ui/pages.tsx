@@ -60,6 +60,7 @@ export function AuthorizePage(props: {
                 type="email"
                 autocomplete="username"
                 placeholder="you@example.com"
+                error="That does not look like an email address. Check for a typo."
               />
               <Field
                 name="login_secret"
@@ -67,6 +68,7 @@ export function AuthorizePage(props: {
                 hint="Sometimes called your login secret: the one you were given when your account was set up."
                 type="password"
                 autocomplete="current-password"
+                error="Enter your password to continue."
               />
               <button type="submit">Allow access</button>
             </div>

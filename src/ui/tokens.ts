@@ -188,7 +188,7 @@ a { color: var(--primary); text-underline-offset: 0.2em; text-decoration-thickne
   position: relative;
   max-width: 42rem;
   margin: 0 auto;
-  padding: clamp(2.25rem, 6vw, 3.75rem) 1.5rem 5rem;
+  padding: clamp(1.75rem, 3.5vw, 2.5rem) 1.5rem 5rem;
 }
 
 /* Ledger rules rather than the dot field every shadcn page ships. A warden keeps a
@@ -399,37 +399,32 @@ summary.card-header:focus-visible {
 
 .field input::placeholder { color: var(--muted-foreground); }
 
-button[type="submit"] {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  width: 100%;
-  height: 2.25rem;
-  padding: 0 1rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  background: var(--primary);
-  color: var(--primary-foreground);
-  font-family: inherit;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  cursor: pointer;
+.field-control { position: relative; display: grid; gap: 0.4rem; }
+
+/* ---- Validation ---------------------------------------------------------
+   The browser's own, styled. :user-invalid and not :invalid: the latter marks an
+   untouched empty required field as wrong the moment the page paints, which would greet a
+   first-time visitor to a consent screen with two red boxes. */
+
+.field input:user-invalid {
+  border-color: var(--destructive);
   box-shadow: var(--shadow-xs);
-  transition: opacity 120ms ease;
+}
+.field input:user-invalid:focus-visible {
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--destructive) 40%, transparent);
 }
 
-button[type="submit"]:hover { opacity: 0.9; }
-button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.footnote {
-  margin: 1.75rem 0 0;
-  font-size: 0.875rem;
-  line-height: 1.65;
-  color: var(--muted-foreground);
-  max-width: 66ch;
+.error {
+  display: none;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--destructive);
 }
-.footnote strong { font-weight: 500; color: var(--foreground); }
+.error svg { flex: none; margin-top: 0.12rem; width: 14px; height: 14px; }
+input:user-invalid ~ .error { display: flex; }
 
 /* ---- Alert -------------------------------------------------------------- */
 
