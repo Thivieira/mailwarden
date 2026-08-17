@@ -299,10 +299,13 @@ describe("Reviewed payload matches Gmail dispatch", () => {
   });
 
   it("K. signature text collision in body is not deleted when changing signature", async () => {
-    const profiles = await db
+    const profiles = (await db
       .select()
       .from(schema.signatureProfiles)
-      .where(eq(schema.signatureProfiles.userId, principal.userId));
+      .where(eq(schema.signatureProfiles.userId, principal.userId))) as Array<{
+      name: string;
+      plainText: string;
+    }>;
     const consultingProfile = profiles.find((p) => p.name === "consulting");
     expect(consultingProfile).toBeDefined();
     const quoted = consultingProfile!.plainText;
