@@ -1,17 +1,75 @@
 import { doorsFor, SHUT_DOORS, uncoveredScopes } from "./doors";
 
 /**
- * Pieces of The Hotel Key Card. Ordinary Solid components: compiled to SSR templates for
- * the Worker today, imported unchanged into SolidStart when the settings app lands.
+ * shadcn/ui New York components, expressed as zero-JS Solid SSR.
+ *
+ * Icons follow Lucide's drawing spec exactly - 24 viewBox, 2px stroke, round caps and
+ * joins, rendered at 16px - so they sit in the system the way Lucide would.
  */
 
-/** The printed band. The desk address is the anti-forgery line, so it is printed loud. */
-export function Band(props: { host: string }) {
+function Icon(props: { children: any; size?: number }) {
   return (
-    <header class="band">
-      <div class="band-inner">
-        <p class="wordmark">Mailwarden</p>
-        <p class="desk">
+    <svg
+      width={props.size ?? 16}
+      height={props.size ?? 16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      {props.children}
+    </svg>
+  );
+}
+
+const Check = () => (
+  <Icon>
+    <path d="M20 6 9 17l-5-5" />
+  </Icon>
+);
+
+const X = () => (
+  <Icon>
+    <path d="M18 6 6 18" />
+    <path d="m6 6 12 12" />
+  </Icon>
+);
+
+const KeyRound = (props: { size?: number }) => (
+  <Icon size={props.size}>
+    <path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" />
+    <circle cx="16.5" cy="7.5" r=".5" fill="currentColor" />
+  </Icon>
+);
+
+const CircleCheck = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="10" />
+    <path d="m9 12 2 2 4-4" />
+  </Icon>
+);
+
+const CircleAlert = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 8v4" />
+    <path d="M12 16h.01" />
+  </Icon>
+);
+
+/** The sticky header. The host is the anti-forgery line and stays visible while scrolling. */
+export function SiteHeader(props: { host: string }) {
+  return (
+    <header class="site-header">
+      <div class="site-header-inner">
+        <p class="brand">
+          <KeyRound size={17} />
+          Mailwarden
+        </p>
+        <p class="host">
           This page is at <b>{props.host}</b>
         </p>
       </div>
@@ -19,29 +77,21 @@ export function Band(props: { host: string }) {
   );
 }
 
-/**
- * One drawn mark, two states. An authored key rather than a glyph, so the stroke matches
- * across every door and the meaning survives without colour.
- */
-function KeyMark(props: { struck?: boolean }) {
+/** The account row shadcn uses to show who a grant is for. */
+export function GrantSubject(props: { name: string; meta: string; badge: string }) {
   return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.6"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="6.2" cy="10" r="3.2" />
-      <path d="M9.4 10 H17" />
-      <path d="M14 10 V13" />
-      <path d="M16.6 10 V12.2" />
-      {props.struck && <path d="M3.4 16.6 L16.6 3.4" />}
-    </svg>
+    <div class="card">
+      <div class="subject">
+        <span class="avatar" aria-hidden="true">
+          {props.name.slice(0, 1).toUpperCase()}
+        </span>
+        <div>
+          <p class="subject-name">{props.name}</p>
+          <p class="subject-meta">{props.meta}</p>
+        </div>
+        <span class="badge">{props.badge}</span>
+      </div>
+    </div>
   );
 }
 
@@ -50,31 +100,32 @@ export function OpenDoors(props: { scopes: string[]; mutationsEnabled: boolean }
   const leftover = uncoveredScopes(props.scopes);
 
   return (
-    <section class="doors">
-      <h2>What this key opens</h2>
-      <ul>
+    <section class="card">
+      <div class="card-header">
+        <h2 class="card-title">What it will be able to do</h2>
+        <p class="card-desc">Only these things, and nothing beyond them.</p>
+      </div>
+      <ul class="rows">
         {doors.map((door) => {
           const off = door.simulatedWhenDryRun && !props.mutationsEnabled;
           return (
             <li>
-              <span class="m" data-d={off ? "off" : "opens"}>
-                <KeyMark />
+              <span class="icon" data-tone={off ? "" : "yes"}>
+                <Check />
               </span>
-              <p class="what">{door.opens}</p>
-              {off && (
-                <p class="off-note">Switched off right now — Mailwarden will only pretend.</p>
-              )}
-              {door.note && <p class="note">{door.note}</p>}
+              <p class="row-title">{door.opens}</p>
+              {off && <span class="row-flag">Switched off right now</span>}
+              {door.note && <p class="row-note">{door.note}</p>}
             </li>
           );
         })}
         {/* Never hide a granted power because the plain-language list has not caught up. */}
         {leftover.map((scope) => (
           <li>
-            <span class="m" data-d="opens">
-              <KeyMark />
+            <span class="icon" data-tone="yes">
+              <Check />
             </span>
-            <p class="what">{scope}</p>
+            <p class="row-title">{scope}</p>
           </li>
         ))}
       </ul>
@@ -84,15 +135,18 @@ export function OpenDoors(props: { scopes: string[]; mutationsEnabled: boolean }
 
 export function ShutDoors() {
   return (
-    <section class="doors doors--shut">
-      <h2>What it never opens</h2>
-      <ul>
+    <section class="card">
+      <div class="card-header">
+        <h2 class="card-title">What it will never be able to do</h2>
+        <p class="card-desc">Enforced by Mailwarden's servers, not left to the assistant.</p>
+      </div>
+      <ul class="rows">
         {SHUT_DOORS.map((line) => (
           <li>
-            <span class="m" data-d="shut">
-              <KeyMark struck />
+            <span class="icon" data-tone="no">
+              <X />
             </span>
-            <p class="what">{line}</p>
+            <p class="row-title">{line}</p>
           </li>
         ))}
       </ul>
@@ -100,13 +154,12 @@ export function ShutDoors() {
   );
 }
 
-/** The key itself: who holds it, and for how long. */
-export function KeyCard(props: { holder: string; until: string }) {
+export function Alert(props: { tone: "yes" | "no" | "info"; title: string; detail?: string }) {
   return (
-    <div class="keycard">
-      <p class="for">This key is for</p>
-      <p class="holder">{props.holder}</p>
-      <p class="until">{props.until}</p>
+    <div class="alert" data-tone={props.tone}>
+      <span class="icon">{props.tone === "yes" ? <CircleCheck /> : <CircleAlert />}</span>
+      <p>{props.title}</p>
+      {props.detail && <p>{props.detail}</p>}
     </div>
   );
 }

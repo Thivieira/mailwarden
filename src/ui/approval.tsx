@@ -1,4 +1,4 @@
-import { Band } from "./parts";
+import { Alert, SiteHeader } from "./parts";
 
 /**
  * The send-approval pages: the human-in-the-loop moment the whole safety model rests on.
@@ -11,11 +11,17 @@ import { Band } from "./parts";
 
 export type ApprovalState = "pending" | "confirmed" | "expired" | "sent";
 
-const STATE_LINE: Record<ApprovalState, string> = {
-  pending: "Nothing has been sent. Read it below and decide.",
-  confirmed: "You approved this. Go back to your conversation to finish sending.",
-  expired: "This request has expired, so it can no longer be approved. Ask for it again.",
-  sent: "This email has already been sent.",
+const STATE: Record<ApprovalState, { tone: "yes" | "no" | "info"; line: string }> = {
+  pending: { tone: "info", line: "Nothing has been sent. Read it below and decide." },
+  confirmed: {
+    tone: "yes",
+    line: "You approved this. Go back to your conversation to finish sending.",
+  },
+  expired: {
+    tone: "no",
+    line: "This request expired, so it can no longer be approved. Ask for it again.",
+  },
+  sent: { tone: "yes", line: "This email has already been sent." },
 };
 
 export function ApprovalReviewPage(props: {
@@ -28,28 +34,27 @@ export function ApprovalReviewPage(props: {
   approvalId: string;
   confirmationNonce: string;
 }) {
+  const status = STATE[props.state];
   return (
     <>
-      <Band host={props.host} />
+      <SiteHeader host={props.host} />
       <main class="sheet">
         <h1>Send this email?</h1>
         <p class="lede">
-          This is exactly what will go out, word for word. Nothing is sent until you say
-          so on this page.
+          This is exactly what will go out, word for word. Nothing is sent until you say so
+          on this page.
         </p>
 
-        <div class="outcome">
-          <p>{STATE_LINE[props.state]}</p>
-        </div>
+        <Alert tone={status.tone} title={status.line} />
 
-        <article class="letter">
-          <div class="letter-row">
-            <p class="letter-label">To</p>
-            <p class="letter-value">{props.recipients}</p>
+        <article class="card">
+          <div class="letter-meta">
+            <p class="letter-key">To</p>
+            <p class="letter-val">{props.recipients}</p>
           </div>
-          <div class="letter-row">
-            <p class="letter-label">Subject</p>
-            <p class="letter-value">{props.subject}</p>
+          <div class="letter-meta">
+            <p class="letter-key">Subject</p>
+            <p class="letter-val">{props.subject}</p>
           </div>
           <div class="letter-body">{props.body}</div>
         </article>
@@ -57,17 +62,19 @@ export function ApprovalReviewPage(props: {
         {props.state === "pending" && (
           <form method="post" action={`/api/approvals/${props.approvalId}/confirm`}>
             <input type="hidden" name="confirmationNonce" value={props.confirmationNonce} />
-            <div class="signin">
-              <p class="confirm-note">
-                If a single word of this email changes, this approval stops counting and
-                you will be asked again.
-              </p>
-              <button type="submit">Yes — send this email</button>
-            </div>
+            <section class="card">
+              <div class="card-content">
+                <p class="card-desc" style="margin:0 0 1rem">
+                  If a single word of this email changes, this approval stops counting and
+                  you will be asked again.
+                </p>
+                <button type="submit">Yes, send this email</button>
+              </div>
+            </section>
           </form>
         )}
 
-        <p class="handback">
+        <p class="footnote">
           Message fingerprint <code>{props.fingerprint}</code>. You can ignore this — it is
           how Mailwarden checks that what you approved is what actually gets sent.
         </p>
@@ -79,18 +86,17 @@ export function ApprovalReviewPage(props: {
 export function ApprovalConfirmedPage(props: { host: string; approvalId: string }) {
   return (
     <>
-      <Band host={props.host} />
+      <SiteHeader host={props.host} />
       <main class="sheet">
         <h1>Approved</h1>
-        <div class="outcome">
-          <p>
-            You have approved this email. Go back to your conversation and Mailwarden will
-            finish sending it.
-          </p>
-        </div>
-        <p class="handback">
+        <Alert
+          tone="yes"
+          title="You have approved this email."
+          detail="Go back to your conversation and Mailwarden will finish sending it."
+        />
+        <p class="footnote">
           Reference <code>{props.approvalId}</code>. If the email is edited after this
-          point, your approval no longer counts and you will be asked again.
+          point your approval no longer counts and you will be asked again.
         </p>
       </main>
     </>

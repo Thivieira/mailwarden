@@ -1,369 +1,357 @@
 /**
- * The Hotel Key Card — Mailwarden's visual world.
+ * shadcn/ui — New York. Mailwarden's visual world.
  *
- * The page is the printed sleeve a front desk hands you: it says which doors the key
- * opens, which it does not, where the desk is, and that you can hand it back any time.
+ * The token values are shadcn's own neutral palette verbatim (oklch, light and dark), so
+ * this reads as the same system a Next.js app built on shadcn would ship. Cards carry the
+ * structure, Geist is the face, controls are h-9, and the focus treatment is New York's
+ * signature 3px ring.
  *
- * Light is chosen from the use scene, not the category. PRODUCT.md's reader is a
- * non-technical person who clicked "connect" in a chat app and is quietly asking whether
- * they are giving a robot their inbox. That person is at a desk in daylight wanting
- * reassurance, and a printed paper document reads calmer than a terminal.
- *
- * Shipped as an inlined <style> block; only the display face is a second request, served
- * same-origin from /f/ and cached forever.
+ * The look is shadcn's; the runtime is not. Kobalte and Tailwind are client-side and these
+ * pages ship zero JavaScript, so the same visual language is expressed in plain CSS.
  */
 
 export const CSS = `
 @font-face {
-  font-family: "Archivo";
-  src: url("/f/a400.woff2") format("woff2");
-  font-weight: 400;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Archivo";
-  src: url("/f/a600.woff2") format("woff2");
-  font-weight: 600;
+  font-family: "Geist";
+  src: url("/f/geist.woff2") format("woff2-variations");
+  font-weight: 100 900;
   font-display: swap;
 }
 
 :root {
-  /* Printed stock and ink */
-  --stock: #EFEDE8;
-  --stock-deep: #E5E2DA;
-  --card: #FFFFFF;
-  --ink: #14384F;
-  --ink-soft: #5A6E7E;
+  --radius: 0.625rem;
 
-  /* One border colour, used by every bordered thing on the page. */
-  --border: #D3CFC4;
-  --border-strong: #B7B2A5;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --success: oklch(0.596 0.145 163.225);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
 
-  /* The one warm metal: the card's stripe, and nothing else. */
-  --brass: #9A7628;
-
-  /* Doors */
-  --opens: #2E6B4F;
-  --shut: #A3402F;
-
-  /* Radius, tightened. Everything derives from one value. */
-  --radius: 0.5rem;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 
-  /* Shadows: two steps, both restrained. */
-  --shadow-sm: 0 1px 2px 0 rgb(20 56 79 / 0.06);
-  --shadow-md: 0 4px 10px -3px rgb(20 56 79 / 0.12), 0 2px 4px -3px rgb(20 56 79 / 0.1);
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 
-  /* Type scale */
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-lg: 1.125rem;
-
-  /* One control height, so inputs and buttons line up. Sized for touch, not desktop. */
-  --control-h: 2.75rem;
-  --control-px: 0.875rem;
-
-  --ring: #2C6E9B;
-  --measure: 62ch;
-
-  --display: "Archivo", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-
-  color-scheme: light;
-  accent-color: var(--ink);
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
-*, *::before, *::after { box-sizing: border-box; }
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --success: oklch(0.696 0.17 162.48);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; border-color: var(--border); }
 
 html {
-  background: var(--stock);
-  scrollbar-color: var(--border-strong) var(--stock);
-  scrollbar-width: thin;
+  background: var(--background);
+  color-scheme: light dark;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
-  background: var(--stock);
-  color: var(--ink);
-  font-family: var(--sans);
-  font-size: 16px;
-  line-height: 1.6;
-  -webkit-text-size-adjust: 100%;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.5715;
+  font-feature-settings: "rlig" 1, "calt" 1;
+  -webkit-font-smoothing: antialiased;
 }
 
-::selection { background: var(--ink); color: var(--stock); }
+::selection { background: var(--foreground); color: var(--background); }
 
+/* New York's focus treatment: a soft 3px ring plus a border shift. */
 :focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
 }
 
-/* ---- The sleeve --------------------------------------------------------- */
+/* ---- Shell -------------------------------------------------------------- */
 
-/* The printed band across the top of the sleeve. A committed field at page scale, not a
-   header bar: it owns its region and the name reverses out of it. */
-.band {
-  background: var(--ink);
-  color: var(--stock);
-  padding: clamp(1rem, 3vw, 1.5rem) clamp(1.25rem, 5vw, 3rem);
+.site-header {
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklch, var(--background) 80%, transparent);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
-.band-inner {
-  max-width: 54rem;
+.site-header-inner {
+  max-width: 42rem;
   margin: 0 auto;
+  padding: 0 1.5rem;
+  height: 3.5rem;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 2rem;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
+  gap: 1rem;
 }
 
-.wordmark {
-  font-family: var(--display);
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-weight: 600;
-  font-size: clamp(1.05rem, 2.4vw, 1.3rem);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-size: 0.875rem;
+  letter-spacing: -0.01em;
   margin: 0;
 }
 
-/* Where the desk is. This is the anti-forgery line, so it is printed, not whispered. */
-.desk { margin: 0; font-size: var(--text-sm); opacity: 0.92; }
-.desk b { font-weight: 600; }
+.host { margin: 0; font-size: 0.75rem; color: var(--muted-foreground); text-align: right; }
+.host b { font-weight: 500; color: var(--foreground); }
 
 .sheet {
-  max-width: 54rem;
+  max-width: 42rem;
   margin: 0 auto;
-  padding: clamp(2rem, 5vw, 3.5rem) clamp(1.25rem, 5vw, 3rem) clamp(3rem, 6vw, 5rem);
+  padding: clamp(2rem, 6vw, 3.5rem) 1.5rem 5rem;
 }
 
 h1 {
-  font-family: var(--display);
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.5rem, 4vw, 1.875rem);
   font-weight: 600;
-  font-size: clamp(1.65rem, 4vw, 2.35rem);
-  line-height: 1.1;
+  line-height: 1.2;
   letter-spacing: -0.025em;
-  margin: 0 0 0.75rem;
   text-wrap: balance;
 }
 
-.lede { margin: 0 0 2.5rem; max-width: var(--measure); color: var(--ink-soft); }
+.lede { margin: 0; color: var(--muted-foreground); max-width: 60ch; }
 
-/* ---- The key card ------------------------------------------------------- */
+/* ---- Card --------------------------------------------------------------- */
 
-/* A card in the hand: landscape proportion, a punched slot at one end, and the magnetic
-   stripe along the bottom. Those three details are what separate a key card from a box. */
-.keycard {
-  position: relative;
+.card {
+  margin-top: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
   background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: clamp(1.4rem, 3vw, 1.9rem);
-  padding-bottom: clamp(2.6rem, 5vw, 3.2rem);
-  box-shadow: var(--shadow-md);
-  width: min(100%, 26rem);
-  overflow: hidden;
+  color: var(--card-foreground);
+  box-shadow: var(--shadow-xs);
 }
 
-/* The punched slot, top right, the way it sits on a real card. */
-.keycard::before {
-  content: "";
-  position: absolute;
-  top: clamp(1.4rem, 3vw, 1.9rem);
-  right: clamp(1.4rem, 3vw, 1.9rem);
-  width: 2.6rem;
-  height: 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--stock);
-}
+.card-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); }
 
-/* The stripe. The only place brass appears on the whole page. */
-.keycard::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: clamp(0.9rem, 2vw, 1.15rem);
-  height: 0.7rem;
-  background: var(--brass);
-  opacity: 0.9;
-}
-
-.keycard .for { font-size: var(--text-xs); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); margin: 0; }
-.keycard .holder { font-family: var(--display); font-weight: 600; font-size: clamp(1.45rem, 3.2vw, 1.9rem); line-height: 1.1; margin: 0.2rem 0 0; }
-.keycard .until { margin: 0.55rem 0 0; font-size: var(--text-sm); color: var(--ink-soft); }
-
-/* ---- Doors -------------------------------------------------------------- */
-
-.doors { margin: 2.75rem 0 0; }
-
-.doors h2 {
-  font-family: var(--display);
+.card-title {
+  margin: 0;
+  font-size: 0.9375rem;
   font-weight: 600;
-  font-size: var(--text-base);
-  letter-spacing: -0.005em;
-  margin: 0 0 0.85rem;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 
-.doors ul { list-style: none; margin: 0; padding: 0; }
+.card-desc { margin: 0.25rem 0 0; font-size: 0.8125rem; color: var(--muted-foreground); }
 
-.doors li {
-  padding: 0.85rem 0;
-  border-top: 1px solid var(--border);
+.card-content { padding: 1.5rem; }
+
+/* The grant subject, shown the way shadcn shows an account row. */
+.subject { display: flex; align-items: center; gap: 0.875rem; padding: 1.25rem 1.5rem; }
+
+.avatar {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-lg);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  border: 1px solid var(--border);
+}
+
+.subject-name { margin: 0; font-weight: 600; font-size: 0.9375rem; letter-spacing: -0.01em; }
+.subject-meta { margin: 0.125rem 0 0; font-size: 0.8125rem; color: var(--muted-foreground); }
+
+.badge {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ---- Permission rows ---------------------------------------------------- */
+
+.rows { list-style: none; margin: 0; padding: 0; }
+
+.rows li {
   display: grid;
-  grid-template-columns: 1.5rem 1fr;
-  gap: 0 0.85rem;
+  grid-template-columns: 1rem 1fr;
+  gap: 0 0.75rem;
+  padding: 0.75rem 1.5rem;
 }
-.doors li:last-child { border-bottom: 1px solid var(--border); }
+.rows li + li { border-top: 1px solid var(--border); }
 
-/* The mark reads without colour: a drawn key or a struck-through key, never hue alone. */
-.doors .m { display: flex; align-items: center; height: 1.6em; }
-.doors .m[data-d="opens"] { color: var(--opens); }
-.doors .m[data-d="shut"] { color: var(--shut); }
-.doors .m[data-d="off"] { color: var(--ink-soft); }
+.rows .icon { display: flex; align-items: center; height: 1.3rem; color: var(--muted-foreground); }
+.rows .icon[data-tone="yes"] { color: var(--success); }
+.rows .icon[data-tone="no"] { color: var(--destructive); }
 
-.doors .what { margin: 0; }
-.doors .note { grid-column: 2; margin: 0.25rem 0 0; font-size: var(--text-sm); color: var(--ink-soft); }
+.rows .row-title { margin: 0; font-size: 0.875rem; font-weight: 500; }
+.rows .row-note { grid-column: 2; margin: 0.2rem 0 0; font-size: 0.8125rem; color: var(--muted-foreground); }
 
-.doors .off-note {
+.rows .row-flag {
   grid-column: 2;
   margin: 0.35rem 0 0;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--ink-soft);
+  display: inline-flex;
+  justify-self: start;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
 }
 
-.doors--shut { margin-top: 2.75rem; }
+/* ---- Form --------------------------------------------------------------- */
 
-/* ---- Sign in ------------------------------------------------------------ */
+.field { display: grid; gap: 0.5rem; margin-bottom: 1.25rem; }
 
-/* The rule spans the sheet; only the fields inside it are held to a comfortable width. */
-.signin {
-  margin-top: 3rem;
-  padding-top: 2.25rem;
-  border-top: 1px solid var(--border);
-}
-
-.signin > * { max-width: 27rem; }
-
-.field { display: grid; gap: 0.35rem; margin-bottom: 1.25rem; }
-
-.field label { font-weight: 600; font-size: var(--text-sm); }
-.field .hint { font-size: var(--text-sm); color: var(--ink-soft); }
+.field label { font-size: 0.875rem; font-weight: 500; line-height: 1; }
+.field .hint { font-size: 0.8125rem; color: var(--muted-foreground); line-height: 1.4; }
 
 .field input {
   width: 100%;
-  height: var(--control-h);
-  padding: 0 var(--control-px);
-  border: 1px solid var(--border-strong);
+  height: 2.25rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--input);
   border-radius: var(--radius-md);
-  background: var(--card);
-  color: var(--ink);
-  font-family: var(--sans);
-  font-size: var(--text-base);
-  box-shadow: var(--shadow-sm);
-  transition: border-color 150ms ease;
+  background: transparent;
+  color: var(--foreground);
+  font-family: inherit;
+  font-size: 0.875rem;
+  box-shadow: var(--shadow-xs);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
-.field input::placeholder { color: #93A0AA; }
-.field input:hover { border-color: var(--ink-soft); }
+.field input::placeholder { color: var(--muted-foreground); }
 
 button[type="submit"] {
   display: inline-flex;
   align-items: center;
-  height: var(--control-h);
-  padding: 0 1.35rem;
-  border: 1px solid var(--ink);
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 2.25rem;
+  padding: 0 1rem;
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
-  background: var(--ink);
-  color: var(--stock);
-  font-family: var(--display);
-  font-weight: 600;
-  font-size: var(--text-sm);
-  letter-spacing: 0.005em;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
   cursor: pointer;
-  box-shadow: var(--shadow-sm);
-  transition: background 150ms ease, color 150ms ease;
+  box-shadow: var(--shadow-xs);
+  transition: opacity 120ms ease;
 }
 
-button[type="submit"]:hover { background: #1B4763; }
-button[type="submit"]:active { background: #102E41; }
-button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; background: var(--ink-soft); border-color: var(--ink-soft); }
+button[type="submit"]:hover { opacity: 0.9; }
+button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.handback { margin: 1.75rem 0 0; max-width: var(--measure); font-size: var(--text-sm); color: var(--ink-soft); }
+.footnote {
+  margin: 1.5rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  max-width: 62ch;
+}
+.footnote strong { font-weight: 500; color: var(--foreground); }
 
-/* ---- The letter, on the send-approval page ------------------------------ */
+/* ---- Alert -------------------------------------------------------------- */
 
-/* Everything inside is untrusted content, so it is visibly set apart as a quoted
-   document rather than blended into the page's own voice. */
-.letter {
-  margin: 2rem 0 0;
-  background: var(--card);
+.alert {
+  margin-top: 1.5rem;
+  display: grid;
+  grid-template-columns: 1rem 1fr;
+  gap: 0.25rem 0.75rem;
+  padding: 0.875rem 1rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
+  background: var(--card);
 }
+.alert .icon { display: flex; align-items: center; height: 1.25rem; color: var(--muted-foreground); }
+.alert[data-tone="no"] .icon { color: var(--destructive); }
+.alert[data-tone="yes"] .icon { color: var(--success); }
+.alert p { margin: 0; font-size: 0.875rem; }
+.alert p + p { grid-column: 2; margin-top: 0.35rem; color: var(--muted-foreground); }
 
-.letter-row {
-  display: grid;
-  grid-template-columns: 6rem 1fr;
-  gap: 0.25rem 1rem;
-  padding: 0.85rem clamp(1rem, 3vw, 1.5rem);
-  border-bottom: 1px solid var(--border);
-}
+/* ---- The quoted letter, on the send-approval page ------------------------ */
 
-.letter-label { margin: 0; font-size: var(--text-xs); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); }
-.letter-value { margin: 0; overflow-wrap: anywhere; }
+.letter-meta { display: grid; grid-template-columns: 5rem 1fr; gap: 0.5rem 1rem; padding: 1rem 1.5rem; }
+.letter-meta + .letter-meta { border-top: 1px solid var(--border); }
+.letter-key { margin: 0; font-size: 0.8125rem; color: var(--muted-foreground); }
+.letter-val { margin: 0; font-size: 0.875rem; overflow-wrap: anywhere; }
 
 .letter-body {
-  padding: clamp(1rem, 3vw, 1.5rem);
+  padding: 1.5rem;
+  border-top: 1px solid var(--border);
+  background: var(--muted);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   max-height: 26rem;
   overflow-y: auto;
+  font-size: 0.875rem;
   line-height: 1.65;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
 }
 
-.confirm-note { margin: 0 0 1.25rem; color: var(--ink-soft); font-size: var(--text-sm); }
+.record { margin: 0; }
+.record div { display: grid; grid-template-columns: 9rem 1fr; gap: 0.5rem 1rem; padding: 0.875rem 1.5rem; }
+.record div + div { border-top: 1px solid var(--border); }
+.record dt { margin: 0; font-size: 0.8125rem; color: var(--muted-foreground); }
+.record dd { margin: 0; font-size: 0.875rem; overflow-wrap: anywhere; }
 
 code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.85em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125em;
+  padding: 0.1rem 0.3rem;
+  border-radius: var(--radius-sm);
+  background: var(--muted);
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 34rem) {
-  .letter-row { grid-template-columns: 1fr; }
-}
-
-/* ---- Outcomes ----------------------------------------------------------- */
-
-.outcome {
-  margin: 0 0 2rem;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--stock-deep);
-  max-width: var(--measure);
-  font-size: var(--text-sm);
-}
-.outcome p { margin: 0 0 0.6rem; }
-.outcome p:last-child { margin-bottom: 0; }
-
-.record { margin: 2rem 0 0; border-top: 1px solid var(--border); }
-.record div { display: grid; grid-template-columns: 10rem 1fr; gap: 0.5rem 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
-.record dt { font-weight: 600; font-size: var(--text-sm); margin: 0; }
-.record dd { margin: 0; color: var(--ink-soft); overflow-wrap: anywhere; }
-
-@media (max-width: 34rem) {
-  .record div { grid-template-columns: 1fr; gap: 0.15rem; }
-  .keycard { padding-left: 2.75rem; }
+@media (max-width: 30rem) {
+  .letter-meta, .record div { grid-template-columns: 1fr; gap: 0.15rem; }
+  .host { font-size: 0.6875rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

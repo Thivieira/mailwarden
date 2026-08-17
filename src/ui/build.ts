@@ -21,13 +21,13 @@ import { mkdir, unlink } from "node:fs/promises";
 const UI_DIR = import.meta.dir;
 
 /**
- * Archivo is the display voice. It is embedded as base64 and served from the Worker with
- * an immutable cache rather than inlined into the CSS: a data URI would ride in every
- * HTML response, where a served file is fetched once and cached forever.
+ * Geist is the face - one variable file covering every weight. It is embedded as base64
+ * and served from the Worker with an immutable cache rather than inlined into the CSS: a
+ * data URI would ride in every HTML response, where a served file is fetched once and
+ * cached forever.
  */
 const FONTS: Record<string, string> = {
-  a400: "node_modules/@fontsource/archivo/files/archivo-latin-400-normal.woff2",
-  a600: "node_modules/@fontsource/archivo/files/archivo-latin-600-normal.woff2",
+  geist: "node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2",
 };
 
 async function buildFonts() {
