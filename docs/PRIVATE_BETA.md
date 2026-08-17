@@ -1,4 +1,4 @@
-# Mailwarden Private Beta
+# Mailwarden Private Beta — Dogfood Runbook
 
 The current target is deliberately small: three real people using Mailwarden every day before any public SaaS launch.
 
@@ -7,81 +7,99 @@ The current target is deliberately small: three real people using Mailwarden eve
 Each person gets a completely separate private vault:
 
 ```text
-Thiago -> private vault -> Gmail / Outlook / Proton accounts
-Buddy A -> private vault -> their Gmail / Outlook / Proton accounts
-Buddy B -> private vault -> their Gmail / Outlook / Proton accounts
+Thiago -> private vault -> Gmail accounts
+Buddy A -> private vault -> their Gmail accounts
+Buddy B -> private vault -> their Gmail accounts
 ```
 
 A private vault is the security boundary. Users do not share email data, credentials, drafts, relationship memory, rules, audit history, or connected accounts.
 
-A single user may connect multiple personal and professional email accounts and ask Mailwarden questions across all of them.
-
-Shared/company mailboxes are a future feature and must require explicit grants. Membership in the same company must never implicitly grant mailbox access.
+Gmail is the only provider in scope for this dogfood pass. Do not expand into Outlook, Proton, billing, buddy provisioning, settings expansion, or public SaaS work until the Gmail path is proven.
 
 ## Authentication
 
 The deployment owner logs in with `OWNER_EMAIL` and `OWNER_LOGIN_SECRET`. The first successful login creates that owner's private vault and migrates the env bootstrap secret into a per-user hashed credential. Do not run `beta:provision` for the owner.
 
+If owner auth fails after the first successful login: **stop**. Do not blindly rotate `OWNER_LOGIN_SECRET`. After hashed credential persistence, the env bootstrap secret is no longer the live password for that vault — rotating the Wrangler secret alone will not fix a wrong password and can strand the owner.
+
 `BETA_ADMIN_SECRET` is only for provisioning buddy #1 and buddy #2 later. Mailwarden generates a strong login secret for those users and stores only a salted PBKDF2-SHA256 hash. The plaintext secret is returned once during provisioning.
 
-Set a separate production secret:
+## Production endpoints
 
-```bash
-bun x wrangler secret put BETA_ADMIN_SECRET
+```text
+Worker:  https://mailwarden.corenet.workers.dev
+MCP:     https://mailwarden.corenet.workers.dev/mcp
+Health:  https://mailwarden.corenet.workers.dev/health
 ```
 
-Do not reuse `OWNER_LOGIN_SECRET`, `AUTH_SECRET`, provider OAuth secrets, or encryption keys as the beta admin secret.
+## Human-session approval boundary
 
-## Provision a beta user
+Send confirmation requires a real human browser session on the Mailwarden origin.
 
-Skip this until Gmail through Claude works for the owner. Then, with `APP_BASE_URL` pointing at the deployed Mailwarden Worker and `BETA_ADMIN_SECRET` available only in your local shell:
+- The model may know `approvalId` and `reviewUrl`.
+- The review URL alone is **not** authorization.
+- An API/MCP bearer token is **not** human approval auth.
+- Human sessions (`mw_human_session`) are cryptographically incompatible with API/MCP JWTs (different audience, `typ`, and `kind`; empty scopes).
+- Confirmation requires: valid human session owning the approval **and** the one-time `confirmationNonce`.
+- The approved payload is bound to the exact canonical outbound payload hash. Any edit after approval invalidates send.
 
-```bash
-bun run beta:provision buddy@example.com "Buddy Name"
+Invariant:
+
+```text
+THE MODEL MAY PREPARE AND REQUEST.
+ONLY A HUMAN MAY AUTHORIZE.
+THE APPROVED PAYLOAD MUST MATCH WHAT ACTUALLY LEAVES GMAIL.
 ```
 
-Mailwarden returns the user's private vault ID, user ID, and login secret. Share only the login secret and only through a private channel.
+## Dogfood phases
 
-If a beta login secret is lost or exposed, rotate it through the protected `/auth/beta/rotate-secret` endpoint. The previous secret stops working immediately.
+### Phase 4 — ChatGPT Developer Mode (not Claude)
 
-## First dogfood client: Claude
+Use ChatGPT with Developer Mode / a workspace plan that supports custom MCP connectors with write actions.
 
-ChatGPT Plus is not currently listed for custom MCP connectors with write actions. Use Claude (Pro/Max/Team/Enterprise) for the first real inbox test.
-
-In Claude: Settings → Connectors → Add custom connector:
+Add the custom MCP connector:
 
 ```text
 https://mailwarden.corenet.workers.dev/mcp
 ```
 
-Claude discovers Mailwarden's OAuth + Dynamic Client Registration flow. The owner signs in with `OWNER_EMAIL` and `OWNER_LOGIN_SECRET`. Later beta users sign in with the email and login secret from provisioning. Tokens, provider accounts, email data, and tool calls stay scoped to that person's private vault.
+Complete OAuth on the Mailwarden origin (`OWNER_EMAIL` + Mailwarden login secret). Successful authorize mints the human browser session cookie on Mailwarden; that cookie is what later unlocks review/confirm.
 
-Prove this path before Outlook or Proton:
-
-```text
-REAL GMAIL → Google OAuth → Mailwarden sync → D1 → Claude → summary + draft
-```
-
-## Multi-account expectation
-
-A beta user can connect multiple accounts from the same or different providers. For example:
+Prove:
 
 ```text
-Personal Gmail
-Work Gmail
-Consulting Outlook
-Personal Proton
+REAL GMAIL → Google OAuth → Mailwarden sync → D1 → ChatGPT → summary + draft
 ```
 
-The user should be able to say:
+### Phase 6 / 7 — Resume here after this hardening deploy
 
-- "Summarize all my email."
-- "Only check my work accounts."
-- "Anything important in Proton?"
-- "This Outlook account is Consulting."
-- "Draft a reply from my work Gmail."
+Human resumes real dogfood at Phase 6/7:
 
-Internal account IDs are implementation details and should not be required in normal conversation.
+1. Confirm ChatGPT can list/sync Gmail via MCP tools.
+2. Ask for a summary of recent mail.
+3. Ask Mailwarden to create a draft addressed to **yourself** (self-send only for the first real send).
+4. Do **not** send yet — stop after draft + approval request if you are still validating the review UI.
+
+### Phase 8 — Real send
+
+Phase 8 is a **real send**.
+
+- `MAILBOX_MUTATIONS_ENABLED=false` does **not** block send. Dry-run only covers mailbox mutations (`mark_read`, `archive`, etc.).
+- Address the test email to yourself.
+- Flow: draft → `request_send_approval` → open `reviewUrl` in a browser where you are signed in to Mailwarden → read From/To/Cc/Subject/body/thread → confirm → `send_draft`.
+- Do not claim success unless `send_draft` returns provider success.
+
+### Phase 9 — Tamper / hash mismatch check
+
+1. Create draft
+2. Request approval
+3. Human reviews
+4. Human **approves**
+5. Edit/mutate the draft (recipient, body, Cc, or thread)
+6. Attempt send using the **old** approval
+7. Expect hash mismatch and **zero** provider dispatch
+
+The binding is the exact canonical outbound payload (From, To, Cc, Subject, final `textBody`, `threadId`, plus security-binding ids) — not a claim of hashing raw MIME bytes unless that serialization is independently proven.
 
 ## Safety during beta
 
@@ -104,31 +122,13 @@ Before the three-person beta is solid, do not add:
 - enterprise SSO
 - large settings dashboards
 - automatic AI sending
-
-## SaaS path after beta
-
-The beta architecture is intentionally compatible with a later SaaS layer.
-
-A public product can later add:
-
-```text
-identity/signup
-  -> private vault
-  -> plan entitlement
-  -> connected-account limits
-  -> sync/retention features
-  -> billing/customer lifecycle
-```
-
-Billing and plan state must never become the authorization boundary. Mailbox authorization remains based on authenticated user/vault ownership and explicit scopes.
-
-Possible future plan dimensions include connected account count, synchronization frequency, retention duration, advanced automation, and optional always-on Proton infrastructure. Pricing decisions should be made from real beta usage rather than guessed before dogfooding.
+- Outlook / Proton expansion for this dogfood pass
 
 ## Beta success criterion
 
 Do not call the beta successful because the architecture or tests look good.
 
-The milestone is all three people independently connecting real inboxes and naturally using Mailwarden inside Claude for:
+The milestone is all three people independently connecting real inboxes and naturally using Mailwarden inside ChatGPT for:
 
 1. cross-account summaries;
 2. attention prioritization;
