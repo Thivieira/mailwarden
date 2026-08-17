@@ -11,6 +11,7 @@ import { readBody, withPrincipal, type Env } from "../context";
 import { renderPage } from "../../ui/render";
 import type { ApprovalState } from "../../ui/approval";
 import { ApprovalConfirmedPage, ApprovalReviewPage } from "../../ui/approval.gen.js";
+import { NoticePage } from "../../ui/pages.gen.js";
 
 function hostOf(url: string) {
   try {
@@ -66,7 +67,18 @@ export const managementRoutes = new Hono<Env>()
       .where(eq(schema.sendApprovals.id, c.req.param("id")))
       .limit(1);
 
-    if (!approval) return c.text("Approval challenge not found", 404);
+    if (!approval)
+      return renderPage(
+        "Request not found",
+        () =>
+          NoticePage({
+            host: hostOf(config.APP_BASE_URL),
+            headline: "This link has expired",
+            detail: "There is no pending email waiting for approval at this address.",
+            hint: "Approval links are single-use and time-limited. Go back to your conversation and ask for the email again; nothing was sent.",
+          }),
+        404
+      );
 
     const [draft] = await db
       .select()
@@ -74,7 +86,18 @@ export const managementRoutes = new Hono<Env>()
       .where(eq(schema.drafts.id, approval.draftId))
       .limit(1);
 
-    if (!draft) return c.text("Associated draft not found", 404);
+    if (!draft)
+      return renderPage(
+        "Request not found",
+        () =>
+          NoticePage({
+            host: hostOf(config.APP_BASE_URL),
+            headline: "This email is no longer available",
+            detail: "The draft this approval refers to has been removed.",
+            hint: "Nothing was sent. Go back to your conversation and ask for the email again.",
+          }),
+        404
+      );
 
     const rawTo = draft.to;
     const toArray = Array.isArray(rawTo) ? rawTo : typeof rawTo === "string" ? JSON.parse(rawTo) : [];

@@ -9,20 +9,69 @@ import { providerConnectRoutes } from "./routes/provider-connect";
 import { fontRoutes } from "./routes/fonts";
 import { logger } from "../utils/logger";
 import { MailwardenError } from "../utils/errors";
+import { config } from "../config";
+import { renderPage } from "../ui/render";
+import { NoticePage } from "../ui/pages.gen.js";
+
+function hostOf(url: string) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
 
 export function createHonoApp() {
   const app = new Hono();
 
   app.use("*", cors());
 
+  /**
+   * A browser gets the designed page; anything else keeps the JSON contract. Decided by the
+   * Accept header, because these paths are shared: `/api/approvals/:id/review` is opened by
+   * a person, while every other `/api/*` route is called by a program.
+   */
+  const wantsHtml = (c: any) => (c.req.header("accept") || "").includes("text/html");
+
+  const notice = (c: any, status: number, headline: string, detail: string, hint?: string) =>
+    renderPage(
+      headline,
+      () => NoticePage({ host: hostOf(config.APP_BASE_URL), headline, detail, hint }),
+      status
+    );
+
+  app.notFound((c) =>
+    wantsHtml(c)
+      ? notice(
+          c,
+          404,
+          "Page not found",
+          "There is nothing at this address.",
+          "Check the link you followed, or go back to your conversation and ask for a new one."
+        )
+      : c.json({ error: "NotFound", message: "Route not found" }, 404)
+  );
+
   app.onError((error, c) => {
     if (error instanceof MailwardenError) {
-      return c.json(error.toJSON(), error.statusCode as any);
+      return wantsHtml(c)
+        ? notice(c, error.statusCode, "That did not work", error.message)
+        : c.json(error.toJSON(), error.statusCode as any);
     }
 
     const errMsg = (error as any)?.message || String(error);
     logger.error("Unhandled HTTP error", { error: errMsg });
-    return c.json({ error: "InternalServerError", message: "An internal server error occurred" }, 500);
+
+    // The exception text stays in the logs. A browser gets something actionable instead.
+    return wantsHtml(c)
+      ? notice(
+          c,
+          500,
+          "Something went wrong",
+          "Mailwarden could not finish that request.",
+          "Nothing was changed. Go back to your conversation and try again; if it keeps happening the problem is on our side."
+        )
+      : c.json({ error: "InternalServerError", message: "An internal server error occurred" }, 500);
   });
 
   app.route("/", fontRoutes);

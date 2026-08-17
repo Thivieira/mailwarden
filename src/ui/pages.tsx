@@ -90,6 +90,34 @@ export function AuthorizePage(props: {
   );
 }
 
+/**
+ * The catch-all browser surface: wrong link, expired approval, unhandled error, unknown
+ * path. These used to fall out of the design system entirely - Hono's plain-text 404 and a
+ * bare `Approval challenge not found`. That matters most on the approval link, which people
+ * click from a conversation to review an outgoing email; landing on unstyled text mid
+ * security flow reads like the site is broken or spoofed.
+ *
+ * Never put an internal error message in `detail`. Callers pass something a person can act
+ * on; the exception text stays in the logs.
+ */
+export function NoticePage(props: {
+  host: string;
+  headline: string;
+  detail: string;
+  hint?: string;
+}) {
+  return (
+    <>
+      <SiteHeader host={props.host} />
+      <main class="sheet">
+        <h1>{props.headline}</h1>
+        <Alert tone="no" title={props.detail} />
+        {props.hint && <p class="footnote">{props.hint}</p>}
+      </main>
+    </>
+  );
+}
+
 export function DeniedPage(props: { host: string }) {
   return (
     <>
