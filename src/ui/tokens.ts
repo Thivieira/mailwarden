@@ -1,10 +1,20 @@
 /**
- * shadcn/ui — New York. Mailwarden's visual world.
+ * shadcn/ui — New York, carrying Mailwarden's own identity.
  *
- * The token values are shadcn's own neutral palette verbatim (oklch, light and dark), so
- * this reads as the same system a Next.js app built on shadcn would ship. Cards carry the
- * structure, Geist is the face, controls are h-9, and the focus treatment is New York's
- * signature 3px ring.
+ * The bones are shadcn's: oklch tokens, cards at radius-xl, h-9 controls, the 3px focus
+ * ring. What makes the pages Mailwarden's rather than any shadcn app's lives in four
+ * places, and they are the parts to protect when this file is edited:
+ *
+ *   1. The seal. An authored shield whose body is also an envelope, drawn to Lucide's
+ *      spec so it sits in the icon system. It is the only brass on the page.
+ *   2. Material, not colour, carries polarity. What the assistant CAN do sits on a raised
+ *      white card. What it can NEVER do is pressed into the page - muted ground, inset
+ *      shadow, no lift. Locked things do not float.
+ *   3. Ledger rules behind the opening, in place of the dot grid every shadcn page ships.
+ *      A warden keeps a record; the texture says so.
+ *   4. The browser's own surfaces are themed - caret, scrollbar, selection, underline
+ *      offset, numerals. These ship with defaults belonging to no design system, and
+ *      leaving them is what makes a page feel assembled instead of built.
  *
  * The look is shadcn's; the runtime is not. Kobalte and Tailwind are client-side and these
  * pages ship zero JavaScript, so the same visual language is expressed in plain CSS.
@@ -52,8 +62,11 @@ export const CSS = `
   --radius-xl: calc(var(--radius) + 4px);
 
   --shadow-xs: 0 1px 2px 0 oklch(0.21 0.018 245 / 0.06);
+  /* The pressed state. Locked things sit below the page, not above it. */
+  --shadow-inset: inset 0 1px 2px 0 oklch(0.21 0.018 245 / 0.05);
 
   --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -76,6 +89,9 @@ export const CSS = `
     --border: oklch(1 0 0 / 12%);
     --input: oklch(1 0 0 / 16%);
     --ring: oklch(0.62 0.09 245);
+
+    --shadow-xs: 0 1px 2px 0 oklch(0 0 0 / 0.3);
+    --shadow-inset: inset 0 1px 3px 0 oklch(0 0 0 / 0.35);
   }
 }
 
@@ -99,7 +115,27 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ---- The browser's own surfaces -----------------------------------------
+   Caret, selection, scrollbar, underline offset and numerals all ship with
+   defaults that belong to no design system. Theming them is the cheapest
+   signal that a page was built rather than assembled. */
+
 ::selection { background: var(--foreground); color: var(--background); }
+
+body { caret-color: var(--ring); accent-color: var(--primary); }
+
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border: 3px solid transparent;
+  border-radius: 99px;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); background-clip: content-box; }
+
+a { color: var(--primary); text-underline-offset: 0.2em; text-decoration-thickness: 1px; }
 
 /* New York's focus treatment: a soft 3px ring plus a border shift. */
 :focus-visible {
@@ -130,59 +166,71 @@ body {
   gap: 1rem;
 }
 
+/* Tracked caps, so the wordmark reads as a mark rather than as a line of body copy. */
 .brand {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-weight: 600;
-  font-size: 0.9375rem;
-  letter-spacing: -0.01em;
   margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
 }
 
-/* Brass appears here and nowhere else, the same rule the previous world held. */
-.brand svg { color: var(--brass); }
+/* Brass appears on the seal and nowhere else. */
+.brand svg { color: var(--brass); flex: none; }
 
 .host { margin: 0; font-size: 0.8125rem; color: var(--muted-foreground); text-align: right; }
 .host b { font-weight: 500; color: var(--foreground); }
 
-/* A dot field behind the opening, faded out before it reaches the content. Texture the
-   world already uses; it carries no meaning, so it never sits behind anything to read. */
 .sheet {
   position: relative;
   max-width: 42rem;
   margin: 0 auto;
-  padding: clamp(2rem, 6vw, 3.5rem) 1.5rem 5rem;
+  padding: clamp(2.25rem, 6vw, 3.75rem) 1.5rem 5rem;
 }
 
-/* Anchored to the body edges rather than a viewport-width offset: a -50vw inset paints
-   past the document and the page grows a horizontal scrollbar. */
+/* Ledger rules rather than the dot field every shadcn page ships. A warden keeps a
+   record. Anchored to the body edges: a viewport-width offset like -50vw paints past the
+   document and grows a horizontal scrollbar. */
 body::before {
   content: "";
   position: absolute;
   top: 3.5rem;
   left: 0;
   right: 0;
-  height: 22rem;
+  height: 24rem;
   pointer-events: none;
-  background-image: radial-gradient(circle at center, var(--border) 1.1px, transparent 1.1px);
-  background-size: 18px 18px;
-  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.7), transparent 80%);
-  -webkit-mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.7), transparent 80%);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    var(--border) 0 1px,
+    transparent 1px 28px
+  );
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.55), transparent 78%);
+  -webkit-mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.55), transparent 78%);
 }
 
 .sheet > * { position: relative; }
 
+/* One authored moment: the sheet settles onto the rules. It starts fully opaque, so a
+   blocked or failed animation can never leave the page unreadable. */
+@keyframes settle {
+  from { transform: translateY(10px); }
+  to { transform: translateY(0); }
+}
+.sheet { animation: settle 620ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
 h1 {
-  margin: 0 0 0.5rem;
-  font-size: clamp(1.75rem, 4.4vw, 2.25rem);
+  margin: 0 0 0.625rem;
+  font-size: clamp(1.875rem, 4.8vw, 2.5rem);
   font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.025em;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
   text-wrap: balance;
 }
 
-.lede { margin: 0; font-size: 1.0625rem; line-height: 1.6; color: var(--muted-foreground); max-width: 58ch; }
+.lede { margin: 0; font-size: 1.0625rem; line-height: 1.6; color: var(--muted-foreground); max-width: 62ch; }
 
 /* ---- Card --------------------------------------------------------------- */
 
@@ -195,7 +243,57 @@ h1 {
   box-shadow: var(--shadow-xs);
 }
 
+/* Pacing: sign-in sits close to the subject it belongs to, then air, then the two folded
+   lists pair tightly with each other. More space above a group than inside it. */
+.card[data-open] { margin-top: 2.75rem; }
+.card[data-lock] { margin-top: 0.5rem; }
+
+/* Material carries polarity. What the assistant can never do is pressed into the page
+   rather than raised off it: muted ground, an inset shadow, no lift. */
+.card[data-lock] {
+  background: var(--muted);
+  box-shadow: var(--shadow-inset);
+}
+.card[data-lock] .card-header { border-bottom-color: color-mix(in oklch, var(--border) 70%, transparent); }
+.card[data-lock] .rows li + li { border-top-color: color-mix(in oklch, var(--border) 70%, transparent); }
+
 .card-header { padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border); }
+
+/* ---- Disclosure ---------------------------------------------------------
+   Native <details>. No script ships, so the fold is the browser's own; the work
+   here is removing the default marker and giving the summary a real hit area. */
+
+details.card { overflow: hidden; }
+
+summary.card-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  cursor: pointer;
+  list-style: none;
+  border-bottom: 1px solid transparent;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+summary.card-header::-webkit-details-marker { display: none; }
+summary.card-header > div { flex: 1; min-width: 0; }
+summary.card-header:hover { background: color-mix(in oklch, var(--foreground) 3%, transparent); }
+
+details[open] > summary.card-header { border-bottom-color: var(--border); }
+
+/* The chevron is the only affordance saying this opens, so it earns the motion. */
+.chevron {
+  flex: none;
+  display: flex;
+  color: var(--muted-foreground);
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+details[open] > summary .chevron { transform: rotate(180deg); }
+
+/* The whole row is the control; the ring belongs on the row, not the text inside it. */
+summary.card-header:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--ring);
+}
 
 .card-title {
   margin: 0;
@@ -272,7 +370,7 @@ h1 {
   padding: 0.1rem 0.45rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--muted);
+  background: var(--secondary);
   font-size: 0.6875rem;
   font-weight: 500;
   color: var(--muted-foreground);
@@ -325,11 +423,11 @@ button[type="submit"]:hover { opacity: 0.9; }
 button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .footnote {
-  margin: 1.5rem 0 0;
+  margin: 1.75rem 0 0;
   font-size: 0.875rem;
   line-height: 1.65;
   color: var(--muted-foreground);
-  max-width: 62ch;
+  max-width: 66ch;
 }
 .footnote strong { font-weight: 500; color: var(--foreground); }
 
@@ -344,6 +442,7 @@ button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--card);
+  box-shadow: var(--shadow-xs);
 }
 .alert .icon { display: flex; align-items: center; height: 1.25rem; color: var(--muted-foreground); }
 .alert[data-tone="no"] .icon { color: var(--destructive); }
@@ -375,10 +474,10 @@ button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
 .record div { display: grid; grid-template-columns: 9rem 1fr; gap: 0.5rem 1rem; padding: 0.875rem 1.5rem; }
 .record div + div { border-top: 1px solid var(--border); }
 .record dt { margin: 0; font-size: 0.8125rem; color: var(--muted-foreground); }
-.record dd { margin: 0; font-size: 0.9375rem; overflow-wrap: anywhere; }
+.record dd { margin: 0; font-size: 0.9375rem; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 
 code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8125em;
   padding: 0.1rem 0.3rem;
   border-radius: var(--radius-sm);
@@ -386,9 +485,29 @@ code {
   overflow-wrap: anywhere;
 }
 
+/* A hash is measurement, so it gets the monospace and the tabular figures - grouped into
+   readable runs instead of sixty-four characters wrapping through a paragraph. */
+.fingerprint {
+  display: block;
+  margin: 0.55rem 0 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--muted);
+  box-shadow: var(--shadow-inset);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1.7;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 30rem) {
   .letter-meta, .record div { grid-template-columns: 1fr; gap: 0.15rem; }
   .host { font-size: 0.6875rem; }
+  .brand { letter-spacing: 0.08em; }
 }
 
 @media (prefers-reduced-motion: reduce) {

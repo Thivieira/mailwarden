@@ -75,8 +75,11 @@ export function ApprovalReviewPage(props: {
         )}
 
         <p class="footnote">
-          Message fingerprint <code>{props.fingerprint}</code>. You can ignore this; it is
-          how Mailwarden checks that what you approved is what actually gets sent.
+          You can ignore the line below. It is how Mailwarden checks that what you approved
+          is what actually gets sent.
+          {/* Rendered verbatim, never regrouped: tests/send_approval.test.ts pins that this
+              page carries the exact payload hash, and it has to stay copy-pastable. */}
+          <code class="fingerprint">{props.fingerprint}</code>
         </p>
       </main>
     </>

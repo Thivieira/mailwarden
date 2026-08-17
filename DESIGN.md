@@ -4,8 +4,24 @@
 
 Chosen by the user (2026-08-16), replacing The Hotel Key Card. The trade was made
 knowingly: this is the most widely-used look in current software, so it reads as familiar
-and trustworthy rather than distinctive. Familiar and effective is a legitimate
-destination.
+and trustworthy rather than distinctive.
+
+The distinctness pass (2026-08-17) kept those bones and gave them an identity, because
+familiar had shaded into anonymous. Four things are Mailwarden's alone, and they are what
+to protect when this system is edited:
+
+1. **The seal.** An authored shield whose body is also an envelope — one outline doing
+   both jobs, with the flap struck across it. It replaced a stock Lucide `key-round`.
+2. **Material, not colour, carries polarity.** What the assistant *can* do sits on a
+   raised white card. What it can *never* do is pressed into the page: muted ground,
+   inset shadow, no lift. Locked things do not float.
+3. **Ledger rules** behind the opening, in place of the dot field every shadcn page
+   ships. A warden keeps a record; the texture says so.
+4. **The browser's own surfaces are themed** — caret, scrollbar, selection, underline
+   offset, tabular numerals. These ship with defaults belonging to no design system.
+
+The favicon is the deliberate exception: it stays Lucide's `key-round` on the neutral
+swatch at the user's request (2026-08-17), so the tab icon and the header mark differ.
 
 ## The look is shadcn's; the runtime is not
 
@@ -70,7 +86,12 @@ Cards carry the structure. That is a deliberate reversal of the previous world, 
 refused them. In shadcn, cards *are* the system.
 
 - **`.site-header`** — sticky, bordered, blurred. Carries the wordmark and the real host.
-  The host line is the anti-forgery device and stays visible while scrolling.
+  The host line is the anti-forgery device and stays visible while scrolling. The wordmark
+  is tracked caps (`0.11em`) so it reads as a mark rather than a line of body copy.
+- **`details.card`** — the two permission lists fold. Native `<details>`/`<summary>`, since
+  the CSP forbids script and a scripted accordion is unavailable *and* the wrong tool. The
+  chevron rotates 180° on `[open]`; the summary is the whole row, so the focus ring is an
+  inset ring on the row rather than an outline on the text.
 - **`.subject`** — the account row shadcn uses to show who a grant is for: avatar
   initial, name, meta line, and a badge on the right.
 - **`.rows`** — one permission per row inside a card, with a Lucide check or X.
@@ -90,10 +111,24 @@ carried by the card headings and the colour, so a topic icon costs no clarity. T
 list keeps a single `X` throughout: consistent negation reads faster than four different
 negative glyphs.
 
-A dot field sits behind the opening, painted on `body::before` and masked to fade before
-it reaches anything readable. It is texture, not meaning. Anchor it to the body edges:
-a viewport-width offset like `-50vw` paints past the document and grows a horizontal
-scrollbar.
+Ledger rules sit behind the opening, painted on `body::before` as a
+`repeating-linear-gradient` at 28px and masked to fade before they reach anything readable.
+They are texture, not meaning. Anchor them to the body edges: a viewport-width offset like
+`-50vw` paints past the document and grows a horizontal scrollbar.
+
+## Order on the authorize page
+
+Sign-in comes **before** the permission lists (2026-08-17, user's call). Most people arrive
+intending to approve, and 450px of scroll to reach the password field is the wrong tax; the
+Allow button now lands inside the first viewport and the page is 38% shorter closed
+(1959px → 1207px).
+
+The consent tradeoff is real and is handled in the summaries, not by hiding anything: each
+folded card states its **count and its guarantee** on the always-visible line — "7 things,
+and nothing beyond them", "4 things Mailwarden's servers refuse outright". Someone who
+never opens either list has still been told the size and the shape of what they are
+granting. Keep it that way: a summary that degrades into a bare label ("Permissions") turns
+a disclosure into a dark pattern.
 
 ## Language
 

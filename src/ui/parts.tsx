@@ -38,10 +38,18 @@ const X = () => (
   </Icon>
 );
 
-const KeyRound = (props: { size?: number }) => (
+/**
+ * The Mailwarden seal, and the only drawing here that is not Lucide's.
+ *
+ * A shield whose body is also an envelope: one outline does both jobs, with the flap
+ * struck across it. Authored rather than imported, but held to Lucide's spec - 24 viewBox,
+ * 2px stroke, round caps and joins - so it sits inside the icon system instead of beside
+ * it. This is the mark; do not swap it for a stock glyph.
+ */
+const Seal = (props: { size?: number }) => (
   <Icon size={props.size}>
-    <path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" />
-    <circle cx="16.5" cy="7.5" r=".5" fill="currentColor" />
+    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+    <path d="m7.5 9.5 4.5 3.5 4.5-3.5" />
   </Icon>
 );
 
@@ -49,6 +57,12 @@ const CircleCheck = () => (
   <Icon>
     <circle cx="12" cy="12" r="10" />
     <path d="m9 12 2 2 4-4" />
+  </Icon>
+);
+
+const ChevronDown = () => (
+  <Icon>
+    <path d="m6 9 6 6 6-6" />
   </Icon>
 );
 
@@ -117,7 +131,7 @@ export function SiteHeader(props: { host: string }) {
     <header class="site-header">
       <div class="site-header-inner">
         <p class="brand">
-          <KeyRound size={17} />
+          <Seal size={18} />
           Mailwarden
         </p>
         <p class="host">
@@ -146,16 +160,41 @@ export function GrantSubject(props: { name: string; meta: string; badge: string 
   );
 }
 
+/**
+ * The permission lists fold, because the sign-in field now sits above them and most
+ * people go straight for it. `<details>` does this natively - the CSP forbids script, so
+ * a scripted accordion is not available and would be the wrong tool anyway.
+ *
+ * The summary is not a label: it carries the count and the guarantee, so the grant is
+ * still stated on the page for someone who never opens either list.
+ */
+function Disclosure(props: { title: string; summary: string; children: any; lock?: boolean }) {
+  return (
+    <details class="card" data-lock={props.lock ? "" : undefined} data-open={props.lock ? undefined : ""}>
+      <summary class="card-header">
+        <div>
+          <h2 class="card-title">{props.title}</h2>
+          <p class="card-desc">{props.summary}</p>
+        </div>
+        <span class="chevron" aria-hidden="true">
+          <ChevronDown />
+        </span>
+      </summary>
+      {props.children}
+    </details>
+  );
+}
+
 export function OpenDoors(props: { scopes: string[]; mutationsEnabled: boolean }) {
   const doors = doorsFor(props.scopes);
   const leftover = uncoveredScopes(props.scopes);
+  const count = doors.length + leftover.length;
 
   return (
-    <section class="card">
-      <div class="card-header">
-        <h2 class="card-title">What it will be able to do</h2>
-        <p class="card-desc">Only these things, and nothing beyond them.</p>
-      </div>
+    <Disclosure
+      title="What it will be able to do"
+      summary={`${count} ${count === 1 ? "thing" : "things"}, and nothing beyond them. Tap to read each one.`}
+    >
       <ul class="rows">
         {doors.map((door) => {
           const off = door.simulatedWhenDryRun && !props.mutationsEnabled;
@@ -181,17 +220,19 @@ export function OpenDoors(props: { scopes: string[]; mutationsEnabled: boolean }
           </li>
         ))}
       </ul>
-    </section>
+    </Disclosure>
   );
 }
 
 export function ShutDoors() {
+  // `data-lock` presses this card into the page instead of raising it. Polarity is carried
+  // by the material, so the two lists stop reading as the same card twice.
   return (
-    <section class="card">
-      <div class="card-header">
-        <h2 class="card-title">What it will never be able to do</h2>
-        <p class="card-desc">Mailwarden's servers enforce this. The assistant cannot override it.</p>
-      </div>
+    <Disclosure
+      lock
+      title="What it will never be able to do"
+      summary={`${SHUT_DOORS.length} things Mailwarden's servers refuse outright. The assistant cannot override them.`}
+    >
       <ul class="rows">
         {SHUT_DOORS.map((line) => (
           <li>
@@ -202,7 +243,7 @@ export function ShutDoors() {
           </li>
         ))}
       </ul>
-    </section>
+    </Disclosure>
   );
 }
 

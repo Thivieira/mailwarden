@@ -40,9 +40,10 @@ export function AuthorizePage(props: {
           badge="Revocable any time"
         />
 
-        <OpenDoors scopes={props.scopes} mutationsEnabled={props.mutationsEnabled} />
-        <ShutDoors />
-
+        {/* Sign-in comes before the permission lists: most people arrive intending to
+            approve, and 450px of scroll to reach the password field is the wrong tax. The
+            lists stay on the page, folded, and the summaries below state the grant in full
+            so nothing is hidden from someone who never opens them. */}
         <form method="post" action="/oauth/authorize">
           {HIDDEN_FIELDS.map((name) => (
             <input type="hidden" name={name} value={props.params[name] ?? ""} />
@@ -71,6 +72,9 @@ export function AuthorizePage(props: {
             </div>
           </section>
         </form>
+
+        <OpenDoors scopes={props.scopes} mutationsEnabled={props.mutationsEnabled} />
+        <ShutDoors />
 
         <p class="footnote">
           You can take this access away at any time and {props.clientName} loses it
