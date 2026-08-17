@@ -1,8 +1,5 @@
 /**
- * Centralized Branding and Product Positioning Configuration
- * 
- * Allows display name, taglines, and descriptions to be customized
- * without requiring codebase-wide identifier refactoring.
+ * Display name, taglines, and descriptions. Swap these without renaming internals.
  */
 
 export interface BrandingConfig {
@@ -39,26 +36,26 @@ export const branding: BrandingConfig = {
   internalName: "mailwarden",
   tagline: {
     en: "Your email, managed through normal conversation.",
-    pt: "Todos os seus e-mails dentro do ChatGPT.",
+    pt: "Seus e-mails, gerenciados em conversa normal.",
   },
   shortDescription: {
-    en: "Connect your email to ChatGPT. See what matters, who needs a reply, and respond without living in your inbox.",
-    pt: "Conecte seus e-mails ao ChatGPT. Veja o que importa, quem precisa de resposta e responda sem viver dentro da caixa de entrada.",
+    en: "Connect your email to your AI assistant. See what matters, who needs a reply, and respond without living in your inbox.",
+    pt: "Conecte seus e-mails ao seu assistente. Veja o que importa, quem precisa de resposta e responda sem viver na caixa de entrada.",
   },
   longDescription: {
-    en: "Mailwarden connects your email accounts to ChatGPT so you can ask what matters, see who needs a reply, understand conversation history, and prepare responses without living inside your inbox.",
-    pt: "O Mailwarden conecta suas contas de e-mail ao ChatGPT para você perguntar o que importa, ver quem está esperando uma resposta, entender o histórico de conversas e preparar respostas sem precisar procurar e-mail por e-mail.",
+    en: "Mailwarden connects your email accounts to your conversational AI so you can ask what matters, see who needs a reply, check history with someone, and prepare responses without living in your inbox.",
+    pt: "O Mailwarden conecta suas contas de e-mail ao seu assistente para você perguntar o que importa, ver quem espera resposta, checar o histórico com alguém e preparar respostas sem vasculhar e-mail por e-mail.",
   },
   salesCopy: {
     en: {
-      headline: "Connect your email to ChatGPT.",
-      subheadline: "All your email, managed through conversation.",
+      headline: "Connect your email to your AI assistant.",
+      subheadline: "All your email, handled in conversation.",
       summary: "See what matters, who needs a reply, and respond without living in your inbox.",
     },
     pt: {
-      headline: "Todos os seus e-mails dentro do ChatGPT.",
-      subheadline: "Seu e-mail gerenciado através de conversas normais.",
-      summary: "Conecte seus e-mails ao ChatGPT. Ele mostra o que realmente importa, quem está esperando uma resposta e ajuda você a responder sem precisar procurar e-mail por e-mail.",
+      headline: "Seus e-mails no seu assistente.",
+      subheadline: "E-mail gerenciado em conversa normal.",
+      summary: "Conecte seus e-mails. Ele mostra o que importa, quem espera resposta e ajuda você a responder sem vasculhar e-mail por e-mail.",
     },
   },
 };

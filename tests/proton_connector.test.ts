@@ -133,7 +133,13 @@ describe("Proton Connector & Cross-Account Provider Status", () => {
     const statusSummary = await attentionService.getInboxStatus(principal);
     expect(statusSummary.providerWarnings).toBeDefined();
     expect(statusSummary.providerWarnings!.length).toBeGreaterThan(0);
-    expect(statusSummary.providerWarnings![0]).toContain("Proton connector is currently offline");
+    // Assert the guarantee, not the wording: the warning must name the provider, say it
+    // is offline, and admit the results are incomplete. Pinning exact prose meant an
+    // ordinary copy edit broke this test without changing the behaviour it protects.
+    const warning = statusSummary.providerWarnings![0]!;
+    expect(warning).toMatch(/proton/i);
+    expect(warning).toMatch(/offline/i);
+    expect(warning).toMatch(/incomplete/i);
 
     const protonAcc = statusSummary.accounts.find((a) => a.provider === "proton");
     expect(protonAcc!.status).toBe("offline");

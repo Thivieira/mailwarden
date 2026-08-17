@@ -91,7 +91,7 @@ const LOCALES: Record<string, LocalizedContent> = {
   en: {
     onboardingWelcome: `Welcome to ${branding.displayName}.
 
-I can organize your email, surface what matters, remember who people are, and prepare replies.
+I can organize your email, show what matters, remember who people are, and prepare replies.
 
 By default, ${branding.displayName} is conservative:
 
@@ -100,7 +100,7 @@ By default, ${branding.displayName} is conservative:
 - nothing is permanently deleted automatically
 - sending always requires your confirmation
 
-You can change these rules anytime by simply telling me things like:
+Change these rules anytime by telling me things like:
 
 "Archive newsletters automatically."
 "Anything from this client is important."
@@ -122,25 +122,25 @@ Use recommended settings or customize?`,
     },
 
     onboardingCompleted: {
-      recommended: `Great! The Balanced recommended policy is now active:
-- Obvious low-value/junk mail may be archived
+      recommended: `Balanced is active:
+- Obvious junk may be archived
 - Routine, interesting, and important mail stay visible
 - Nothing is permanently deleted
-- Sending always requires your explicit confirmation
+- Sending always needs your confirmation
 
-You can immediately ask: "What needs my attention?" or tell me rules like "Archive newsletters automatically."`,
-      custom: `Your custom email rules have been saved and applied. You can modify them anytime simply by talking to me.`,
+Ask "What needs my attention?" or set a rule like "Archive newsletters automatically."`,
+      custom: `Your custom email rules are saved. Change them anytime by talking to me.`,
     },
 
     help: {
       tagline: branding.tagline.en,
       summary: branding.shortDescription.en,
       capabilities: [
-        "Organize and prioritize your inbox across all connected email accounts.",
-        "Remember sender relationships (clients, coworkers, recruiters, vendors).",
-        "Track open loops: who is waiting for a reply from you, and who you are waiting for.",
-        "Prepare, revise, and sign draft replies conversationally.",
-        "Apply custom rules and mailbox policies through normal conversation.",
+        "Organize and prioritize your inbox across connected accounts.",
+        "Remember who people are to you (clients, coworkers, recruiters, vendors).",
+        "Track open loops: who is waiting on you, and who you are waiting on.",
+        "Prepare, revise, and sign draft replies in conversation.",
+        "Set custom rules by talking, not by filling forms.",
       ],
       sampleQueries: {
         inboxOverview: ["What needs my attention?", "What's happening across all my email?"],
@@ -158,24 +158,24 @@ You can immediately ask: "What needs my attention?" or tell me rules like "Archi
         ],
       },
       safeDefaults: [
-        "Important and uncertain emails always stay visible.",
+        "Important and uncertain emails stay visible.",
         "Obvious low-value mail may be archived.",
-        "Nothing is ever permanently deleted automatically.",
-        "Sending email always requires your human confirmation.",
+        "Nothing is permanently deleted automatically.",
+        "Sending always needs your confirmation.",
       ],
     },
 
     policyDescriptions: {
-      safePreset: "Safe Preset: Organizes and prioritizes email with almost no automatic movement.",
-      balancedPreset: "Balanced Preset (Recommended): Obvious junk is archived, routine/interesting/important mail stays visible, uncertain mail is untouched.",
-      inboxZeroPreset: "Inbox Zero Preset: More aggressively files routine and low-value mail, keeping only important and actionable mail in the inbox.",
-      customPreset: "Custom Preset: Fine-tuned user-defined email rules and overrides.",
-      junkRule: "Junk: Archive automatically (never permanently deleted).",
-      routineRule: "Routine: Keep in inbox with normal attention.",
-      interestingRule: "Interesting: Keep available and discoverable, not urgent.",
-      importantRule: "Important: Keep visible and unread, prioritized in attention queue.",
-      criticalRule: "Critical: Surface immediately, never archive.",
-      uncertainRule: "Uncertain: Leave untouched in inbox.",
+      safePreset: "Safe: organizes and ranks email with almost no automatic movement.",
+      balancedPreset: "Balanced (recommended): archives obvious junk; keeps routine, interesting, and important mail visible; leaves uncertain mail alone.",
+      inboxZeroPreset: "Inbox Zero: archives more routine and low-value mail, keeping important and reply-needed mail in the inbox.",
+      customPreset: "Custom: your own rules and overrides.",
+      junkRule: "Junk: archive automatically (never permanently deleted).",
+      routineRule: "Routine: keep in inbox with normal attention.",
+      interestingRule: "Interesting: keep available, not urgent.",
+      importantRule: "Important: keep visible and unread, high in the attention list.",
+      criticalRule: "Critical: show immediately, never archive.",
+      uncertainRule: "Uncertain: leave untouched in inbox.",
     },
 
     actionDescriptions: {
@@ -185,9 +185,9 @@ You can immediately ask: "What needs my attention?" or tell me rules like "Archi
       keep_unread: "Keep unread",
       label: (dest?: string) => `Apply label${dest ? ` '${dest}'` : ""}`,
       move: (dest?: string) => `Move to folder${dest ? ` '${dest}'` : ""}`,
-      delete: "Delete (permanently disabled by default)",
-      surface: "Surface immediately",
-      prioritize: "Prioritize in attention queue",
+      delete: "Delete (off by default)",
+      surface: "Show immediately",
+      prioritize: "Raise in the attention list",
     },
 
     simulatedActions: {
@@ -197,9 +197,9 @@ You can immediately ask: "What needs my attention?" or tell me rules like "Archi
       wouldKeepUnread: "Would keep message marked as unread",
       wouldLabel: (dest?: string) => `Would apply label${dest ? ` '${dest}'` : ""}`,
       wouldMove: (dest?: string) => `Would move to folder${dest ? ` '${dest}'` : ""}`,
-      wouldDelete: "Would delete message (subject to permanent deletion restrictions)",
-      wouldSurface: "Would surface message to high-priority attention",
-      wouldPrioritize: "Would prioritize sender and message",
+      wouldDelete: "Would delete message (permanent deletion is restricted)",
+      wouldSurface: "Would show this message as high priority",
+      wouldPrioritize: "Would raise this sender and message in the attention list",
     },
 
     providerStatus: {
@@ -207,19 +207,19 @@ You can immediately ask: "What needs my attention?" or tell me rules like "Archi
       offline: "Offline",
       lastSeen: (device: string, timeAgo: string) => `Connected through ${device} (last seen ${timeAgo})`,
       offlineWarning: (provider: string, device: string, timeAgo: string) =>
-        `Your ${provider} connector is currently offline (last seen ${timeAgo} on ${device}), so ${provider} results may not be fully up to date.`,
+        `Your ${provider} connector is offline (last seen ${timeAgo} on ${device}), so ${provider} results may be incomplete.`,
     },
 
     humanConfirmation: {
-      approvalRequired: "Sending an email always requires explicit human review and confirmation.",
-      idempotentNotice: "Duplicate send attempts with identical payloads are safely deduplicated.",
+      approvalRequired: "Sending always needs you to review and confirm the email.",
+      idempotentNotice: "Identical send attempts are ignored so the same message does not go out twice.",
     },
   },
 
   "pt-BR": {
     onboardingWelcome: `Bem-vindo ao ${branding.displayName}.
 
-Posso organizar seus e-mails, destacar o que realmente importa, lembrar quem são seus contatos e preparar respostas.
+Posso organizar seus e-mails, mostrar o que importa, lembrar quem são seus contatos e preparar respostas.
 
 Por padrão, o ${branding.displayName} é conservador:
 
@@ -228,7 +228,7 @@ Por padrão, o ${branding.displayName} é conservador:
 - nada é apagado permanentemente de forma automática
 - o envio sempre exige sua confirmação
 
-Você pode mudar essas regras quando quiser simplesmente falando comigo:
+Mude essas regras quando quiser falando comigo:
 
 "Arquive newsletters automaticamente."
 "Tudo que vier desse cliente é importante."
@@ -250,14 +250,14 @@ Usar as configurações recomendadas ou personalizar?`,
     },
 
     onboardingCompleted: {
-      recommended: `Perfeito! O modo Balanceado recomendado está ativo:
-- Mensagens de pouco valor/lixo óbvio podem ser arquivadas
-- E-mails rotineiros, interessantes e importantes permanecem visíveis
-- Nada é apagado permanentemente de forma automática
-- O envio sempre exige sua confirmação explícita
+      recommended: `O modo Balanceado está ativo:
+- Lixo óbvio pode ser arquivado
+- E-mails rotineiros, interessantes e importantes continuam visíveis
+- Nada é apagado permanentemente
+- O envio sempre exige sua confirmação
 
-Você já pode perguntar: "O que precisa da minha atenção?" ou definir regras falando coisas como "Arquive newsletters automaticamente."`,
-      custom: `Suas regras personalizadas foram salvas e aplicadas. Você pode alterá-las a qualquer momento conversando comigo.`,
+Pergunte "O que precisa da minha atenção?" ou defina uma regra como "Arquive newsletters automaticamente."`,
+      custom: `Suas regras personalizadas foram salvas. Altere-as a qualquer momento conversando comigo.`,
     },
 
     help: {
@@ -265,10 +265,10 @@ Você já pode perguntar: "O que precisa da minha atenção?" ou definir regras 
       summary: branding.shortDescription.pt,
       capabilities: [
         "Organizar e priorizar seus e-mails em todas as contas conectadas.",
-        "Lembrar o relacionamento com seus contatos (clientes, colegas, recrutadores, fornecedores).",
-        "Acompanhar pendências: quem está esperando sua resposta e quem você está aguardando.",
-        "Preparar, revisar e assinar rascunhos de resposta por conversa.",
-        "Configurar regras e políticas de e-mail simplesmente conversando.",
+        "Lembrar quem são seus contatos (clientes, colegas, recrutadores, fornecedores).",
+        "Acompanhar pendências: quem espera sua resposta e quem você está aguardando.",
+        "Preparar, revisar e assinar rascunhos por conversa.",
+        "Definir regras conversando, sem formulários.",
       ],
       sampleQueries: {
         inboxOverview: ["O que precisa da minha atenção?", "O que está acontecendo em todos os meus e-mails?"],
@@ -286,24 +286,24 @@ Você já pode perguntar: "O que precisa da minha atenção?" ou definir regras 
         ],
       },
       safeDefaults: [
-        "E-mails importantes e duvidosos continuam sempre visíveis.",
+        "E-mails importantes e duvidosos continuam visíveis.",
         "Mensagens claramente pouco relevantes podem ser arquivadas.",
         "Nada é apagado permanentemente de forma automática.",
-        "O envio de e-mails sempre exige sua confirmação humana.",
+        "O envio sempre exige sua confirmação.",
       ],
     },
 
     policyDescriptions: {
-      safePreset: "Modo Seguro: Organiza e prioriza e-mails quase sem nenhuma movimentação automática.",
-      balancedPreset: "Modo Balanceado (Recomendado): Lixo óbvio é arquivado, mensagens rotineiras/interessantes/importantes continuam visíveis, e-mails duvidosos não são tocados.",
-      inboxZeroPreset: "Modo Inbox Zero: Arquiva mensagens rotineiras de forma mais ativa, mantendo apenas e-mails importantes na caixa de entrada.",
-      customPreset: "Modo Personalizado: Regras e exceções de e-mail ajustadas sob medida pelo usuário.",
-      junkRule: "Lixo: Arquivar automaticamente (nunca apagar permanentemente).",
-      routineRule: "Rotineiro: Manter na caixa de entrada normalmente.",
-      interestingRule: "Interessante: Manter disponível e destacável, sem urgência.",
-      importantRule: "Importante: Manter visível e não lido, priorizado na fila de atenção.",
-      criticalRule: "Crítico: Destacar imediatamente, nunca arquivar.",
-      uncertainRule: "Duvidoso: Deixar intacto na caixa de entrada.",
+      safePreset: "Seguro: organiza e ordena e-mails quase sem movimentação automática.",
+      balancedPreset: "Balanceado (recomendado): arquiva lixo óbvio; mantém rotineiros, interessantes e importantes visíveis; não toca nos duvidosos.",
+      inboxZeroPreset: "Inbox Zero: arquiva mais rotina e pouco valor, mantendo importantes e o que precisa de resposta na caixa de entrada.",
+      customPreset: "Personalizado: suas próprias regras e exceções.",
+      junkRule: "Lixo: arquivar automaticamente (nunca apagar permanentemente).",
+      routineRule: "Rotineiro: manter na caixa de entrada normalmente.",
+      interestingRule: "Interessante: manter disponível, sem urgência.",
+      importantRule: "Importante: manter visível e não lido, no topo da lista de atenção.",
+      criticalRule: "Crítico: mostrar imediatamente, nunca arquivar.",
+      uncertainRule: "Duvidoso: deixar intacto na caixa de entrada.",
     },
 
     actionDescriptions: {
@@ -313,9 +313,9 @@ Você já pode perguntar: "O que precisa da minha atenção?" ou definir regras 
       keep_unread: "Manter como não lido",
       label: (dest?: string) => `Aplicar marcador${dest ? ` '${dest}'` : ""}`,
       move: (dest?: string) => `Mover para pasta${dest ? ` '${dest}'` : ""}`,
-      delete: "Apagar (desativado permanentemente por padrão)",
-      surface: "Destacar imediatamente",
-      prioritize: "Priorizar na fila de atenção",
+      delete: "Apagar (desligado por padrão)",
+      surface: "Mostrar imediatamente",
+      prioritize: "Subir na lista de atenção",
     },
 
     simulatedActions: {
@@ -325,22 +325,22 @@ Você já pode perguntar: "O que precisa da minha atenção?" ou definir regras 
       wouldKeepUnread: "Manteria a mensagem como não lida",
       wouldLabel: (dest?: string) => `Aplicaria marcador${dest ? ` '${dest}'` : ""}`,
       wouldMove: (dest?: string) => `Moveria para pasta${dest ? ` '${dest}'` : ""}`,
-      wouldDelete: "Apagaria a mensagem (sujeito a restrições de exclusão permanente)",
-      wouldSurface: "Destacaria a mensagem como alta prioridade",
-      wouldPrioritize: "Priorizaria o remetente e a mensagem",
+      wouldDelete: "Apagaria a mensagem (exclusão permanente é restrita)",
+      wouldSurface: "Mostraria esta mensagem como alta prioridade",
+      wouldPrioritize: "Subiria este remetente e mensagem na lista de atenção",
     },
 
     providerStatus: {
       connected: "Conectado",
       offline: "Offline",
-      lastSeen: (device: string, timeAgo: string) => `Conectado através de ${device} (visto por último há ${timeAgo})`,
+      lastSeen: (device: string, timeAgo: string) => `Conectado por ${device} (visto por último há ${timeAgo})`,
       offlineWarning: (provider: string, device: string, timeAgo: string) =>
-        `Seu conector do ${provider} está offline no momento (visto por último há ${timeAgo} em ${device}), portanto os resultados do ${provider} podem não estar completos.`,
+        `Seu conector do ${provider} está offline (visto por último há ${timeAgo} em ${device}), então os resultados do ${provider} podem estar incompletos.`,
     },
 
     humanConfirmation: {
-      approvalRequired: "O envio de e-mails sempre exige revisão e confirmação humana explícita.",
-      idempotentNotice: "Tentativas de envio duplicadas com conteúdos idênticos são desduplicadas com segurança.",
+      approvalRequired: "O envio sempre exige que você revise e confirme o e-mail.",
+      idempotentNotice: "Tentativas idênticas de envio são ignoradas para o mesmo e-mail não sair duas vezes.",
     },
   },
 };

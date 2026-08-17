@@ -81,17 +81,17 @@ export const providerConnectRoutes = new Elysia({ aot: false })
       const state = await providerOAuthService.verifyState(stateToken, "gmail");
       const connected = await providerOAuthService.completeGoogleCallback(code, stateToken);
       const principal = { tenantId: state.tenantId, userId: state.userId, scopes: ownerScopes };
-      let syncText = "No messages were synchronized yet.";
+      let syncText = "No messages synced yet.";
       try {
         const result = await syncService.syncAccount(principal, connected.accountId, 50);
-        syncText = `${result.ingested} recent messages synchronized.`;
+        syncText = `${result.ingested} recent messages synced.`;
       } catch (syncError: any) {
-        syncText = `The first synchronization failed: ${syncError.message}`;
+        syncText = `The first sync failed: ${syncError.message}`;
       }
       return callbackPage(
         "Gmail",
         "Gmail connected",
-        "This account is now readable by your vault. Mailwarden holds the provider credentials; your AI client never receives them.",
+        "This account is connected. Mailwarden stores the connection; your AI assistant never sees it.",
         [
           { term: "Account", value: connected.emailAddress },
           { term: "First sync", value: syncText },
@@ -117,17 +117,17 @@ export const providerConnectRoutes = new Elysia({ aot: false })
       const state = await providerOAuthService.verifyState(stateToken, "outlook");
       const connected = await providerOAuthService.completeMicrosoftCallback(code, stateToken);
       const principal = { tenantId: state.tenantId, userId: state.userId, scopes: ownerScopes };
-      let syncText = "No messages were synchronized yet.";
+      let syncText = "No messages synced yet.";
       try {
         const result = await syncService.syncAccount(principal, connected.accountId, 50);
-        syncText = `${result.ingested} recent messages synchronized.`;
+        syncText = `${result.ingested} recent messages synced.`;
       } catch (syncError: any) {
-        syncText = `The first synchronization failed: ${syncError.message}`;
+        syncText = `The first sync failed: ${syncError.message}`;
       }
       return callbackPage(
         "Outlook",
         "Outlook connected",
-        "This account is now readable by your vault. Mailwarden holds the provider credentials; your AI client never receives them.",
+        "This account is connected. Mailwarden stores the connection; your AI assistant never sees it.",
         [
           { term: "Account", value: connected.emailAddress },
           { term: "First sync", value: syncText },
