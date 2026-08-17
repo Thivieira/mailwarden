@@ -301,7 +301,7 @@ export function Field(props: {
     <p class="field">
       <label for={props.name}>{props.label}</label>
       {props.hint && <span class="hint">{props.hint}</span>}
-      <span class="field-control">
+      <span class={props.peek ? "field-control field-control-peek" : "field-control"}>
         <input
           id={props.name}
           name={props.name}

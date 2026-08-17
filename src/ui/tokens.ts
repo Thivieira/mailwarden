@@ -402,8 +402,14 @@ summary.card-header:focus-visible {
   box-shadow: 0 0 0 3px color-mix(in oklch, var(--destructive) 40%, transparent);
 }
 
+/* The message is always laid out and only toggles visibility. Switching display none/flex
+   reflows everything below it: the submit button dropped 50px the moment an error
+   appeared, which is exactly when the pointer is on its way to that button. Reserving the
+   line costs one line per field and holds the layout completely still - and it holds it
+   however the message wraps, which a fixed min-height would not. */
 .error {
-  display: none;
+  display: flex;
+  visibility: hidden;
   align-items: flex-start;
   gap: 0.4rem;
   font-size: 0.8125rem;
@@ -411,7 +417,7 @@ summary.card-header:focus-visible {
   color: var(--destructive);
 }
 .error svg { flex: none; margin-top: 0.12rem; width: 14px; height: 14px; }
-input:user-invalid ~ .error { display: flex; }
+input:user-invalid ~ .error { visibility: visible; }
 
 /* ---- Password peek ------------------------------------------------------
    Ships hidden and is revealed by peek.ts, so a blocked script leaves no dead control. */
@@ -438,7 +444,9 @@ input:user-invalid ~ .error { display: flex; }
 .peek-off { display: none; }
 .peek[aria-pressed="true"] .peek-on { display: none; }
 .peek[aria-pressed="true"] .peek-off { display: flex; }
-.field-control:has(.peek) input { padding-right: 2.5rem; }
+/* A class rather than :has(). The selector was correct but :has() carries style-invalidation
+   cost on every DOM mutation, and the markup already knows whether the eye is there. */
+.field-control-peek input { padding-right: 2.5rem; }
 
 /* ---- Button -------------------------------------------------------------- */
 
