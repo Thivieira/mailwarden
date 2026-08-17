@@ -7,6 +7,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { renderToString } from "solid-js/web";
 import { document_ } from "./document";
+import { PEEK_SCRIPT } from "./peek";
 import { ALL_SCOPES } from "../types/auth";
 import { AuthorizePage, CallbackPage, DeniedPage } from "./pages.gen.js";
 import { ApprovalReviewPage } from "./approval.gen.js";
@@ -24,8 +25,11 @@ const params = {
   resource: `https://${HOST}`,
 };
 
-async function write(name: string, title: string, view: () => unknown) {
-  await Bun.write(join(OUT, `${name}.html`), document_(title, renderToString(view as () => string)));
+async function write(name: string, title: string, view: () => unknown, peek = false) {
+  await Bun.write(
+    join(OUT, `${name}.html`),
+    document_(title, renderToString(view as () => string), peek ? PEEK_SCRIPT : undefined)
+  );
 }
 
 await mkdir(OUT, { recursive: true });
@@ -37,7 +41,8 @@ await write("page-authorize", "Authorize Mailwarden", () =>
     scopes: ALL_SCOPES,
     mutationsEnabled: false,
     params,
-  })
+  }),
+  true
 );
 
 await write("page-denied", "Authorization denied", () =>

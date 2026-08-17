@@ -68,6 +68,8 @@ export function AuthorizePage(props: {
                 hint="Sometimes called your login secret: the one you were given when your account was set up."
                 type="password"
                 autocomplete="current-password"
+                placeholder="mw_…"
+                peek
                 error="Enter your password to continue."
               />
               <button type="submit">Allow access</button>

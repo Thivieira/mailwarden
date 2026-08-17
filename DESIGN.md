@@ -15,8 +15,9 @@ to protect when this system is edited:
 2. **Material, not colour, carries polarity.** What the assistant *can* do sits on a
    raised white card. What it can *never* do is pressed into the page: muted ground,
    inset shadow, no lift. Locked things do not float.
-3. **Ledger rules** behind the opening, in place of the dot field every shadcn page
-   ships. A warden keeps a record; the texture says so.
+3. **No background texture.** Ledger rules were tried here and removed at the user's
+   request (2026-08-17), as was the dot field before them. The identity does not need a
+   pattern behind it.
 4. **The browser's own surfaces are themed** — caret, scrollbar, selection, underline
    offset, tabular numerals. These ship with defaults belonging to no design system.
 
@@ -26,9 +27,9 @@ swatch at the user's request (2026-08-17), so the tab icon and the header mark d
 ## The look is shadcn's; the runtime is not
 
 Kobalte (the Solid equivalent of Radix, which is React-only) and Tailwind are
-client-side. **These pages ship zero JavaScript**, work with JS disabled, and the CSP
-forbids script entirely because the sign-in page takes credentials. So the same visual
-language is expressed in plain CSS in `src/ui/tokens.ts`.
+client-side. **These pages ship one hash-pinned script and nothing else** (see "The one
+script" below), work with JS disabled, and every page but the authorize page forbids script
+entirely. So the same visual language is expressed in plain CSS in `src/ui/tokens.ts`.
 
 When the settings app is built it uses the real thing: SolidStart v2 + Kobalte +
 `shadcn-solid`, `new-york` style. These tokens are shadcn's own, so the two will match.
@@ -111,10 +112,34 @@ carried by the card headings and the colour, so a topic icon costs no clarity. T
 list keeps a single `X` throughout: consistent negation reads faster than four different
 negative glyphs.
 
-Ledger rules sit behind the opening, painted on `body::before` as a
-`repeating-linear-gradient` at 28px and masked to fade before they reach anything readable.
-They are texture, not meaning. Anchor them to the body edges: a viewport-width offset like
-`-50vw` paints past the document and grows a horizontal scrollbar.
+There is no background texture. If one is ever wanted again it goes on `body::before`
+anchored `left: 0; right: 0` — a viewport-width offset like `-50vw` paints past the
+document and grows a horizontal scrollbar.
+
+## The one script
+
+These pages shipped zero JavaScript until 2026-08-17. The show-password eye is the single
+exception, and it exists because the CSS-only route is not merely unsupported but silently
+broken: Chrome computes `-webkit-text-security: none` back to `disc` on a real password
+input, while `CSS.supports()` still returns `true`. There is no runtime feature test that
+catches it. The alternative — a `type="text"` field masked by CSS — reveals the credential
+in cleartext whenever the stylesheet fails to load, which is a worse failure than no eye.
+
+The script lives in `src/ui/peek.ts` and is admitted by a `sha256-` hash of its exact
+bytes, generated at build time into `peek.gen.ts`. An injected `<script>` hashes
+differently and is still refused, so the protection that matters on a credential page
+holds. Rules:
+
+- **Only the authorize page opts in**, via `renderPage(..., { peek: true })`. The
+  send-approval page renders untrusted email content and keeps `default-src 'none'` with no
+  `script-src` at all.
+- **`renderPage` takes a boolean, not a script.** A caller can enable the one known script
+  and can never hand the renderer arbitrary JavaScript.
+- **The hash is generated, never written by hand.** A stale hash fails silently — the
+  script just stops running. `tests/peek_script_csp.test.ts` recomputes it and fails on
+  drift, and also asserts the approval page never gains a `script-src`.
+- **The button ships `hidden`** and the script reveals it, so a blocked script leaves a
+  plain password field rather than a dead control.
 
 ## Order on the authorize page
 

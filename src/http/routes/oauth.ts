@@ -110,14 +110,19 @@ export const oauthRoutes = new Hono()
     const params: Record<string, string> = {};
     for (const name of HIDDEN_PARAMS) params[name] = String(q[name] ?? "");
 
-    return renderPage("Authorize Mailwarden", () =>
-      AuthorizePage({
-        host: hostOf(config.APP_BASE_URL),
-        clientName: (client as any)?.clientName || "this client",
-        scopes: q.scope ? String(q.scope).split(" ").filter(Boolean) : ALL_SCOPES,
-        mutationsEnabled: config.MAILBOX_MUTATIONS_ENABLED,
-        params,
-      })
+    // `peek` is the only page that opts into a script, and it admits exactly one by hash.
+    return renderPage(
+      "Authorize Mailwarden",
+      () =>
+        AuthorizePage({
+          host: hostOf(config.APP_BASE_URL),
+          clientName: (client as any)?.clientName || "this client",
+          scopes: q.scope ? String(q.scope).split(" ").filter(Boolean) : ALL_SCOPES,
+          mutationsEnabled: config.MAILBOX_MUTATIONS_ENABLED,
+          params,
+        }),
+      200,
+      { peek: true }
     );
   })
 

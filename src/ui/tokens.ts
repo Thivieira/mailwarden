@@ -17,7 +17,8 @@
  *      leaving them is what makes a page feel assembled instead of built.
  *
  * The look is shadcn's; the runtime is not. Kobalte and Tailwind are client-side and these
- * pages ship zero JavaScript, so the same visual language is expressed in plain CSS.
+ * pages ship one hash-pinned script and nothing else (the show-password eye, see peek.ts),
+ * so the same visual language is expressed in plain CSS.
  */
 
 export const CSS = `
@@ -191,25 +192,11 @@ a { color: var(--primary); text-underline-offset: 0.2em; text-decoration-thickne
   padding: clamp(1.75rem, 3.5vw, 2.5rem) 1.5rem 5rem;
 }
 
-/* Ledger rules rather than the dot field every shadcn page ships. A warden keeps a
-   record. Anchored to the body edges: a viewport-width offset like -50vw paints past the
-   document and grows a horizontal scrollbar. */
-body::before {
-  content: "";
-  position: absolute;
-  top: 3.5rem;
-  left: 0;
-  right: 0;
-  height: 24rem;
-  pointer-events: none;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    var(--border) 0 1px,
-    transparent 1px 28px
-  );
-  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.55), transparent 78%);
-  -webkit-mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.55), transparent 78%);
-}
+/* No background texture. The ledger rules that lived here were removed at the user's
+   request (2026-08-17), as was the dot field before them. The identity rests on the seal
+   and on material carrying polarity, which do not need a pattern behind them. If texture
+   is ever wanted again, it goes on body::before anchored left:0/right:0 - a viewport-width
+   offset like -50vw paints past the document and grows a horizontal scrollbar. */
 
 .sheet > * { position: relative; }
 
@@ -425,6 +412,67 @@ summary.card-header:focus-visible {
 }
 .error svg { flex: none; margin-top: 0.12rem; width: 14px; height: 14px; }
 input:user-invalid ~ .error { display: flex; }
+
+/* ---- Password peek ------------------------------------------------------
+   Ships hidden and is revealed by peek.ts, so a blocked script leaves no dead control. */
+
+.peek {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+.peek[hidden] { display: none; }
+.peek:hover { color: var(--foreground); }
+.peek-off { display: none; }
+.peek[aria-pressed="true"] .peek-on { display: none; }
+.peek[aria-pressed="true"] .peek-off { display: flex; }
+.field-control:has(.peek) input { padding-right: 2.5rem; }
+
+/* ---- Button -------------------------------------------------------------- */
+
+button[type="submit"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  height: 2.25rem;
+  padding: 0 1rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: opacity 120ms ease;
+}
+
+button[type="submit"]:hover { opacity: 0.9; }
+button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.footnote {
+  margin: 1.75rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--muted-foreground);
+  max-width: 66ch;
+}
+.footnote strong { font-weight: 500; color: var(--foreground); }
 
 /* ---- Alert -------------------------------------------------------------- */
 

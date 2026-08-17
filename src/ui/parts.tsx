@@ -60,6 +60,22 @@ const CircleCheck = () => (
   </Icon>
 );
 
+const Eye = () => (
+  <Icon>
+    <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+    <circle cx="12" cy="12" r="3" />
+  </Icon>
+);
+
+const EyeOff = () => (
+  <Icon>
+    <path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" />
+    <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242" />
+    <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" />
+    <path d="m2 2 20 20" />
+  </Icon>
+);
+
 const ChevronDown = () => (
   <Icon>
     <path d="m6 9 6 6 6-6" />
@@ -265,11 +281,11 @@ export function Alert(props: { tone: "yes" | "no" | "info"; title: string; detai
  * untouched empty required field as wrong the moment the page paints, which is how a
  * consent screen greets a first-time visitor with two red boxes.
  *
- * No show-password eye. It cannot be built here: no script ships, and the CSS-only route
- * does not work - Chrome computes `-webkit-text-security: none` back to `disc` on a real
- * password input, while `CSS.supports()` still reports true, so the failure is undetectable
- * at runtime. Masking a `type="text"` field with CSS instead would reveal the credential in
- * cleartext whenever the stylesheet fails to load. Verified Chrome 151, 2026-08-17.
+ * `peek` adds the show-password eye. It needs the one inline script in `peek.ts`, because
+ * the CSS-only route does not work: Chrome computes `-webkit-text-security: none` back to
+ * `disc` on a real password input while `CSS.supports()` still reports true, so that
+ * failure is silent and undetectable. The button ships `hidden` and the script reveals it,
+ * so if the script is ever blocked there is no dead control - only a plain password field.
  */
 export function Field(props: {
   name: string;
@@ -279,6 +295,7 @@ export function Field(props: {
   autocomplete: string;
   placeholder?: string;
   error: string;
+  peek?: boolean;
 }) {
   return (
     <p class="field">
@@ -296,6 +313,23 @@ export function Field(props: {
           autocapitalize="none"
           aria-describedby={`err_${props.name}`}
         />
+        {props.peek && (
+          <button
+            type="button"
+            class="peek"
+            data-peek={props.name}
+            aria-pressed="false"
+            aria-label="Show password"
+            hidden
+          >
+            <span class="peek-on">
+              <Eye />
+            </span>
+            <span class="peek-off">
+              <EyeOff />
+            </span>
+          </button>
+        )}
         <span class="error" id={`err_${props.name}`}>
           <CircleAlert />
           {props.error}
