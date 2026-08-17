@@ -48,7 +48,7 @@ export function createElysiaApp() {
       info: {
         title: "Mailwarden API",
         version: "1.0.0",
-        description: "Secure conversational email layer",
+        description: "Conversational email with human-approved sending",
       },
       paths: {
         "/health": { get: { summary: "Health check" } },
@@ -70,7 +70,7 @@ export function createElysiaApp() {
   if (typeof (globalThis as any).Bun !== "undefined" && !isCloudflareWorker) {
     try {
       const { swagger } = require("@elysiajs/swagger");
-      app.use(swagger({ documentation: { info: { title: "Mailwarden API", version: "1.0.0", description: "Secure conversational email layer" } } }));
+      app.use(swagger({ documentation: { info: { title: "Mailwarden API", version: "1.0.0", description: "Conversational email with human-approved sending" } } }));
     } catch {
       // Swagger UI is optional in Worker runtime.
     }

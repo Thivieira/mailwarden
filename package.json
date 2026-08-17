@@ -1,7 +1,7 @@
 {
   "name": "mailwarden",
   "version": "1.0.0",
-  "description": "AI-native email operating layer and secure MCP boundary",
+  "description": "Email managed through conversation, with human-approved sending",
   "module": "src/index.ts",
   "main": "src/index.ts",
   "type": "module",

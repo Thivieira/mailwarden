@@ -60,6 +60,57 @@ const CircleAlert = () => (
   </Icon>
 );
 
+/**
+ * One icon per power, so the list is scannable at a glance rather than seven identical
+ * checks. Geometry is Lucide's, keyed by the `icon` field in doors.ts - keep the two in
+ * step, and fall back to a check rather than rendering nothing.
+ */
+const DOOR_ICONS: Record<string, () => any> = {
+  "mail-open": () => (
+    <Icon>
+      <path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0z" />
+      <path d="m22 10-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 10" />
+    </Icon>
+  ),
+  "pen-line": () => (
+    <Icon>
+      <path d="M13 21h8" />
+      <path d="m15 5 4 4" />
+      <path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z" />
+    </Icon>
+  ),
+  send: () => (
+    <Icon>
+      <path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" />
+      <path d="m21.854 2.147-10.94 10.939" />
+    </Icon>
+  ),
+  archive: () => (
+    <Icon>
+      <rect width="20" height="5" x="2" y="3" rx="1" />
+      <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+      <path d="M10 12h4" />
+    </Icon>
+  ),
+  eye: () => (
+    <Icon>
+      <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+      <circle cx="12" cy="12" r="3" />
+    </Icon>
+  ),
+  bookmark: () => (
+    <Icon>
+      <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    </Icon>
+  ),
+  "at-sign": () => (
+    <Icon>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94" />
+    </Icon>
+  ),
+};
+
 /** The sticky header. The host is the anti-forgery line and stays visible while scrolling. */
 export function SiteHeader(props: { host: string }) {
   return (
@@ -108,10 +159,11 @@ export function OpenDoors(props: { scopes: string[]; mutationsEnabled: boolean }
       <ul class="rows">
         {doors.map((door) => {
           const off = door.simulatedWhenDryRun && !props.mutationsEnabled;
+          const Glyph = DOOR_ICONS[door.icon] ?? Check;
           return (
             <li>
               <span class="icon" data-tone={off ? "" : "yes"}>
-                <Check />
+                <Glyph />
               </span>
               <p class="row-title">{door.opens}</p>
               {off && <span class="row-flag">Switched off right now</span>}
@@ -138,7 +190,7 @@ export function ShutDoors() {
     <section class="card">
       <div class="card-header">
         <h2 class="card-title">What it will never be able to do</h2>
-        <p class="card-desc">Enforced by Mailwarden's servers, not left to the assistant.</p>
+        <p class="card-desc">Mailwarden's servers enforce this. The assistant cannot override it.</p>
       </div>
       <ul class="rows">
         {SHUT_DOORS.map((line) => (

@@ -50,10 +50,10 @@ await write("page-callback", "Gmail connected", () =>
     granted: true,
     headline: "Gmail connected",
     detail:
-      "This account is now readable by your vault. Mailwarden holds the provider credentials; your AI client never receives them.",
+      "This account is connected. Mailwarden stores the connection; your AI assistant never sees it.",
     facts: [
       { term: "Account", value: "thiago@example.com" },
-      { term: "First sync", value: "50 recent messages synchronized." },
+      { term: "First sync", value: "50 recent messages synced." },
     ],
   })
 );

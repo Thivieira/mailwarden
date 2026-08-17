@@ -30,13 +30,13 @@ export function AuthorizePage(props: {
         <h1>Give {props.clientName} access to your email?</h1>
         <p class="lede">
           Mailwarden holds your email accounts for you. Signing in below lets{" "}
-          {props.clientName} use some of what Mailwarden can do — never your email
-          password, and never anything that sends mail without your say-so.
+          {props.clientName} use some of what Mailwarden can do. Not your email
+          password, and nothing that sends mail without your say-so.
         </p>
 
         <GrantSubject
           name={props.clientName}
-          meta="Requesting access to your Mailwarden account"
+          meta="Asking for access to your Mailwarden account"
           badge="Revocable any time"
         />
 
@@ -63,7 +63,7 @@ export function AuthorizePage(props: {
               <Field
                 name="login_secret"
                 label="Password"
-                hint="Sometimes called your login secret — the one you were given when your account was set up."
+                hint="Sometimes called your login secret: the one you were given when your account was set up."
                 type="password"
                 autocomplete="current-password"
               />
@@ -75,7 +75,7 @@ export function AuthorizePage(props: {
         <p class="footnote">
           You can take this access away at any time and {props.clientName} loses it
           immediately. Before you type anything, check your browser’s address bar says{" "}
-          <strong>{props.host}</strong> — if it says anything else, close the tab.
+          <strong>{props.host}</strong>. If it says anything else, close the tab.
         </p>
       </main>
     </>
@@ -126,7 +126,7 @@ export function CallbackPage(props: {
         )}
 
         <p class="footnote">
-          You can close this tab and go back to your conversation. Mailwarden keeps things
+          Close this tab and go back to your conversation. Mailwarden keeps the mailbox
           up to date in the background.
         </p>
       </main>

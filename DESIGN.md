@@ -19,22 +19,35 @@ When the settings app is built it uses the real thing: SolidStart v2 + Kobalte +
 
 ## Tokens
 
-`src/ui/tokens.ts` carries shadcn's neutral palette **verbatim**, in oklch, light and dark
-via `prefers-color-scheme`. Do not hand-tune these values — if they need to change, change
-them to whatever shadcn ships, so the settings app and these pages stay identical.
+`src/ui/tokens.ts` uses shadcn's token *names and structure*, in oklch, light and dark via
+`prefers-color-scheme` — but the values are Mailwarden's, which is what shadcn's theming
+layer is for. Running shadcn's stock neutral ramp threw the identity away; the ramp is
+warmed toward paper instead of pure gray, and the primary is the navy.
+
+Hues are held constant per family so the ramp stays coherent: **navy 245, paper 85,
+brass 82, green 160, red 27.**
 
 | | Light | Dark |
 |---|---|---|
-| `--background` | `oklch(1 0 0)` | `oklch(0.145 0 0)` |
-| `--foreground` | `oklch(0.145 0 0)` | `oklch(0.985 0 0)` |
-| `--card` | `oklch(1 0 0)` | `oklch(0.205 0 0)` |
-| `--primary` | `oklch(0.205 0 0)` | `oklch(0.922 0 0)` |
-| `--muted-foreground` | `oklch(0.556 0 0)` | `oklch(0.708 0 0)` |
-| `--border` | `oklch(0.922 0 0)` | `oklch(1 0 0 / 10%)` |
-| `--destructive` | `oklch(0.577 0.245 27.325)` | `oklch(0.704 0.191 22.216)` |
+| `--background` | `oklch(0.988 0.004 85)` | `oklch(0.17 0.016 245)` |
+| `--foreground` | `oklch(0.21 0.018 245)` | `oklch(0.97 0.005 85)` |
+| `--card` | `oklch(1 0 0)` | `oklch(0.215 0.019 245)` |
+| `--primary` | `oklch(0.34 0.062 245)` | `oklch(0.7 0.105 245)` |
+| `--muted-foreground` | `oklch(0.505 0.018 245)` | `oklch(0.72 0.02 245)` |
+| `--border` | `oklch(0.905 0.007 85)` | `oklch(1 0 0 / 12%)` |
+| `--destructive` | `oklch(0.505 0.15 27)` | `oklch(0.68 0.16 27)` |
+| `--success` | `oklch(0.5 0.095 160)` | `oklch(0.72 0.13 160)` |
+| `--brass` | `oklch(0.56 0.09 82)` | `oklch(0.75 0.1 82)` |
 
-`--success` is the one addition shadcn's neutral base does not define; it follows the same
-oklch construction and is used only on the granted-permission check.
+In dark mode the primary **lifts to a legible blue** rather than inverting to white the way
+shadcn's neutral base does — a brand primary has to stay the brand.
+
+`--brass` is the single brand accent and appears on the header mark and nowhere else, the
+same rule the previous world held.
+
+Measured contrast (light): body 17.1:1, muted text 5.7:1, card descriptions 5.9:1,
+primary button 11.2:1, success 5.7:1, destructive 6.3:1, brass 4.5:1. All pass AA; re-measure
+if the ramp is retuned.
 
 `--radius: 0.625rem` with `sm`/`md`/`lg`/`xl` derived by `calc()`. Controls are `h-9`
 (2.25rem). Focus is New York's signature: no outline, a border shift to `--ring` plus a
@@ -44,7 +57,12 @@ oklch construction and is used only on the granted-permission check.
 
 **Geist** (`@fontsource-variable/geist`) — Vercel's typeface, one variable file covering
 every weight, ~29 KB, self-hosted at `/f/geist.woff2` with `immutable` caching and
-preloaded. Body is `0.875rem`, headings `600` with `-0.025em` tracking.
+preloaded.
+
+Body is `0.9375rem` (15px), a step above shadcn's 14px default. That default is tuned for
+dense desktop product UI; PRODUCT.md's reader is a consumer meeting this page once, so the
+scale is lifted throughout — lede `1.0625rem`, card titles `1.0625rem`, row titles
+`0.9375rem`, h1 up to `2.25rem`. Headings stay `600` with `-0.025em` tracking.
 
 ## Components
 
@@ -63,6 +81,19 @@ Icons follow **Lucide's drawing spec exactly**: 24 viewBox, 2px stroke, round ca
 joins, rendered at 16px, `currentColor`. Authored as SVG rather than imported, since the
 pages ship no JS, but they must stay spec-accurate so they match Lucide when the settings
 app pulls the real library.
+
+**Every power carries its own icon**, not a repeated check: `mail-open`, `pen-line`,
+`send`, `archive`, `eye`, `bookmark`, `at-sign`. The icon is named on each entry in
+`doors.ts` and drawn from `DOOR_ICONS` in `parts.tsx` — keep those two in step, and note
+that an unknown name falls back to a check rather than rendering nothing. Polarity is
+carried by the card headings and the colour, so a topic icon costs no clarity. The "never"
+list keeps a single `X` throughout: consistent negation reads faster than four different
+negative glyphs.
+
+A dot field sits behind the opening, painted on `body::before` and masked to fade before
+it reaches anything readable. It is texture, not meaning. Anchor it to the body edges —
+a viewport-width offset like `-50vw` paints past the document and grows a horizontal
+scrollbar.
 
 ## Language
 

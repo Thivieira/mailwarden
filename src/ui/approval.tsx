@@ -75,7 +75,7 @@ export function ApprovalReviewPage(props: {
         )}
 
         <p class="footnote">
-          Message fingerprint <code>{props.fingerprint}</code>. You can ignore this — it is
+          Message fingerprint <code>{props.fingerprint}</code>. You can ignore this; it is
           how Mailwarden checks that what you approved is what actually gets sent.
         </p>
       </main>
