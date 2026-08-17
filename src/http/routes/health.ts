@@ -2,6 +2,7 @@ import { Elysia } from "elysia";
 import { db, schema } from "../../db";
 import { config } from "../../config";
 import { sql } from "drizzle-orm";
+import { BUILD } from "../../build-info.gen";
 
 export const healthRoutes = new Elysia({ prefix: "/health", aot: false }).get("/", async () => {
   let dbStatus = "healthy";
@@ -15,6 +16,8 @@ export const healthRoutes = new Elysia({ prefix: "/health", aot: false }).get("/
     status: dbStatus === "healthy" ? "ok" : "degraded",
     timestamp: new Date().toISOString(),
     version: "1.0.0",
+    commit: BUILD.commit,
+    builtAt: BUILD.builtAt,
     checks: {
       database: dbStatus,
       encryption: "configured",

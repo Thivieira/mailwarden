@@ -45,3 +45,4 @@ data/*.db-wal
 # Impeccable working artifacts
 .impeccable/
 .playwright-mcp/
+src/**/*.gen.ts

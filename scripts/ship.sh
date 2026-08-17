@@ -8,6 +8,7 @@
 set -euo pipefail
 
 MAIN_BRANCH="main"
+ORIGIN="https://mailwarden.corenet.workers.dev"
 TYPES="feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
 
 msg="${1:-}"
@@ -47,8 +48,28 @@ if [ "$branch" != "$MAIN_BRANCH" ]; then
   exit 0
 fi
 
+sha="$(git rev-parse --short HEAD)"
+
+# Restamp so the bundle carries the commit that was just made, not its parent.
+echo "==> stamping $sha"
+bun run ui:build
+
 # The gate already ran above, so go straight to wrangler rather than through bun run deploy.
 echo "==> deploying"
 bun x wrangler deploy
 
-echo "==> shipped $(git rev-parse --short HEAD)"
+# A successful upload is not a successful deploy: wrangler has shipped a stale bundle
+# before. Confirm the origin is actually serving the commit we just built.
+echo "==> verifying"
+for attempt in 1 2 3 4 5 6; do
+  live="$(curl -fsS --max-time 10 "$ORIGIN/health" 2>/dev/null | grep -o '"commit":"[^"]*"' | cut -d'"' -f4 || true)"
+  if [ "$live" = "$sha" ]; then
+    echo "==> shipped $sha, live and verified"
+    exit 0
+  fi
+  echo "    attempt $attempt: origin reports '${live:-unreachable}', want '$sha'"
+  sleep 5
+done
+
+echo "DEPLOY NOT VERIFIED: origin is not serving $sha. Re-run 'bun x wrangler deploy'." >&2
+exit 1
