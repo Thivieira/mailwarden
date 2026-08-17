@@ -5,6 +5,8 @@ import { createMcpServer, ALL_MCP_TOOLS, SERVER_INSTRUCTIONS } from "../../mcp/s
 import type { AuthPrincipal } from "../../types/auth";
 import { config } from "../../config";
 import { nanoid } from "nanoid";
+import { toolUiMeta, uiResourceDescriptors, UI_APP_BY_URI, UI_RESOURCE_MIME } from "../../mcp/ui/registry";
+import { APP_HTML } from "../../mcp/ui/apps.gen";
 
 const activeSessions = new Map<string, { principal: AuthPrincipal; server: ReturnType<typeof createMcpServer> }>();
 
@@ -26,7 +28,9 @@ async function handleJsonRpcRequest(principal: AuthPrincipal, body: any) {
       jsonrpc: "2.0",
       result: {
         protocolVersion: params?.protocolVersion || "2025-06-18",
-        capabilities: { tools: {} },
+        // `resources` is what tells a host to look for MCP App UIs. Without it, the
+        // ui:// resources below are never fetched and every tool renders as plain text.
+        capabilities: { tools: {}, resources: { listChanged: false } },
         serverInfo: { name: "mailwarden", version: "1.0.0" },
         instructions: SERVER_INSTRUCTIONS,
       },
@@ -46,8 +50,39 @@ async function handleJsonRpcRequest(principal: AuthPrincipal, body: any) {
           ? tool.parameters.toJSONSchema()
           : { type: "object", properties: {} },
       securitySchemes: [{ type: "oauth2", scopes: scopesForTool(tool.name) }],
+      // Present only on the handful of tools that render a UI; undefined is omitted.
+      ...(toolUiMeta(tool.name) ? { _meta: toolUiMeta(tool.name) } : {}),
     }));
     return { jsonrpc: "2.0", result: { tools }, id };
+  }
+
+  // ---- MCP Apps ---------------------------------------------------------------
+  // The UI documents are static and identical for every user: they carry no data, they
+  // fetch it over the bridge as the caller. So reading one needs no per-user branching,
+  // and authentication has already happened before this function is reached.
+
+  if (method === "resources/list") {
+    return { jsonrpc: "2.0", result: { resources: uiResourceDescriptors() }, id };
+  }
+
+  if (method === "resources/read") {
+    const uri = params?.uri;
+    const app = UI_APP_BY_URI.get(uri);
+    if (!app) {
+      return { jsonrpc: "2.0", error: { code: -32602, message: `Unknown resource: ${uri}` }, id };
+    }
+    const text = APP_HTML[app.id];
+    if (!text) {
+      return { jsonrpc: "2.0", error: { code: -32603, message: `UI for '${app.id}' was not built` }, id };
+    }
+    return {
+      jsonrpc: "2.0",
+      result: {
+        contents: [{ uri: app.uri, mimeType: UI_RESOURCE_MIME, text }],
+        ...(app.csp ? { _meta: { ui: { csp: app.csp } } } : {}),
+      },
+      id,
+    };
   }
 
   if (method === "tools/call") {
@@ -71,9 +106,17 @@ async function handleJsonRpcRequest(principal: AuthPrincipal, body: any) {
 
     try {
       const result = await tool.handler(principal, parseResult.data);
+      const text = typeof result === "string" ? result : JSON.stringify(result, null, 2);
       return {
         jsonrpc: "2.0",
-        result: { content: [{ type: "text", text: typeof result === "string" ? result : JSON.stringify(result, null, 2) }] },
+        result: {
+          content: [{ type: "text", text }],
+          // MCP Apps push the tool result into the iframe. Structured content means the
+          // app reads typed data instead of re-parsing the text block. The text block
+          // stays regardless, because it is what the model reads and what a host with no
+          // UI support has to work from.
+          ...(result && typeof result === "object" ? { structuredContent: result } : {}),
+        },
         id,
       };
     } catch (err: any) {

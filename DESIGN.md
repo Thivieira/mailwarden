@@ -116,6 +116,41 @@ There is no background texture. If one is ever wanted again it goes on `body::be
 anchored `left: 0; right: 0` — a viewport-width offset like `-50vw` paints past the
 document and grows a horizontal scrollbar.
 
+## MCP App UIs
+
+Since 2026-08-17 there is a second rendering target: [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview),
+interactive UIs that render *inside the conversation* in Claude, ChatGPT and other hosts.
+The first is the settings panel — the surface the product never had.
+
+The two targets have opposite constraints and must not be confused:
+
+| | Browser pages (`src/ui`) | MCP Apps (`src/mcp/ui`) |
+|---|---|---|
+| Script | one hash-pinned script | script *is* the app |
+| Isolation | our own CSP | the host's sandboxed iframe |
+| Assets | served from our origin | everything inlined; nothing fetchable |
+| Renderer | Solid SSR, precompiled | `Bun.build` bundle in an HTML shell |
+
+They share `src/ui/theme.ts` — the palette, the ramp and the seal — so a settings panel in
+a conversation and the consent screen in a tab are visibly one product. Anything that
+belongs to both goes in `theme.ts`; never fork the palette.
+
+Adding an app is one entry in `src/mcp/ui/registry.ts`, one `<id>.client.ts`, and a tool
+whose name matches. `build.ts` bundles it; `apps.gen.ts` is generated. Develop against
+`bun run src/mcp/ui/preview.ts`, a mock host that implements the bridge handshake so you
+never need to connect to Claude to iterate.
+
+Two rules with teeth, both pinned by `tests/mcp_apps.test.ts`:
+
+- **Every tool stays useful without its UI.** Most MCP clients render nothing, so
+  `open_settings` returns the full settings as structured content. The app is an
+  enhancement, never the only path.
+- **Send approval never gets an app, and never gets a confirm tool.** The safety model
+  rests on a human acting on a browser page carrying a nonce the model never sees. An app
+  may legitimately *display* a pending draft, but the moment a tool exists that confirms an
+  approval, the model can call it directly and the human is out of the loop. Show it, link
+  to it, never confirm it from there.
+
 ## The one script
 
 These pages shipped zero JavaScript until 2026-08-17. The show-password eye is the single

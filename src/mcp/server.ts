@@ -2,9 +2,13 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
   ErrorCode,
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
+import { toolUiMeta, uiResourceDescriptors, UI_APP_BY_URI, UI_RESOURCE_MIME } from "./ui/registry";
+import { APP_HTML } from "./ui/apps.gen";
 import type { AuthPrincipal, PermissionScope } from "../types/auth";
 import { readTools } from "./tools/read";
 import { intelligenceTools } from "./tools/intelligence";
@@ -15,6 +19,7 @@ import { privacyTools } from "./tools/privacy";
 import { onboardingTools } from "./tools/onboarding";
 import { policyTools } from "./tools/policies";
 import { syncTools } from "./tools/sync";
+import { settingsTools } from "./tools/settings";
 import { auditService } from "../services/audit";
 import { logger } from "../utils/logger";
 import { MailwardenError, AuthorizationError } from "../utils/errors";
@@ -39,6 +44,7 @@ export const ALL_MCP_TOOLS: McpToolDefinition[] = [
   ...privacyTools,
   ...onboardingTools,
   ...policyTools,
+  ...settingsTools,
 ];
 
 export const SERVER_INSTRUCTIONS = `Mailwarden enables managing email through normal, natural conversation. Never mention MCP, tool names, schemas, OAuth internals, or database protocols to ordinary users.
@@ -56,8 +62,22 @@ Drafting never implies permission to send. Sending always requires calling reque
 export function createMcpServer(principal: AuthPrincipal): Server {
   const server = new Server(
     { name: "mailwarden-mcp", version: "1.0.0" },
-    { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS }
+    { capabilities: { tools: {}, resources: {} }, instructions: SERVER_INSTRUCTIONS }
   );
+
+  // MCP Apps. The UI documents are static and carry no user data - they fetch it over the
+  // bridge as the caller - so these handlers need no per-principal branching.
+  server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+    resources: uiResourceDescriptors(),
+  }));
+
+  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    const app = UI_APP_BY_URI.get(request.params.uri);
+    if (!app) throw new McpError(ErrorCode.InvalidParams, `Unknown resource: ${request.params.uri}`);
+    const text = APP_HTML[app.id];
+    if (!text) throw new McpError(ErrorCode.InternalError, `UI for '${app.id}' was not built`);
+    return { contents: [{ uri: app.uri, mimeType: UI_RESOURCE_MIME, text }] };
+  });
 
   const toolMap = new Map<string, McpToolDefinition>();
   for (const tool of ALL_MCP_TOOLS) toolMap.set(tool.name, tool);
@@ -81,6 +101,7 @@ export function createMcpServer(principal: AuthPrincipal): Server {
         description: tool.description,
         inputSchema,
         securitySchemes: [{ type: "oauth2", scopes }],
+        ...(toolUiMeta(tool.name) ? { _meta: toolUiMeta(tool.name) } : {}),
       };
     });
     return { tools };
@@ -111,7 +132,11 @@ export function createMcpServer(principal: AuthPrincipal): Server {
       });
 
       const result = await tool.handler(principal, parseResult.data);
-      return { content: [{ type: "text", text: typeof result === "string" ? result : JSON.stringify(result, null, 2) }] };
+      const text = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+      return {
+        content: [{ type: "text", text }],
+        ...(result && typeof result === "object" ? { structuredContent: result } : {}),
+      };
     } catch (err: any) {
       const isDomainError = err instanceof MailwardenError;
       const statusCode = isDomainError ? err.code : "INTERNAL_ERROR";

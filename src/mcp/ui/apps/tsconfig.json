@@ -1,0 +1,16 @@
+{
+  // MCP App clients are the only browser code in this repo. They get the DOM lib; the
+  // root config deliberately does not, so that Worker code cannot reach for `document`
+  // and fail at runtime. Kept as a separate project rather than widening `lib` globally.
+  "extends": "../../../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": [],
+    "jsx": "preserve",
+    "noEmit": true
+  },
+  // The root config excludes this directory (so Worker typechecking skips browser code);
+  // that exclude is inherited through `extends`, so it must be cleared here.
+  "exclude": [],
+  "include": ["./*.client.ts"]
+}

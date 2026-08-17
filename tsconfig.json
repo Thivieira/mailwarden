@@ -30,5 +30,5 @@
   },
 
   // Compiled Solid SSR output; the .tsx sources next to them are the checked truth.
-  "exclude": ["node_modules", "src/ui/**/*.gen.js"]
+  "exclude": ["node_modules", "src/ui/**/*.gen.js", "src/mcp/ui/apps"]
 }
