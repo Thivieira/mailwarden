@@ -15,7 +15,7 @@ trigger. Browser-facing pages are server-rendered strings returned from Elysia r
 Settled 2026-08-16: the settings dashboard will be built on **SolidStart v2 + Kobalte +
 shadcn-solid** (`new-york` style). Kobalte is the Solid equivalent of Radix, which is
 React-only; `shadcn-solid` is the port built on it. Those are interactive client
-components and are **not** installed yet — the settings app does not exist, and adding
+components and are **not** installed yet. The settings app does not exist, and adding
 Tailwind plus a component runtime before there is a page to put them on would be
 scaffolding for its own sake. Install when the first settings screen starts.
 
@@ -33,14 +33,14 @@ accommodation layered on afterward.
 
 They run several email accounts across personal and work life (Gmail, Outlook, Proton) and
 do not want to live inside an inbox. Their job is to find out what actually needs them,
-understand history with a person, and prepare replies — by talking to an AI assistant
+understand history with a person, and prepare replies, by talking to an AI assistant
 rather than triaging mail by hand.
 
 At a boundary moment their question is never "is this cryptographically sound." It is:
 **is this safe, what exactly can it do, and can I undo it?** Design answers that, in words
 they already use.
 
-Operationally the beta is still three named people — the deployment owner and two invited
+Operationally the beta is still three named people: the deployment owner and two invited
 buddies, each with a completely separate private vault, no public signup (see
 `docs/PRIVATE_BETA.md`). The buddies are not developers. What is built stays inside the
 beta's scope; who it is designed for is the general consumer above.
@@ -68,7 +68,7 @@ The mechanism a neighboring product could not truthfully copy:
 > **AI determines meaning. Code determines permission.**
 
 The AI is allowed to interpret importance, intent, relationships, urgency, and summaries.
-Deterministic server-side code — never the model, never MCP tool arguments — decides
+Deterministic server-side code, never the model and never MCP tool arguments, decides
 authentication, tenant boundaries, account ownership, scope validation, send approvals,
 and every destructive action. Sending requires human approval bound to a SHA-256 hash of
 the exact canonical payload; any edit invalidates the approval.
@@ -90,7 +90,7 @@ all server-rendered by the Worker:
    provider, reporting the connected address and first sync result, or the failure.
 4. Management pages in `src/http/routes/management.ts`.
 
-Every one of these is a tab the user opens once, reads, and closes — often returning to
+Every one of these is a tab the user opens once, reads, and closes, often returning to
 Claude immediately after. They are interstitials, not destinations.
 
 Deployment: `https://mailwarden.corenet.workers.dev`. Mailbox mutations are disabled by
@@ -119,8 +119,8 @@ None binding. Confirmed with the user on 2026-08-16: the 🛡️ shield in the R
 slate/emerald palette in the current pages are scaffolding placeholders, not deliberate
 identity. Treat the incumbent look as evidence and anti-reference.
 
-The name "Mailwarden" is fixed. Its meaning — a warden that guards and watches on your
-behalf, holding a boundary — is product truth and available to the identity.
+The name "Mailwarden" is fixed. Its meaning, a warden that guards and watches on your
+behalf and holds a boundary, is product truth and available to the identity.
 
 ## Evidence on Hand
 
@@ -152,13 +152,13 @@ fabricate social proof, logos, or metrics.
 No formal standard was established with the user. Product-derived requirements: the
 authorize page must work without JavaScript, must be operable by keyboard alone, and must
 support password managers (correct autocomplete semantics on the credential fields).
-Copy must be translatable — PT-BR is a confirmed first-class language.
+Copy must be translatable. PT-BR is a confirmed first-class language.
 
 Plain language is an accessibility requirement here, not a style preference. A permission
 a user cannot read is a permission they cannot meaningfully grant, and the non-technical
 baseline above makes jargon a functional defect: *vault*, *scope*, *token*, *digest*, and
 *client* are all words to replace rather than explain.
 
-The anti-forgery job gets harder with this audience, not easier — non-technical users are
+The anti-forgery job gets harder with this audience, not easier. Non-technical users are
 the ones cloned auth pages actually catch. Verification must be replaced with something a
 normal person can act on, never simply removed.
