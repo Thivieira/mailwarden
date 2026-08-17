@@ -127,6 +127,7 @@ behalf and holds a boundary, is product truth and available to the identity.
 - `README.md` — product narrative and real example utterances in English and PT-BR.
 - `docs/MAILWARDEN_SPEC.md` — ten numbered security invariants, full MCP tool catalog.
 - `docs/PRIVATE_BETA.md` — beta structure, vault boundary, success criterion.
+- `docs/HARDENING_WRAP_2026-08-17.md` — 2026-08-17 security hardening commit/push/deploy wrap and dogfood resume.
 - `docs/DECISIONS.md`, `docs/IMPLEMENTATION_STATUS.md`, `docs/PERSONAL_SAAS_ARCHITECTURE.md`.
 - 70 passing automated tests.
 
