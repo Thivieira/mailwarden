@@ -2,127 +2,125 @@
 
 > Your email, managed through normal conversation.
 
-Mailwarden connects your email accounts to a conversational AI (Claude today; ChatGPT later) so you can ask what matters, see who needs a reply, check history with someone, and prepare responses without living in your inbox.
+Mailwarden connects Gmail, Microsoft 365, and Proton Mail to AI clients such as ChatGPT, Claude, Cursor, and custom MCP clients. It provides inbox status, attention queues, waiting states, search, drafting, and controlled actions while keeping tenant isolation, encrypted credentials, auditability, and human confirmation in code.
 
-## What it feels like
+Mailwarden is live software, not a greenfield scaffold. Production runs on Cloudflare Workers and D1. Mailbox mutations remain disabled by default and currently in production:
 
-You talk. You don't set up automation or learn a new tool:
-
-- *"What needs my attention?"*
-- *"Who is waiting for me?"*
-- *"Who am I waiting for?"*
-- *"What happened with this client?"*
-- *"Why is this email important?"*
-- *"This person is actually a client."*
-- *"Archive newsletters automatically."*
-- *"Never archive recruiter emails."*
-- *"Put receipts in Finance."*
-- *"Draft a reply."*
-- *"Use my professional signature."*
-
-## Safe by default
-
-You don't design an email workflow before Mailwarden is useful. A new account starts on the **Balanced** policy:
-
-- Important and uncertain emails stay in your inbox.
-- Obvious junk may be archived (never permanently deleted).
-- If Mailwarden isn't sure, it leaves the message alone.
-- Sending always needs your confirmation. The AI drafts; only you authorize the send.
-- Dry-run is on by default (`MAILBOX_MUTATIONS_ENABLED=false`) so mailbox changes stay simulated until you turn them on.
-
-## Onboarding presets
-
-Three presets:
-
-1. **Balanced** (default): archives obvious junk and newsletters; leaves routine, interesting, and important mail in the inbox; leaves uncertain mail alone.
-2. **Safe**: organizes and ranks mail in attention views with almost no automatic movement.
-3. **Inbox Zero**: archives more routine and low-value mail, keeping important and reply-needed mail in the inbox. Still never permanently deletes by default.
-
-Switch presets or change rules by talking.
-
-## Conversational rules and precedence
-
-When you teach Mailwarden (*"Anything from this client is important"*, *"Archive newsletters automatically"*), those requests become persistent policy records.
-
-Rules resolve in this order:
-
-```
-Explicit message / thread override
-        ↓
-Explicit sender / domain rule
-        ↓
-Relationship rule (client, coworker, recruiter, vendor)
-        ↓
-Project / Organization rule
-        ↓
-Account rule
-        ↓
-Classification policy (junk, routine, interesting, important, critical)
-        ↓
-Global default
+```text
+MAILBOX_MUTATIONS_ENABLED=false
 ```
 
-Your rules always beat what the model inferred on its own.
+## Repository
+
+This is the canonical modular monorepo for the whole product:
+
+```text
+apps/
+├── cloud/       Cloudflare Worker composition
+├── bridge/      Proton Gateway executable; Bridge daemon/CLI planned
+└── desktop/     Planned management shell; technology undecided
+
+packages/
+├── contracts/       cross-runtime workspace/mailbox/relay contracts
+├── db/              canonical Drizzle D1 schema
+├── auth/            shared permission scopes
+├── organizations/   workspace membership/role foundation
+├── proton/          Proton boundary types and validation
+└── relay/           relay health foundation
+
+infra/           Cloudflare, AlmaLinux, systemd, packaging
+migrations/      canonical SQL migrations
+src/             transitional Cloud implementation
+tests/           Cloud/security/shared foundation tests
+docs/            architecture, operations, parallel development
+```
+
+The deploy boundary has moved to `apps/cloud`; implementation under `/src` moves incrementally so production behavior and the existing dirty feature work remain reviewable.
+
+## Applications
+
+- **Cloud — SHIPPED:** Worker, portal, API, MCP, OAuth, intelligence, synchronization, policy, audit, approval, and D1 composition.
+- **Bridge — PARTIAL:** existing Proton Gateway has an application entrypoint. Device provisioning, daemon, CLI, managed tunnel, installer, repair, and updates are planned.
+- **Desktop — PLANNED:** no framework has been selected and no runtime ships yet.
+
+Only Cloud accesses D1. Bridge and Desktop use authenticated Cloud protocols.
 
 ## Providers
 
-Mailwarden works across:
+- Gmail / Google Workspace: OAuth 2.0 and Google APIs.
+- Microsoft 365 / Outlook: OAuth 2.0 and Microsoft Graph code path.
+- Proton Mail: Mailwarden Cloud → Cloudflare Tunnel → Mailwarden Gateway → Proton Mail Bridge → Proton Mail.
 
-- Google Workspace / Gmail (OAuth 2.0 PKCE)
-- Microsoft 365 / Outlook (OAuth 2.0 PKCE)
-- Proton Mail (Proton Mail Bridge on your machine)
+Proton Bridge decrypts locally and exposes loopback IMAP/SMTP. Mailwarden's goal is to absorb that infrastructure complexity so the future user flow becomes: install Bridge, sign in, connect Proton, done.
 
-### Proton connector
+## Safety invariants
 
-Proton stays end-to-end encrypted. You don't share a Proton password with Mailwarden's cloud, and you don't run Proton's own cloud for this:
+- Queries and resources are scoped to authenticated tenant/user context.
+- Provider credentials use tenant/user-bound AES-256-GCM envelope encryption.
+- Sending requires human review of the exact hashed payload.
+- Sends are idempotent.
+- No permanent-delete operation reaches a provider.
+- Dry-run keeps mailbox changes simulated until explicitly enabled.
+- Private-beta signup invites are separate from future organization invites.
 
-```
-[Your computer]
-Proton Mail Bridge
-      ↕ localhost IMAP/SMTP
-Mailwarden Proton Connector
-      ↓ authenticated outbound HTTPS/WSS
-Cloudflare Worker (Mailwarden)
-```
+## Development
 
-Status is plain: *"Proton: Connected through Thiago-PC (last seen 2 minutes ago)"* or *"Proton: Offline (Connector last seen 3 hours ago)"*.
-
-If the Proton connector is offline, Mailwarden says so and excludes those messages from cross-account answers instead of pretending the picture is complete.
-
-## Languages
-
-Onboarding and conversation work in English and Portuguese (PT-BR).
-
-Portuguese example:
-
-> *"Conecte seus e-mails ao ChatGPT. Ele mostra o que importa, quem está esperando uma resposta e ajuda você a responder sem precisar procurar e-mail por e-mail."*
-
-## Developer and deployment
-
-Mailwarden runs as a Cloudflare Worker with D1.
-
-- Production: `https://mailwarden.corenet.workers.dev`
-- MCP SSE: `https://mailwarden.corenet.workers.dev/mcp/sse`
-- MCP JSON-RPC: `https://mailwarden.corenet.workers.dev/mcp/rpc`
-- Health: `https://mailwarden.corenet.workers.dev/health`
-
-### Local development
+Requirements: Bun and the dependencies installed by the root lockfile.
 
 ```bash
-bun install
+bun install --frozen-lockfile
 bun run db:migrate
 bun run db:seed
 bun run dev
-bun test
-bun run typecheck
 ```
 
-## Security invariants
+Useful commands:
 
-> AI determines meaning. Code determines permission.
+```bash
+bun run dev:cloud       # local Bun Cloud runtime
+bun run dev:bridge      # current Proton Gateway
+bun test
+bun run typecheck
+bun run build           # Wrangler dry-run bundle; does not deploy
+bun run mcp:stdio
+```
 
-- Queries are filtered by `tenant_id` and `user_id`.
-- Provider secrets at rest use AES-256-GCM with key versioning.
-- Send approval is bound to a SHA-256 hash of the exact payload the human saw.
-- Sends are idempotent so identical dispatches don't duplicate.
-- `MAILBOX_MUTATIONS_ENABLED=false` by default keeps first evaluation from changing the mailbox.
+`bun run test:live` targets a live deployment and is not part of the default gate.
+
+## Cloudflare deployment
+
+- Configuration: [`wrangler.jsonc`](./wrangler.jsonc)
+- Worker entrypoint: [`apps/cloud/src/worker.ts`](./apps/cloud/src/worker.ts)
+- D1 schema: [`packages/db/src/schema.ts`](./packages/db/src/schema.ts)
+- D1 migrations: [`migrations/`](./migrations)
+- Controlled ship workflow: [`scripts/ship.sh`](./scripts/ship.sh)
+
+Run `bun run build` for a local deployment-compatible bundle. `bun run deploy` and `bun run ship` can change production and require deliberate authorization.
+
+Current production endpoints:
+
+- Worker: `https://mailwarden.corenet.workers.dev`
+- MCP: `https://mailwarden.corenet.workers.dev/mcp`
+- MCP JSON-RPC: `https://mailwarden.corenet.workers.dev/mcp/rpc`
+- MCP SSE: `https://mailwarden.corenet.workers.dev/mcp/sse`
+- Health: `https://mailwarden.corenet.workers.dev/health`
+
+## Documentation
+
+Start with:
+
+- [Architecture overview](docs/architecture/OVERVIEW.md)
+- [Modular monorepo](docs/architecture/MONOREPO.md)
+- [Organizations](docs/architecture/ORGANIZATIONS.md)
+- [Mailwarden Bridge](docs/architecture/MAILWARDEN_BRIDGE.md)
+- [Proton relay](docs/architecture/PROTON_RELAY.md)
+- [Security](docs/architecture/SECURITY.md)
+- [MCP workspace direction](docs/architecture/MCP.md)
+- [AlmaLinux operations](docs/operations/ALMALINUX.md)
+
+For parallel development:
+
+- [Three-owner split](docs/parallel-development/AGENT_SPLIT_PLAN.md)
+- [Shared contracts](docs/parallel-development/SHARED_CONTRACTS.md)
+- [Integration protocol](docs/parallel-development/INTEGRATION_PROTOCOL.md)
+- [Next-session handoff](docs/parallel-development/NEXT_SESSION_HANDOFF.md)

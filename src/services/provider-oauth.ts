@@ -7,6 +7,7 @@ import type { AuthPrincipal } from "../types/auth";
 import { AuthenticationError, ConfigurationError, ProviderError } from "../utils/errors";
 import { encryptionService } from "./encryption";
 import { auditService } from "./audit";
+import { organizationService } from "./organizations";
 
 export type ProviderOAuthName = "gmail" | "outlook";
 export type ProviderMode = "readonly" | "actions" | "draft" | "full";
@@ -104,6 +105,7 @@ export class ProviderOAuthService {
 
   async completeGoogleCallback(code: string, stateToken: string) {
     const state = await this.verifyState(stateToken, "gmail");
+    await organizationService.requireWorkspaceMembership(state, state.tenantId);
     if (!config.GOOGLE_CLIENT_ID || !config.GOOGLE_CLIENT_SECRET) {
       throw new ConfigurationError("Google OAuth credentials are not configured");
     }
@@ -143,6 +145,7 @@ export class ProviderOAuthService {
 
   async completeMicrosoftCallback(code: string, stateToken: string) {
     const state = await this.verifyState(stateToken, "outlook");
+    await organizationService.requireWorkspaceMembership(state, state.tenantId);
     if (!config.MICROSOFT_CLIENT_ID || !config.MICROSOFT_CLIENT_SECRET) {
       throw new ConfigurationError("Microsoft OAuth credentials are not configured");
     }
@@ -191,9 +194,7 @@ export class ProviderOAuthService {
     }
 
     const now = new Date();
-    const [user] = await db.select().from(schema.users).where(
-      and(eq(schema.users.id, state.userId), eq(schema.users.tenantId, state.tenantId))
-    ).limit(1);
+    const [user] = await db.select().from(schema.users).where(eq(schema.users.id, state.userId)).limit(1);
     if (!user) throw new AuthenticationError("Provider callback user no longer exists");
 
     let [account] = await db.select().from(schema.emailAccounts).where(

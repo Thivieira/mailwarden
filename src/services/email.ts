@@ -1,5 +1,5 @@
 import { db, schema } from "../db";
-import { eq, and, desc, like, or, inArray, gte, lte } from "drizzle-orm";
+import { eq, and, desc, like, or, inArray, gte, lte, sql } from "drizzle-orm";
 import type { AuthPrincipal } from "../types/auth";
 import type {
   NormalizedEmail,
@@ -275,7 +275,7 @@ export class EmailService {
     authService.requirePrincipal(principal);
     authService.requireScope(principal, "mail.search");
 
-    const limit = Math.min(params.limit || 20, 50);
+    const limit = Math.min(params.limit || 50, 100);
     const offset = params.offset || 0;
 
     let conditions: any[] = [
@@ -289,6 +289,10 @@ export class EmailService {
 
     if (params.senderEmail) {
       conditions.push(eq(schema.emails.fromAddress, params.senderEmail.toLowerCase().trim()));
+    }
+
+    if (params.unreadOnly) {
+      conditions.push(like(schema.emails.flags, '%"unread":true%'));
     }
 
     if (params.query) {
@@ -311,6 +315,13 @@ export class EmailService {
       conditions.push(lte(schema.emails.receivedAt, params.endDate));
     }
 
+    const [countRow] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(schema.emails)
+      .where(and(...conditions));
+
+    const total = Number(countRow?.count || 0);
+
     const rows = await db
       .select()
       .from(schema.emails)
@@ -322,11 +333,11 @@ export class EmailService {
     let messages = rows.map((r: any) => this.mapDbEmailToDomain(r));
 
     if (params.unreadOnly) {
-      messages = messages.filter((m: any) => m.flags.unread);
+      messages = messages.filter((m: any) => m.flags?.unread);
     }
 
     return {
-      total: messages.length,
+      total,
       messages,
     };
   }

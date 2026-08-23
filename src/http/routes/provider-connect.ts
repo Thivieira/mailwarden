@@ -82,22 +82,17 @@ export const providerConnectRoutes = new Hono<Env>()
       const state = await providerOAuthService.verifyState(stateToken, "gmail");
       const connected = await providerOAuthService.completeGoogleCallback(code, stateToken);
       const principal = { tenantId: state.tenantId, userId: state.userId, scopes: ownerScopes };
-      let syncText = "No messages were synchronized yet.";
+
+      // Trigger initial synchronization non-blockingly in background
+      const syncTask = syncService.syncAccount(principal, connected.accountId, 20).catch(() => {});
       try {
-        const result = await syncService.syncAccount(principal, connected.accountId, 50);
-        syncText = `${result.ingested} recent messages synchronized.`;
-      } catch (syncError: any) {
-        syncText = `The first synchronization failed: ${syncError.message}`;
+        c.executionCtx.waitUntil(syncTask);
+      } catch {
+        // Safe fallback if executionCtx is absent
       }
-      return callbackPage(
-        "Gmail connected",
-        "This account is now readable by your vault. Mailwarden holds the provider credentials; your AI client never receives them.",
-        [
-          { term: "Account", value: connected.emailAddress },
-          { term: "First sync", value: syncText },
-        ],
-        true
-      );
+
+      // Seamlessly redirect back to /portal dashboard with success notice
+      return c.redirect(`/portal?connected=gmail&email=${encodeURIComponent(connected.emailAddress)}`);
     } catch (error: any) {
       return callbackPage("Gmail connection failed", error.message, [], false, 400);
     }
@@ -111,22 +106,17 @@ export const providerConnectRoutes = new Hono<Env>()
       const state = await providerOAuthService.verifyState(stateToken, "outlook");
       const connected = await providerOAuthService.completeMicrosoftCallback(code, stateToken);
       const principal = { tenantId: state.tenantId, userId: state.userId, scopes: ownerScopes };
-      let syncText = "No messages were synchronized yet.";
+
+      // Trigger initial synchronization non-blockingly in background
+      const syncTask = syncService.syncAccount(principal, connected.accountId, 20).catch(() => {});
       try {
-        const result = await syncService.syncAccount(principal, connected.accountId, 50);
-        syncText = `${result.ingested} recent messages synchronized.`;
-      } catch (syncError: any) {
-        syncText = `The first synchronization failed: ${syncError.message}`;
+        c.executionCtx.waitUntil(syncTask);
+      } catch {
+        // Safe fallback if executionCtx is absent
       }
-      return callbackPage(
-        "Outlook connected",
-        "This account is now readable by your vault. Mailwarden holds the provider credentials; your AI client never receives them.",
-        [
-          { term: "Account", value: connected.emailAddress },
-          { term: "First sync", value: syncText },
-        ],
-        true
-      );
+
+      // Seamlessly redirect back to /portal dashboard with success notice
+      return c.redirect(`/portal?connected=outlook&email=${encodeURIComponent(connected.emailAddress)}`);
     } catch (error: any) {
       return callbackPage("Outlook connection failed", error.message, [], false, 400);
     }

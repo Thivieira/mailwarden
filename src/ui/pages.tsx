@@ -22,6 +22,7 @@ export function AuthorizePage(props: {
   scopes: string[];
   mutationsEnabled: boolean;
   params: Record<string, string>;
+  loggedInUser?: { email: string; displayName?: string };
 }) {
   return (
     <>
@@ -29,7 +30,7 @@ export function AuthorizePage(props: {
       <main class="sheet">
         <h1>Give {props.clientName} access to your email?</h1>
         <p class="lede">
-          Mailwarden holds your email accounts for you. Signing in below lets{" "}
+          Mailwarden holds your email accounts for you. Authorizing below lets{" "}
           {props.clientName} use some of what Mailwarden can do. Not your email
           password, and nothing that sends mail without your say-so.
         </p>
@@ -50,28 +51,51 @@ export function AuthorizePage(props: {
           ))}
           <section class="card">
             <div class="card-header">
-              <h2 class="card-title">Sign in to continue</h2>
-              <p class="card-desc">Your Mailwarden account, not your email provider.</p>
+              <h2 class="card-title">
+                {props.loggedInUser ? "Authorize Connected Account" : "Sign in to continue"}
+              </h2>
+              <p class="card-desc">
+                {props.loggedInUser
+                  ? "You are already signed in to your Mailwarden vault."
+                  : "Your Mailwarden account, not your email provider."}
+              </p>
             </div>
             <div class="card-content">
-              <Field
-                name="email"
-                label="Email address"
-                type="email"
-                autocomplete="username"
-                placeholder="you@example.com"
-                error="That does not look like an email address. Check for a typo."
-              />
-              <Field
-                name="login_secret"
-                label="Password"
-                hint="Sometimes called your login secret: the one you were given when your account was set up."
-                type="password"
-                autocomplete="current-password"
-                placeholder="mw_…"
-                peek
-                error="Enter your password to continue."
-              />
+              {props.loggedInUser ? (
+                <div style="margin-bottom: 1.25rem;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; background: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 0.875rem 1rem;">
+                    <div>
+                      <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 600;">Active Account:</div>
+                      <div style="font-size: 0.9375rem; font-weight: 600; color: var(--foreground);">{props.loggedInUser.email}</div>
+                    </div>
+                    <span style="font-size: 0.75rem; background: rgba(74, 222, 128, 0.15); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.3); padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600;">
+                      ✓ Signed In
+                    </span>
+                  </div>
+                  <input type="hidden" name="email" value={props.loggedInUser.email} />
+                </div>
+              ) : (
+                <>
+                  <Field
+                    name="email"
+                    label="Email address"
+                    type="email"
+                    autocomplete="username"
+                    placeholder="you@example.com"
+                    error="That does not look like an email address. Check for a typo."
+                  />
+                  <Field
+                    name="login_secret"
+                    label="Password"
+                    hint="Sometimes called your login secret: the one you were given when your account was set up."
+                    type="password"
+                    autocomplete="current-password"
+                    placeholder="mw_…"
+                    peek
+                    error="Enter your password to continue."
+                  />
+                </>
+              )}
               <button type="submit">Allow access</button>
             </div>
           </section>

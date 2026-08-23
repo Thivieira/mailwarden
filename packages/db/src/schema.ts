@@ -10,6 +10,9 @@ export const tenants = sqliteTable(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     slug: text("slug").notNull().unique(),
+    kind: text("kind", { enum: ["personal", "team"] }).notNull().default("personal"),
+    status: text("status", { enum: ["active", "suspended"] }).notNull().default("active"),
+    plan: text("plan", { enum: ["personal", "team", "enterprise"] }).notNull().default("personal"),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   }
@@ -949,5 +952,140 @@ export const protonConnectors = sqliteTable(
     index("proton_connectors_tenant_user_idx").on(table.tenantId, table.userId),
     uniqueIndex("proton_connectors_account_idx").on(table.tenantId, table.accountId),
     index("proton_connectors_token_idx").on(table.deviceTokenHash),
+  ]
+);
+
+// ==========================================
+// ORGANIZATION INVITES
+// ==========================================
+
+export const organizationInvites = sqliteTable(
+  "organization_invites",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    email: text("email"),
+    role: text("role", { enum: ["admin", "member"] }).notNull().default("member"),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    acceptedByUserId: text("accepted_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+    acceptedAt: integer("accepted_at", { mode: "timestamp" }),
+    revokedAt: integer("revoked_at", { mode: "timestamp" }),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [
+    index("organization_invites_tenant_idx").on(table.tenantId),
+    index("organization_invites_email_idx").on(table.email),
+    index("organization_invites_expires_idx").on(table.expiresAt),
+  ]
+);
+
+// ==========================================
+// RELAY DEVICES & PROVISIONING
+// ==========================================
+
+export const relayDevices = sqliteTable(
+  "relay_devices",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    platform: text("platform").notNull(),
+    version: text("version").notNull(),
+    protocolVersion: integer("protocol_version").notNull().default(1),
+    status: text("status", {
+      enum: ["provisioning", "online", "degraded", "offline", "needs_attention"],
+    }).notNull().default("provisioning"),
+    capabilities: text("capabilities", { mode: "json" }).notNull().$type<Record<string, boolean>>(),
+    lastHealth: text("last_health", { mode: "json" }).$type<Record<string, unknown>>(),
+    createdByUserId: text("created_by_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    lastSeenAt: integer("last_seen_at", { mode: "timestamp" }),
+    revokedAt: integer("revoked_at", { mode: "timestamp" }),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [
+    index("relay_devices_tenant_idx").on(table.tenantId),
+    index("relay_devices_status_idx").on(table.tenantId, table.status),
+  ]
+);
+
+export const relayProvisioningSessions = sqliteTable(
+  "relay_provisioning_sessions",
+  {
+    id: text("id").primaryKey(),
+    deviceCodeHash: text("device_code_hash").notNull().unique(),
+    userCodeHash: text("user_code_hash").notNull().unique(),
+    tenantId: text("tenant_id").references(() => tenants.id, { onDelete: "cascade" }),
+    deviceName: text("device_name").notNull(),
+    platform: text("platform").notNull(),
+    version: text("version").notNull(),
+    protocolVersion: integer("protocol_version").notNull().default(1),
+    capabilities: text("capabilities", { mode: "json" }).notNull().$type<Record<string, boolean>>(),
+    state: text("state", { enum: ["pending", "authorized", "denied", "expired"] }).notNull().default("pending"),
+    authorizedByUserId: text("authorized_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    relayDeviceId: text("relay_device_id").references(() => relayDevices.id, { onDelete: "set null" }),
+    expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+    authorizedAt: integer("authorized_at", { mode: "timestamp" }),
+    consumedAt: integer("consumed_at", { mode: "timestamp" }),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [
+    index("relay_provisioning_tenant_idx").on(table.tenantId),
+    index("relay_provisioning_expires_idx").on(table.expiresAt),
+  ]
+);
+
+export const relayDeviceCredentials = sqliteTable(
+  "relay_device_credentials",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    deviceId: text("device_id")
+      .notNull()
+      .references(() => relayDevices.id, { onDelete: "cascade" }),
+    generation: integer("generation").notNull().default(1),
+    deviceSecretHash: text("device_secret_hash").notNull().unique(),
+    encryptedGatewaySecret: text("encrypted_gateway_secret", { mode: "json" }).notNull().$type<Record<string, unknown>>(),
+    expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+    revokedAt: integer("revoked_at", { mode: "timestamp" }),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [
+    index("relay_credentials_device_idx").on(table.deviceId),
+    index("relay_credentials_tenant_idx").on(table.tenantId),
+  ]
+);
+
+// ==========================================
+// PRIVATE BETA INVITES
+// ==========================================
+
+export const betaInvites = sqliteTable(
+  "beta_invites",
+  {
+    id: text("id").primaryKey(),
+    code: text("code").notNull().unique(),
+    email: text("email"),
+    createdByUserId: text("created_by_user_id"),
+    expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+    usedAt: integer("used_at", { mode: "timestamp" }),
+    usedByUserId: text("used_by_user_id"),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("beta_invites_code_idx").on(table.code),
+    index("beta_invites_email_idx").on(table.email),
   ]
 );

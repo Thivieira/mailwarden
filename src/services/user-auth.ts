@@ -5,8 +5,12 @@ import { db, schema } from "../db";
 import { AuthenticationError, ConfigurationError } from "../utils/errors";
 import { auditService } from "./audit";
 import { authService } from "./auth";
+import { policyService } from "./policy";
+import { inviteService } from "./invites";
+import { ALL_SCOPES, type AuthPrincipal } from "../types/auth";
+import { organizationService } from "./organizations";
 
-const DEFAULT_ITERATIONS = 120_000;
+const DEFAULT_ITERATIONS = 100_000;
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
@@ -20,6 +24,7 @@ function hexToBytes(hex: string): Uint8Array {
 }
 
 async function deriveSecretHash(secret: string, saltHex: string, iterations: number): Promise<string> {
+  const safeIterations = Math.min(iterations || DEFAULT_ITERATIONS, 100_000);
   const material = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -37,7 +42,7 @@ async function deriveSecretHash(secret: string, saltHex: string, iterations: num
       name: "PBKDF2",
       hash: "SHA-256",
       salt: saltBuffer,
-      iterations,
+      iterations: safeIterations,
     },
     material,
     256
@@ -103,7 +108,7 @@ export class UserAuthService {
   }
 
   async setLoginSecret(tenantId: string, userId: string, secret: string): Promise<void> {
-    if (secret.length < 16) throw new AuthenticationError("Mailwarden login secret must contain at least 16 characters");
+    if (secret.length < 8) throw new AuthenticationError("Mailwarden password must contain at least 8 characters");
 
     const salt = new Uint8Array(16);
     crypto.getRandomValues(salt);
@@ -123,6 +128,118 @@ export class UserAuthService {
          updated_at = excluded.updated_at`,
       [nanoid(), tenantId, userId, secretHash, saltHex, DEFAULT_ITERATIONS, now, now]
     );
+  }
+
+  async registerUser(input: {
+    email: string;
+    password: string;
+    displayName?: string;
+    inviteCode?: string;
+    organizationInviteToken?: string;
+  }) {
+    const normalizedEmail = input.email.trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes("@") || !normalizedEmail.includes(".")) {
+      throw new AuthenticationError("A valid email address is required");
+    }
+    if (!input.password || input.password.length < 8) {
+      throw new AuthenticationError("Password must be at least 8 characters long");
+    }
+
+    const existing = await this.getUsersByEmail(normalizedEmail);
+    if (existing.length > 0) {
+      throw new AuthenticationError("An account with this email address already exists. Please sign in.");
+    }
+
+    if (input.organizationInviteToken) {
+      await organizationService.validateInviteForRegistration(input.organizationInviteToken, normalizedEmail);
+    }
+
+    // A valid Team invitation is a signup continuation, not a beta_invites record.
+    const hasUsers = await inviteService.hasAnyUsers();
+    if (hasUsers) {
+      if (!input.inviteCode && !input.organizationInviteToken) {
+        throw new AuthenticationError("Mailwarden is currently in private beta. A valid invite code is required to register.");
+      }
+      if (input.inviteCode) await inviteService.validateInvite(input.inviteCode, normalizedEmail);
+    }
+
+    const displayName = input.displayName?.trim() || normalizedEmail.split("@")[0] || "User";
+    const created = await authService.createTenantAndOwner({
+      tenantName: `${displayName}'s Vault`,
+      slug: `vault-${nanoid(8)}`,
+      ownerEmail: normalizedEmail,
+      ownerDisplayName: displayName,
+      issueInitialToken: false,
+    });
+
+    try {
+      await this.setLoginSecret(created.tenantId, created.userId, input.password);
+
+      if (input.inviteCode) {
+        try {
+          await inviteService.consumeInvite(input.inviteCode, created.userId);
+        } catch {
+          // ignore
+        }
+      }
+
+      await auditService.logEvent({
+        tenantId: created.tenantId,
+        userId: created.userId,
+        action: "USER_REGISTERED",
+        resourceType: "user",
+        resourceId: created.userId,
+        details: { selfServe: true, withInvite: Boolean(input.inviteCode) },
+      });
+
+      const principal: AuthPrincipal = {
+        tenantId: created.tenantId,
+        userId: created.userId,
+        scopes: ALL_SCOPES,
+      };
+
+      // Apply default balanced preset
+      try {
+        await policyService.applyPreset(principal, "balanced");
+      } catch {
+        // Non-fatal if preset fails
+      }
+
+      const tokenData = await authService.createToken({
+        id: created.userId,
+        tenantId: created.tenantId,
+        email: normalizedEmail,
+        displayName,
+        role: "owner",
+      });
+
+      const joinedWorkspace = input.organizationInviteToken
+        ? await organizationService.acceptInvite(principal, input.organizationInviteToken)
+        : undefined;
+
+      return {
+        user: {
+          id: created.userId,
+          tenantId: created.tenantId,
+          email: normalizedEmail,
+          displayName,
+          role: "owner",
+        },
+        token: tokenData.token,
+        expiresAt: tokenData.expiresAt.toISOString(),
+        mcpUrl: `${config.APP_BASE_URL}/mcp`,
+        joinedWorkspace,
+      };
+    } catch (err) {
+      // Rollback on any failure so user record is not orphaned
+      try {
+        await db.delete(schema.users).where(eq(schema.users.id, created.userId));
+        await db.delete(schema.tenants).where(eq(schema.tenants.id, created.tenantId));
+      } catch {
+        // ignore
+      }
+      throw err;
+    }
   }
 
   private async getCredential(userId: string): Promise<CredentialRow | null> {

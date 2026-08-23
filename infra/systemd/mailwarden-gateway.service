@@ -1,0 +1,21 @@
+[Unit]
+Description=Mailwarden Proton Gateway
+After=network-online.target proton-bridge.service
+Wants=network-online.target
+Requires=proton-bridge.service
+
+[Service]
+Type=simple
+User=mailwarden
+Group=mailwarden
+WorkingDirectory=/opt/mailwarden
+EnvironmentFile=/etc/mailwarden/bridge.env
+ExecStart=/usr/local/bin/bun run proton:gateway
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

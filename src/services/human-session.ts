@@ -6,6 +6,7 @@ import { db, schema } from "../db";
 import { config } from "../config";
 import { auditService } from "./audit";
 import { AuthenticationError } from "../utils/errors";
+import { organizationService } from "./organizations";
 
 /**
  * Human browser sessions — a token class deliberately incompatible with API/MCP bearers.
@@ -181,6 +182,7 @@ export class HumanSessionService {
     if (row.userId !== userId || row.tenantId !== tenantId) {
       throw new AuthenticationError("Human session does not match its stored record");
     }
+    await organizationService.requireWorkspaceMembership({ userId }, tenantId);
 
     return { tenantId, userId, sessionId, email: (payload.email as string) || "" };
   }

@@ -4,18 +4,9 @@ import type { NormalizedEmail, ProviderType } from "../types/domain";
 import type { StoredDraft, SendResult } from "../types/drafts";
 import { ProviderError, NotFoundError, ConfigurationError } from "../utils/errors";
 import { nanoid } from "nanoid";
+import { validateProtonGatewayUrl, type ProtonBridgeCredentials } from "@mailwarden/proton";
 
-export interface ProtonBridgeCredentials {
-  mode?: "gateway" | "direct";
-  gatewayUrl?: string;
-  gatewayApiKey?: string;
-  imapHost?: string;
-  imapPort?: number;
-  smtpHost?: string;
-  smtpPort?: number;
-  bridgeUsername?: string;
-  bridgePassword?: string;
-}
+export type { ProtonBridgeCredentials } from "@mailwarden/proton";
 
 export class ProtonBridgeProvider implements MailProvider {
   public readonly provider: ProviderType = "proton";
@@ -29,13 +20,7 @@ export class ProtonBridgeProvider implements MailProvider {
   private validateGatewayConfig(creds: ProtonBridgeCredentials) {
     if (creds.mode === "gateway" && creds.gatewayUrl) {
       try {
-        const parsed = new URL(creds.gatewayUrl);
-        if (parsed.protocol !== "https:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1") {
-          throw new ConfigurationError(`Proton gateway URL must use HTTPS: ${creds.gatewayUrl}`);
-        }
-        if (parsed.hostname === "169.254.169.254" || parsed.hostname === "metadata.google.internal") {
-          throw new ConfigurationError("Proton gateway URL cannot target internal cloud metadata endpoints");
-        }
+        validateProtonGatewayUrl(creds.gatewayUrl);
       } catch (err: any) {
         throw new ConfigurationError(`Invalid Proton gateway URL: ${err.message}`);
       }
@@ -49,6 +34,8 @@ export class ProtonBridgeProvider implements MailProvider {
       "X-Tenant-Id": principal.tenantId,
       "X-User-Id": principal.userId,
       "X-Account-Id": accountId,
+      ...(this.creds.bridgeUsername ? { "X-Proton-Username": this.creds.bridgeUsername } : {}),
+      ...(this.creds.bridgePassword ? { "X-Proton-Password": this.creds.bridgePassword } : {}),
     };
   }
 

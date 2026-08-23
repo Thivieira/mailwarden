@@ -1,0 +1,18 @@
+[Unit]
+Description=Proton Mail Bridge for Mailwarden
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mailwarden
+Group=mailwarden
+Environment=HOME=/var/lib/mailwarden
+ExecStart=/usr/bin/protonmail-bridge --noninteractive
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

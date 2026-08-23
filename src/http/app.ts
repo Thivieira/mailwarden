@@ -7,6 +7,8 @@ import { mcpRoutes } from "./routes/mcp-sse";
 import { managementRoutes } from "./routes/management";
 import { providerConnectRoutes } from "./routes/provider-connect";
 import { fontRoutes } from "./routes/fonts";
+import { portalRoutes } from "./routes/portal";
+import { platformRoutes } from "./routes/platform";
 import { logger } from "../utils/logger";
 import { MailwardenError } from "../utils/errors";
 import { config } from "../config";
@@ -60,40 +62,29 @@ export function createHonoApp() {
     }
 
     const errMsg = (error as any)?.message || String(error);
-    logger.error("Unhandled HTTP error", { error: errMsg });
+    const errStack = (error as any)?.stack || "";
+    logger.error("Unhandled HTTP error", { error: errMsg, stack: errStack });
 
-    // The exception text stays in the logs. A browser gets something actionable instead.
     return wantsHtml(c)
       ? notice(
           c,
           500,
           "Something went wrong",
-          "Mailwarden could not finish that request.",
+          `Mailwarden encountered an error: ${errMsg}`,
           "Nothing was changed. Go back to your conversation and try again; if it keeps happening the problem is on our side."
         )
-      : c.json({ error: "InternalServerError", message: "An internal server error occurred" }, 500);
+      : c.json({ error: "InternalServerError", message: errMsg }, 500);
   });
 
   app.route("/", fontRoutes);
   app.route("/", healthRoutes);
+  app.route("/", portalRoutes);
   app.route("/", authRoutes);
   app.route("/", oauthRoutes);
   app.route("/", mcpRoutes);
   app.route("/", providerConnectRoutes);
+  app.route("/", platformRoutes);
   app.route("/", managementRoutes);
-
-  app.get("/", (c) =>
-    c.json({
-      name: "Mailwarden",
-      tagline: "Your email, managed through normal conversation.",
-      status: "online",
-      documentation: "/swagger",
-      mcpEndpoint: "/mcp",
-      rpcEndpoint: "/mcp/rpc",
-      sseEndpoint: "/mcp/sse",
-      healthCheck: "/health",
-    })
-  );
 
   app.get("/swagger", (c) =>
     c.json({

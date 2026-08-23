@@ -1,59 +1,28 @@
-export type PermissionScope =
-  | "mail.read"
-  | "mail.search"
-  | "mail.modify"
-  | "mail.archive"
-  | "mail.draft"
-  | "mail.send"
-  | "signatures.read"
-  | "signatures.manage"
-  | "relationships.read"
-  | "relationships.manage"
-  | "profile.read"
-  | "profile.manage"
-  | "accounts.read"
-  | "accounts.manage"
-  | "admin.all";
+import {
+  ALL_SCOPES,
+  READONLY_SCOPES,
+  hasScope as hasGrantedScope,
+  type PermissionScope,
+} from "@mailwarden/auth";
+import type { MembershipRole } from "@mailwarden/contracts";
 
-export const ALL_SCOPES: PermissionScope[] = [
-  "mail.read",
-  "mail.search",
-  "mail.modify",
-  "mail.archive",
-  "mail.draft",
-  "mail.send",
-  "signatures.read",
-  "signatures.manage",
-  "relationships.read",
-  "relationships.manage",
-  "profile.read",
-  "profile.manage",
-  "accounts.read",
-  "accounts.manage",
-];
-
-export const READONLY_SCOPES: PermissionScope[] = [
-  "mail.read",
-  "mail.search",
-  "signatures.read",
-  "relationships.read",
-  "profile.read",
-  "accounts.read",
-];
+export { ALL_SCOPES, READONLY_SCOPES, type PermissionScope } from "@mailwarden/auth";
 
 export interface AuthPrincipal {
+  /** Canonical active workspace. `tenantId` is retained for transitional Cloud code. */
+  workspaceId?: string;
   tenantId: string;
   userId: string;
+  personalWorkspaceId?: string;
   scopes: PermissionScope[];
   sessionId?: string;
   email?: string;
   displayName?: string;
-  role?: "owner" | "admin" | "member";
+  role?: MembershipRole;
 }
 
 export function hasScope(principal: AuthPrincipal, requiredScope: PermissionScope): boolean {
-  if (principal.scopes.includes("admin.all")) return true;
-  return principal.scopes.includes(requiredScope);
+  return hasGrantedScope(principal, requiredScope);
 }
 
 export function requireScope(principal: AuthPrincipal, requiredScope: PermissionScope): void {

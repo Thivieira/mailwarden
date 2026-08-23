@@ -142,17 +142,27 @@ const DOOR_ICONS: Record<string, () => any> = {
 };
 
 /** The sticky header. The host is the anti-forgery line and stays visible while scrolling. */
-export function SiteHeader(props: { host: string }) {
+export function SiteHeader(props: { host: string; showSignOut?: boolean }) {
   return (
     <header class="site-header">
       <div class="site-header-inner">
-        <p class="brand">
+        <a href="/" class="brand" style="text-decoration: none; color: inherit; display: inline-flex; align-items: center; gap: 0.5rem;">
           <Seal size={18} />
           Mailwarden
-        </p>
-        <p class="host">
-          This page is at <b>{props.host}</b>
-        </p>
+        </a>
+        <div style="display: flex; align-items: center; gap: 0.85rem;">
+          <p class="host" style="margin: 0;">
+            This page is at <b>{props.host}</b>
+          </p>
+          {props.showSignOut && (
+            <a
+              href="/portal/logout"
+              style="font-size: 0.75rem; font-weight: 600; color: var(--muted-foreground); text-decoration: none; border: 1px solid var(--border); background: var(--secondary); padding: 0.2rem 0.6rem; border-radius: var(--radius-sm);"
+            >
+              Sign Out
+            </a>
+          )}
+        </div>
       </div>
     </header>
   );
@@ -292,9 +302,9 @@ export function Field(props: {
   label: string;
   hint?: string;
   type: string;
-  autocomplete: string;
+  autocomplete?: string;
   placeholder?: string;
-  error: string;
+  error?: string;
   peek?: boolean;
 }) {
   return (
@@ -306,7 +316,7 @@ export function Field(props: {
           id={props.name}
           name={props.name}
           type={props.type}
-          autocomplete={props.autocomplete}
+          autocomplete={props.autocomplete || "off"}
           placeholder={props.placeholder}
           required
           spellcheck={false}

@@ -12,17 +12,10 @@ import { PEEK_SHA256 } from "./peek.gen";
  */
 
 const BASE_CSP =
-  "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
+  "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'self'; form-action 'self' https: http:; base-uri 'none'; frame-ancestors 'none'";
 
-/**
- * The sign-in page's policy. Identical to the base policy except that `script-src` admits
- * one script by hash - the show-password toggle in `peek.ts` and nothing else. An injected
- * script hashes differently and is still refused, so the property that matters on a page
- * taking credentials survives.
- *
- * Deliberately not offered to the send-approval page, which renders untrusted email content.
- */
 const PEEK_CSP = BASE_CSP.replace("default-src 'none';", `default-src 'none'; script-src '${PEEK_SHA256}';`);
+const DASHBOARD_CSP = BASE_CSP.replace("default-src 'none';", "default-src 'none'; script-src 'unsafe-inline';").replace("img-src data:;", "img-src 'self' data:;");
 
 const BROWSER_HTML_HEADERS: Record<string, string> = {
   "Content-Type": "text/html; charset=utf-8",
@@ -43,12 +36,16 @@ export function renderPage<T>(
   title: string,
   view: () => T,
   status = 200,
-  options: { peek?: boolean } = {}
+  options: { peek?: boolean; allowScripts?: boolean } = {}
 ): Response {
   const script = options.peek ? PEEK_SCRIPT : undefined;
-  const headers = options.peek
-    ? { ...BROWSER_HTML_HEADERS, "Content-Security-Policy": PEEK_CSP }
-    : BROWSER_HTML_HEADERS;
+  const cspHeader = options.allowScripts
+    ? DASHBOARD_CSP
+    : options.peek
+    ? PEEK_CSP
+    : BASE_CSP;
+
+  const headers = { ...BROWSER_HTML_HEADERS, "Content-Security-Policy": cspHeader };
 
   return new Response(document_(title, renderToString(view), script), { status, headers });
 }

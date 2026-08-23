@@ -8,6 +8,7 @@ import { AuthenticationError, AuthorizationError, TenantIsolationError } from ".
 import { auditService } from "./audit";
 import { nanoid } from "nanoid";
 import { createHash } from "crypto";
+import { organizationService } from "./organizations";
 
 function getJwtSecret(): Uint8Array {
   return new TextEncoder().encode(config.AUTH_SECRET);
@@ -35,15 +36,17 @@ export class AuthService {
     scopes: PermissionScope[] = ALL_SCOPES,
     expiresIn = "30d"
   ): Promise<{ token: string; sessionId: string; expiresAt: Date }> {
+    const context = await organizationService.requireWorkspaceMembership({ userId: user.id }, user.tenantId);
     const sessionId = nanoid();
     const expiresAt = expirationDate(expiresIn);
 
     const token = await new SignJWT({
       sub: user.id,
       tenantId: user.tenantId,
+      workspaceId: user.tenantId,
       email: user.email,
       displayName: user.displayName,
-      role: user.role || "member",
+      role: context.membership.role,
       scopes,
       sessionId,
     })
@@ -90,7 +93,7 @@ export class AuthService {
         audience: config.APP_BASE_URL,
       });
       const userId = payload.sub as string;
-      const tenantId = payload.tenantId as string;
+      const tenantId = (payload.workspaceId || payload.tenantId) as string;
       const scopes = (payload.scopes as PermissionScope[]) || [];
       const sessionId = payload.sessionId as string | undefined;
 
@@ -110,20 +113,20 @@ export class AuthService {
         if (!session || session.expiresAt < new Date()) throw new AuthenticationError("Session expired or revoked");
       }
 
-      const [user] = await db.select().from(schema.users).where(and(
-        eq(schema.users.id, userId),
-        eq(schema.users.tenantId, tenantId)
-      )).limit(1);
+      const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
       if (!user) throw new AuthenticationError("User account no longer exists");
+      const context = await organizationService.requireWorkspaceMembership({ userId }, tenantId);
 
       return {
+        workspaceId: tenantId,
         tenantId,
         userId,
+        personalWorkspaceId: user.tenantId,
         scopes,
         sessionId,
         email: payload.email as string | undefined,
         displayName: payload.displayName as string | undefined,
-        role: payload.role as "owner" | "admin" | "member" | undefined,
+        role: context.membership.role,
       };
     } catch (err: any) {
       if (err instanceof AuthenticationError) throw err;
@@ -161,7 +164,14 @@ export class AuthService {
       gt(schema.streamTickets.expiresAt, now)
     )).returning();
     if (!consumed) throw new AuthenticationError("Invalid, expired, or already consumed stream ticket");
-    return { tenantId: consumed.tenantId, userId: consumed.userId, scopes: consumed.scopes as PermissionScope[] };
+    const context = await organizationService.requireWorkspaceMembership({ userId: consumed.userId }, consumed.tenantId);
+    return {
+      workspaceId: consumed.tenantId,
+      tenantId: consumed.tenantId,
+      userId: consumed.userId,
+      scopes: consumed.scopes as PermissionScope[],
+      role: context.membership.role,
+    };
   }
 
   async resolvePrincipalFromRequest(request: Request): Promise<AuthPrincipal> {

@@ -8,7 +8,7 @@ import { emailService } from "./email";
 import { auditService } from "./audit";
 
 export class SyncService {
-  async syncAccount(principal: AuthPrincipal, accountId: string, limit = 50) {
+  async syncAccount(principal: AuthPrincipal, accountId: string, limit = 25) {
     const [account] = await db.select().from(schema.emailAccounts).where(and(
       eq(schema.emailAccounts.id, accountId),
       eq(schema.emailAccounts.tenantId, principal.tenantId),
@@ -20,51 +20,44 @@ export class SyncService {
 
     const provider = await providerFactory.getProviderForAccount(principal, accountId);
     const startedAt = Date.now();
-    const maxWanted = Math.min(Math.max(limit, 1), 100);
+    const maxWanted = Math.min(Math.max(limit, 1), 25);
     let ingested = 0;
     let skipped = 0;
     let fetched = 0;
-    let pageToken: string | undefined;
-    let totalEstimated: number | undefined;
 
     try {
-      do {
-        const remaining = maxWanted - fetched;
-        const result = await provider.search(principal, accountId, { limit: remaining, pageToken });
-        totalEstimated ??= result.totalEstimated;
-        pageToken = result.nextPageToken;
+      const result = await provider.search(principal, accountId, { limit: maxWanted });
+      const totalEstimated = result.totalEstimated;
 
-        if (!result.messages.length) break;
-        for (const message of result.messages.slice(0, remaining)) {
-          fetched += 1;
-          try {
-            const {
-              id: _id,
-              tenantId: _tenantId,
-              userId: _userId,
-              createdAt: _createdAt,
-              updatedAt: _updatedAt,
-              ...input
-            } = message as any;
-            await emailService.ingestEmail(principal, input);
-            ingested += 1;
-          } catch (error: any) {
-            skipped += 1;
-            logger.warn("Message ingestion failed during provider sync", {
-              accountId,
-              provider: account.provider,
-              providerMessageId: message.providerMessageId,
-              error: error.message,
-            });
-          }
+      for (const message of result.messages) {
+        fetched += 1;
+        try {
+          const {
+            id: _id,
+            tenantId: _tenantId,
+            userId: _userId,
+            createdAt: _createdAt,
+            updatedAt: _updatedAt,
+            ...input
+          } = message as any;
+          await emailService.ingestEmail(principal, input);
+          ingested += 1;
+        } catch (error: any) {
+          skipped += 1;
+          logger.warn("Message ingestion failed during provider sync", {
+            accountId,
+            provider: account.provider,
+            providerMessageId: message.providerMessageId,
+            error: error.message,
+          });
         }
-      } while (pageToken && fetched < maxWanted);
+      }
 
       await db.update(schema.emailAccounts).set({
         status: "connected",
         errorMessage: null,
         lastSyncedAt: new Date(),
-        syncCursor: pageToken || null,
+        syncCursor: result.nextPageToken || null,
         updatedAt: new Date(),
       }).where(eq(schema.emailAccounts.id, accountId));
 
@@ -81,6 +74,7 @@ export class SyncService {
         accountId,
         provider: account.provider,
         emailAddress: account.emailAddress,
+        status: "connected",
         ingested,
         skipped,
         fetched,

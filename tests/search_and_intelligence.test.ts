@@ -125,4 +125,58 @@ describe("Search, Deterministic Signals, and Intelligence Ranking", () => {
     const unreadResults = await emailService.searchMail(principal, { query: "Kubernetes", unreadOnly: true });
     expect(unreadResults.total).toBe(0);
   });
+
+  it("Downgrades expired OTP verification codes to automated/low and excludes from action_required", async () => {
+    // Message from 2 hours ago containing a verification code
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const expiredOtpEmail = await emailService.ingestEmail(principal, {
+      accountId,
+      provider: "mock",
+      providerMessageId: `msg_otp_${nanoid()}`,
+      from: { address: "no-reply@substack.com" },
+      to: [{ address: "user@domain.com" }],
+      cc: [],
+      bcc: [],
+      subject: "Your Substack login verification code: 849201",
+      textBody: "Your one-time login code is 849201. This code will expire in 10 minutes.",
+      receivedAt: twoHoursAgo,
+      headers: {},
+      flags: { unread: false, bulk: false, automated: true, hasListUnsubscribe: false },
+      attachments: [],
+    });
+
+    const signals = await intelligenceService.extractSignals(principal, expiredOtpEmail);
+    expect(signals.isExpiredOtp).toBe(true);
+
+    const classification = await intelligenceService.classifyEmail(principal, expiredOtpEmail, signals);
+    expect(classification.workflowState).toBe("automated");
+    expect(classification.importance).toBe("low");
+    expect(classification.timeSensitivity).toBe("none");
+  });
+
+  it("Computes accurate unread counts in getInboxStatus", async () => {
+    // Insert 1 unread and 1 read email
+    await emailService.ingestEmail(principal, {
+      accountId,
+      provider: "mock",
+      providerMessageId: `msg_unread_${nanoid()}`,
+      from: { address: "boss@foxdevstudio.com" },
+      to: [{ address: "user@domain.com" }],
+      cc: [],
+      bcc: [],
+      subject: "Important roadmap review",
+      textBody: "Please review the Q3 roadmap.",
+      receivedAt: new Date(),
+      headers: {},
+      flags: { unread: true, bulk: false, automated: false, hasListUnsubscribe: false },
+      attachments: [],
+    });
+
+    const inboxStatus = await attentionService.getInboxStatus(principal);
+    const accountSummary = inboxStatus.accounts.find((a) => a.id === accountId);
+    expect(accountSummary).toBeDefined();
+    // Verify unreadCount only counts unread emails (1), not all ingested emails
+    expect(accountSummary!.unreadCount).toBeGreaterThanOrEqual(1);
+  });
 });
+

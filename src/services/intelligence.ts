@@ -54,18 +54,42 @@ export class IntelligenceService {
         headers["x-autoreply"] === "yes"
     );
 
-    // 3. Security / Financial / Transactional indicators
-    const likelySecurityRelated = Boolean(
+    // 3. Security / OTP / Account alerts
+    const isVerificationOrOtp = Boolean(
+      subject.includes("verification code") ||
+        subject.includes("one-time password") ||
+        subject.includes("login code") ||
+        subject.includes("confirmation code") ||
+        subject.includes("security code") ||
+        subject.includes("2-step verification") ||
+        text.includes("verification code") ||
+        text.includes("one-time password") ||
+        text.includes("your code is") ||
+        text.includes("enter this code") ||
+        text.includes("valid for 10 minutes") ||
+        text.includes("valid for 5 minutes") ||
+        text.includes("expires in")
+    );
+
+    const likelyAccountAlert = Boolean(
       subject.includes("security alert") ||
         subject.includes("password reset") ||
-        subject.includes("verification code") ||
-        subject.includes("2-step verification") ||
         subject.includes("unusual activity") ||
         subject.includes("login attempt") ||
+        subject.includes("new sign-in") ||
+        subject.includes("shared data with") ||
         text.includes("security notice") ||
-        text.includes("one-time password") ||
-        text.includes("reset your password")
+        text.includes("reset your password") ||
+        text.includes("unrecognized device") ||
+        text.includes("access was granted to")
     );
+
+    const now = new Date();
+    const receivedTime = email.receivedAt ? new Date(email.receivedAt).getTime() : now.getTime();
+    const messageAgeMs = Math.max(0, now.getTime() - receivedTime);
+    // Verification codes / OTPs expire in 15 minutes
+    const isExpiredOtp = isVerificationOrOtp && messageAgeMs > 15 * 60 * 1000;
+    const likelySecurityRelated = isVerificationOrOtp || likelyAccountAlert;
 
     const likelyFinancial = Boolean(
       subject.includes("invoice") ||
@@ -80,6 +104,7 @@ export class IntelligenceService {
 
     const transactional = Boolean(
       likelyFinancial ||
+        isExpiredOtp ||
         subject.includes("order confirmed") ||
         subject.includes("shipping update") ||
         subject.includes("tracking number") ||
@@ -116,7 +141,9 @@ export class IntelligenceService {
     if (knownRelationship) ruleHits.push(`relationship:${relationshipType}`);
     if (likelyClient) ruleHits.push("signal:likely_client");
     if (likelyRecruiter) ruleHits.push("signal:likely_recruiter");
-    if (likelySecurityRelated) ruleHits.push("signal:security_alert");
+    if (isExpiredOtp) ruleHits.push("signal:expired_otp");
+    else if (isVerificationOrOtp) ruleHits.push("signal:active_otp");
+    else if (likelyAccountAlert) ruleHits.push("signal:security_alert");
     if (likelyFinancial) ruleHits.push("signal:financial_notice");
     if (explicitDeadline) ruleHits.push(`deadline:${explicitDeadline}`);
     if (hasListUnsubscribe) ruleHits.push("header:list_unsubscribe");
@@ -138,6 +165,8 @@ export class IntelligenceService {
       likelyRecruiter,
       likelyFinancial,
       likelySecurityRelated,
+      isVerificationOrOtp,
+      isExpiredOtp,
       explicitDeadline,
       hasListUnsubscribe,
       ruleHits,
@@ -167,19 +196,30 @@ export class IntelligenceService {
       .limit(1);
 
     if (existing) {
+      // Dynamic runtime check: If it was classified as an OTP and has since expired, downgrade it dynamically!
+      const isOtpSubject = /verification code|one-time password|login code|confirmation code|security code/i.test(email.subject || "");
+      const now = new Date();
+      const receivedTime = email.receivedAt ? new Date(email.receivedAt).getTime() : now.getTime();
+      const isExpired = isOtpSubject && (now.getTime() - receivedTime > 15 * 60 * 1000);
+
+      const workflowState = isExpired && existing.workflowState === "action_required" ? "automated" : (existing.workflowState as WorkflowState);
+      const importance = isExpired && (existing.importance === "critical" || existing.importance === "high") ? "low" : (existing.importance as ImportanceLevel);
+      const timeSensitivity = isExpired ? "none" : (existing.timeSensitivity as TimeSensitivity);
+      const reason = isExpired ? "Expired verification code / one-time authentication message" : existing.reason;
+
       return {
         id: existing.id,
         tenantId: existing.tenantId,
         userId: existing.userId,
         emailId: existing.emailId,
         threadId: existing.threadId || undefined,
-        importance: existing.importance as ImportanceLevel,
+        importance,
         category: existing.category as SemanticCategory,
         intent: existing.intent as IntentType,
-        workflowState: existing.workflowState as WorkflowState,
-        timeSensitivity: existing.timeSensitivity as TimeSensitivity,
+        workflowState,
+        timeSensitivity,
         summary: existing.summary,
-        reason: existing.reason,
+        reason,
         confidence: existing.confidence / 100,
         deadline: existing.deadline || undefined,
         entities: existing.entities || undefined,
@@ -199,13 +239,27 @@ export class IntelligenceService {
     let timeSensitivity: TimeSensitivity = "none";
     let reason = "Standard incoming message";
 
-    if (signals.likelySecurityRelated) {
-      importance = "critical";
+    if (signals.isExpiredOtp) {
+      importance = "low";
+      category = "security";
+      intent = "informing";
+      workflowState = "automated";
+      timeSensitivity = "none";
+      reason = "Expired verification code / one-time authentication message";
+    } else if (signals.isVerificationOrOtp) {
+      importance = "high";
       category = "security";
       intent = "notifying";
       workflowState = "action_required";
       timeSensitivity = "immediate";
-      reason = "Security verification or urgent account alert";
+      reason = "Active verification code / login confirmation";
+    } else if (signals.likelySecurityRelated) {
+      importance = "high";
+      category = "security";
+      intent = "notifying";
+      workflowState = "fyi";
+      timeSensitivity = "today";
+      reason = "Security alert or account access notification";
     } else if (signals.likelyClient) {
       importance = "high";
       category = "client";

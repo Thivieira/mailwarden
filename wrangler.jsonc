@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mailwarden",
   "account_id": "e807ef39b360b2fa610967e74892c610",
-  "main": "src/worker.ts",
+  "main": "apps/cloud/src/worker.ts",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [
@@ -10,7 +10,7 @@
       "binding": "DB",
       "database_name": "mailwarden-prod",
       "database_id": "a7aef699-12eb-4ea8-946b-d77d54c944d1",
-      "migrations_dir": "src/db/migrations"
+      "migrations_dir": "migrations"
     }
   ],
   "vars": {

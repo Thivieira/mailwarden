@@ -24,7 +24,7 @@ export async function runMigrations(customDbPath?: string) {
   const appliedSet = new Set(appliedRows.map((r) => r.id));
 
   // Read migrations directory
-  const migrationsDir = join(import.meta.dir, "migrations");
+  const migrationsDir = join(import.meta.dir, "..", "..", "migrations");
   try {
     const files = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort();
     for (const file of files) {

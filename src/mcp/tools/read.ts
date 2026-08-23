@@ -99,7 +99,7 @@ export const readTools = [
       accountId: z.string().optional().describe("Filter by specific email account ID"),
       senderEmail: z.string().optional().describe("Filter by sender email address"),
       unreadOnly: z.boolean().optional().describe("Filter to unread messages only"),
-      limit: z.number().int().min(1).max(50).default(20).describe("Maximum results to return"),
+      limit: z.number().int().min(1).max(100).default(50).describe("Maximum results to return (up to 100)"),
     }),
     handler: async (principal: AuthPrincipal, params: any) => {
       const results = await emailService.searchMail(principal, params);

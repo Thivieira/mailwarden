@@ -69,8 +69,8 @@ export class AttentionService {
       }
 
       // Count unread for this account
-      const unreadEmails = await db
-        .select({ id: schema.emails.id })
+      const accountEmails = await db
+        .select({ id: schema.emails.id, flags: schema.emails.flags })
         .from(schema.emails)
         .where(
           and(
@@ -80,6 +80,8 @@ export class AttentionService {
           )
         );
 
+      const unreadCount = (accountEmails as any[]).filter((e: any) => Boolean((e.flags as any)?.unread)).length;
+
       accountSummaries.push({
         id: acc.id,
         displayName: acc.displayName,
@@ -88,7 +90,7 @@ export class AttentionService {
         status,
         statusText,
         priorityRole: acc.priorityRole,
-        unreadCount: unreadEmails.length,
+        unreadCount,
       });
 
       if (status === "error" || status === "reauth_required") {
@@ -105,7 +107,13 @@ export class AttentionService {
 
     // 3. Compute totals
     const classifications = await db
-      .select()
+      .select({
+        workflowState: schema.classifications.workflowState,
+        importance: schema.classifications.importance,
+        summary: schema.classifications.summary,
+        category: schema.classifications.category,
+        createdAt: schema.classifications.createdAt,
+      })
       .from(schema.classifications)
       .where(
         and(
@@ -114,16 +122,24 @@ export class AttentionService {
         )
       );
 
+    const now = new Date();
     let actionRequired = 0;
     let waitingForReply = 0;
     let important = 0;
     let routine = 0;
 
     for (const c of classifications) {
-      if (c.workflowState === "action_required") actionRequired++;
-      if (c.workflowState === "waiting_for_reply") waitingForReply++;
-      if (c.importance === "critical" || c.importance === "high") important++;
-      if (c.importance === "normal" || c.importance === "low") routine++;
+      // Dynamic expiration check for OTP / verification codes
+      const isOtp = /verification code|one-time password|login code|confirmation code|security code/i.test(c.summary || "") || c.category === "security";
+      const isExpired = isOtp && (now.getTime() - new Date(c.createdAt).getTime() > 15 * 60 * 1000);
+
+      const effectiveWorkflowState = isExpired && c.workflowState === "action_required" ? "automated" : c.workflowState;
+      const effectiveImportance = isExpired && (c.importance === "critical" || c.importance === "high") ? "low" : c.importance;
+
+      if (effectiveWorkflowState === "action_required") actionRequired++;
+      if (effectiveWorkflowState === "waiting_for_reply") waitingForReply++;
+      if (effectiveImportance === "critical" || effectiveImportance === "high") important++;
+      if (effectiveImportance === "normal" || effectiveImportance === "low") routine++;
     }
 
     const totalUnread = accountSummaries.reduce((sum, a) => sum + a.unreadCount, 0);
@@ -245,14 +261,23 @@ export class AttentionService {
         }
       }
 
+      // Dynamic expiration check for OTP / verification codes
+      const isOtp = /verification code|one-time password|login code|confirmation code|security code/i.test(email.subject || "") || cls?.category === "security";
+      const messageAgeMs = Math.max(0, new Date().getTime() - new Date(email.receivedAt).getTime());
+      const isExpiredOtp = isOtp && messageAgeMs > 15 * 60 * 1000;
+
+      const effectiveWorkflowState = isExpiredOtp && cls?.workflowState === "action_required" ? "automated" : (cls?.workflowState || "fyi");
+      const effectiveImportance = isExpiredOtp && (cls?.importance === "critical" || cls?.importance === "high") ? "low" : (cls?.importance || "normal");
+      const effectiveTimeSensitivity = isExpiredOtp ? "none" : (cls?.timeSensitivity || "none");
+
       // Classification importance
-      if (cls?.importance === "critical") {
+      if (effectiveImportance === "critical") {
         score += 35;
         reasons.push("Critical priority level");
-      } else if (cls?.importance === "high") {
+      } else if (effectiveImportance === "high") {
         score += 20;
         reasons.push("High priority level");
-      } else if (cls?.importance === "low") {
+      } else if (effectiveImportance === "low") {
         score -= 25;
       }
 
@@ -269,7 +294,7 @@ export class AttentionService {
       }
 
       // Open loop / reply owed
-      if (cls?.workflowState === "action_required") {
+      if (effectiveWorkflowState === "action_required") {
         score += 20;
         reasons.push("Action required from user");
       }
@@ -277,6 +302,10 @@ export class AttentionService {
       if (cls?.deadline) {
         score += 15;
         reasons.push(`Explicit deadline identified: ${cls.deadline}`);
+      }
+
+      if (isExpiredOtp) {
+        score -= 30;
       }
 
       // Bulk or newsletter penalty
@@ -297,9 +326,9 @@ export class AttentionService {
           subject: email.subject,
           snippet: email.snippet || "",
           receivedAt: email.receivedAt.toISOString(),
-          importance: (cls?.importance || "normal") as ImportanceLevel,
-          workflowState: (cls?.workflowState || "fyi") as WorkflowState,
-          timeSensitivity: (cls?.timeSensitivity || "none") as TimeSensitivity,
+          importance: effectiveImportance as ImportanceLevel,
+          workflowState: effectiveWorkflowState as WorkflowState,
+          timeSensitivity: effectiveTimeSensitivity as TimeSensitivity,
           relationshipType: relContext.relationship?.type,
           attentionScore: score,
           reasons: reasons.length > 0 ? reasons : ["Recent unread communication"],

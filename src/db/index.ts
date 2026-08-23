@@ -1,5 +1,5 @@
 import { drizzle as drizzleD1 } from "drizzle-orm/d1";
-import * as schema from "./schema";
+import * as schema from "@mailwarden/db/schema";
 import { config } from "../config";
 
 export type D1DatabaseBinding = any;

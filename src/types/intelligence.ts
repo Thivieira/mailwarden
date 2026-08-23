@@ -58,6 +58,8 @@ export interface DeterministicSignals {
   likelyRecruiter: boolean;
   likelyFinancial: boolean;
   likelySecurityRelated: boolean;
+  isVerificationOrOtp?: boolean;
+  isExpiredOtp?: boolean;
   explicitDeadline?: string;
   hasListUnsubscribe: boolean;
   ruleHits: string[];

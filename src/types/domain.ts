@@ -1,6 +1,6 @@
-export type ProviderType = "gmail" | "outlook" | "proton" | "mock";
+import type { AccountStatus, ProviderType } from "@mailwarden/contracts";
 
-export type AccountStatus = "connected" | "disconnected" | "error" | "reauth_required";
+export type { AccountStatus, ProviderType } from "@mailwarden/contracts";
 
 export type AccountPriorityRole =
   | "primary_work"

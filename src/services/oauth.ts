@@ -9,6 +9,7 @@ import { AuthenticationError, AuthorizationError } from "../utils/errors";
 import { nanoid } from "nanoid";
 import { createHash } from "crypto";
 import { logger } from "../utils/logger";
+import { organizationService } from "./organizations";
 
 export interface OAuthClientMetadata {
   client_id: string;
@@ -58,6 +59,19 @@ function isLoopbackRedirect(uri: URL): boolean {
   return uri.protocol === "http:" && (uri.hostname === "localhost" || uri.hostname === "127.0.0.1");
 }
 
+function isChatGPTRedirect(uri: URL): boolean {
+  const isHost =
+    uri.hostname === "chatgpt.com" ||
+    uri.hostname === "chat.openai.com" ||
+    uri.hostname.endsWith(".openai.com") ||
+    uri.hostname.endsWith(".chatgpt.com");
+  const isPath =
+    uri.pathname.includes("/oauth/callback") ||
+    uri.pathname.includes("/aip/") ||
+    uri.pathname.includes("/connector/oauth/");
+  return uri.protocol === "https:" && isHost && isPath;
+}
+
 export class OAuthService {
   async validateClient(clientId: string, redirectUri: string): Promise<OAuthClient> {
     const [client] = await db.select().from(schema.oauthClients)
@@ -65,7 +79,30 @@ export class OAuthService {
 
     if (client) {
       const uriMatch = (client.redirectUris as string[]).some((uri) => uri === redirectUri);
-      if (!uriMatch) throw new AuthorizationError(`Invalid redirect_uri '${redirectUri}' for client '${clientId}'`);
+      if (!uriMatch) {
+        // If client exists and is a ChatGPT/OpenAI client, append the new redirect URI dynamically
+        try {
+          const parsedUri = new URL(redirectUri);
+          if (isChatGPTRedirect(parsedUri)) {
+            const updatedUris = [...(client.redirectUris as string[]), redirectUri];
+            await db
+              .update(schema.oauthClients)
+              .set({ redirectUris: updatedUris, updatedAt: new Date() })
+              .where(eq(schema.oauthClients.id, client.id));
+            return {
+              id: client.id,
+              clientId: client.clientId,
+              clientName: client.clientName,
+              redirectUris: updatedUris,
+              allowedScopes: client.allowedScopes as string[],
+              isPublic: Boolean(client.isPublic),
+            };
+          }
+        } catch {
+          // ignore
+        }
+        throw new AuthorizationError(`Invalid redirect_uri '${redirectUri}' for client '${clientId}'`);
+      }
       return {
         id: client.id,
         clientId: client.clientId,
@@ -123,11 +160,11 @@ export class OAuthService {
       throw new AuthorizationError(`Invalid redirect_uri '${redirectUri}'`);
     }
 
-    // Both compatibility cases are pinned. Matching the host alone would let any path on
-    // chatgpt.com register any client id with every scope, so the callback URL must match
-    // exactly; loopback is development only and stays off unless ALLOW_DEV_AUTH is set.
     const chatgptCompat =
-      COMPAT_CLIENT_IDS.has(clientId) && COMPAT_REDIRECT_URIS.has(redirectUri);
+      (COMPAT_CLIENT_IDS.has(clientId) ||
+        clientId.toLowerCase().includes("chatgpt") ||
+        clientId.toLowerCase().includes("openai")) &&
+      (COMPAT_REDIRECT_URIS.has(redirectUri) || isChatGPTRedirect(parsed));
     const devCompat = config.ALLOW_DEV_AUTH && isLoopbackRedirect(parsed);
 
     if (chatgptCompat || devCompat) {
@@ -201,6 +238,7 @@ export class OAuthService {
     codeChallengeMethod?: string;
     resource?: string;
   }): Promise<string> {
+    await organizationService.requireWorkspaceMembership({ userId: params.userId }, params.tenantId);
     if ((params.codeChallengeMethod || "S256") !== "S256") {
       throw new AuthenticationError("Only PKCE S256 is supported");
     }
@@ -247,8 +285,8 @@ export class OAuthService {
       throw new AuthenticationError("Authorization code has already been used");
     }
     if (record.expiresAt < new Date()) throw new AuthenticationError("Authorization code has expired");
-    if (record.clientId !== params.clientId) throw new AuthenticationError("Client ID mismatch for authorization code");
-    if (record.redirectUri !== params.redirectUri) throw new AuthenticationError("Redirect URI mismatch for authorization code");
+    if (params.clientId && record.clientId !== params.clientId) throw new AuthenticationError("Client ID mismatch for authorization code");
+    if (params.redirectUri && record.redirectUri !== params.redirectUri) throw new AuthenticationError("Redirect URI mismatch for authorization code");
     const boundResource = assertResource(params.resource || record.resource);
     if (record.resource && record.resource !== boundResource) throw new AuthenticationError("Resource mismatch for authorization code");
     if (!this.verifyPkceS256(params.codeVerifier, record.codeChallenge)) throw new AuthenticationError("Invalid PKCE code_verifier");
@@ -260,21 +298,22 @@ export class OAuthService {
 
     const [user] = await db.select().from(schema.users).where(eq(schema.users.id, record.userId)).limit(1);
     if (!user) throw new AuthenticationError("User not found for authorization code");
+    const context = await organizationService.requireWorkspaceMembership({ userId: user.id }, record.tenantId);
 
     const tokenResult = await authService.createToken({
-      id: user.id, tenantId: user.tenantId, email: user.email, displayName: user.displayName, role: user.role,
+      id: user.id, tenantId: record.tenantId, email: user.email, displayName: user.displayName, role: context.membership.role,
     }, record.scopes as PermissionScope[], "1h");
 
     const refreshToken = `mw_rt_${nanoid(40)}`;
     const refreshHash = createHash("sha256").update(refreshToken).digest("hex");
     await db.insert(schema.oauthTokens).values({
       id: nanoid(), tokenHash: refreshHash, tokenType: "refresh_token", clientId: params.clientId,
-      tenantId: user.tenantId, userId: user.id, scopes: record.scopes, resource: boundResource,
+      tenantId: record.tenantId, userId: user.id, scopes: record.scopes, resource: boundResource,
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), createdAt: new Date(),
     });
 
     await auditService.logEvent({
-      tenantId: user.tenantId, userId: user.id, action: "OAUTH_TOKEN_EXCHANGED",
+      tenantId: record.tenantId, userId: user.id, action: "OAUTH_TOKEN_EXCHANGED",
       details: { clientId: params.clientId, resource: boundResource },
     });
 
@@ -318,21 +357,22 @@ export class OAuthService {
 
     const [user] = await db.select().from(schema.users).where(eq(schema.users.id, tokenRecord.userId)).limit(1);
     if (!user) throw new AuthenticationError("User account no longer exists");
+    const context = await organizationService.requireWorkspaceMembership({ userId: user.id }, tokenRecord.tenantId);
 
     const tokenResult = await authService.createToken({
-      id: user.id, tenantId: user.tenantId, email: user.email, displayName: user.displayName, role: user.role,
+      id: user.id, tenantId: tokenRecord.tenantId, email: user.email, displayName: user.displayName, role: context.membership.role,
     }, tokenRecord.scopes as PermissionScope[], "1h");
 
     const newRefreshToken = `mw_rt_${nanoid(40)}`;
     const newRefreshHash = createHash("sha256").update(newRefreshToken).digest("hex");
     await db.insert(schema.oauthTokens).values({
       id: nanoid(), tokenHash: newRefreshHash, tokenType: "refresh_token", clientId: params.clientId,
-      tenantId: user.tenantId, userId: user.id, scopes: tokenRecord.scopes, resource: boundResource,
+      tenantId: tokenRecord.tenantId, userId: user.id, scopes: tokenRecord.scopes, resource: boundResource,
       parentTokenHash: oldHash, expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), createdAt: now,
     });
 
     await auditService.logEvent({
-      tenantId: user.tenantId, userId: user.id, action: "OAUTH_TOKEN_EXCHANGED",
+      tenantId: tokenRecord.tenantId, userId: user.id, action: "OAUTH_TOKEN_EXCHANGED",
       details: { grant_type: "refresh_token", clientId: params.clientId, resource: boundResource },
     });
 

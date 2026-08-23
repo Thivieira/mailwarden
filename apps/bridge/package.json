@@ -1,0 +1,18 @@
+{
+  "name": "@mailwarden/bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "mailwarden-bridge": "./src/cli.ts"
+  },
+  "scripts": {
+    "daemon": "bun run src/daemon.ts",
+    "gateway": "bun run src/gateway.ts"
+  },
+  "dependencies": {
+    "@mailwarden/contracts": "workspace:*",
+    "@mailwarden/proton": "workspace:*",
+    "@mailwarden/relay": "workspace:*"
+  }
+}

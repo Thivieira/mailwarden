@@ -29,7 +29,7 @@ export default {
   async fetch(
     request: Request,
     env: WorkerEnv,
-    _ctx: { waitUntil(promise: Promise<unknown>): void }
+    _ctx?: any
   ): Promise<Response> {
     const origin = new URL(request.url).origin;
 
@@ -42,7 +42,7 @@ export default {
     }
 
     if (env.DB) getDatabase(env.DB);
-    return app.fetch(request);
+    return app.fetch(request, env, _ctx);
   },
 
   async scheduled(

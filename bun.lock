@@ -5,6 +5,13 @@
     "": {
       "name": "mailwarden",
       "dependencies": {
+        "@mailwarden/auth": "workspace:*",
+        "@mailwarden/contracts": "workspace:*",
+        "@mailwarden/db": "workspace:*",
+        "@mailwarden/organizations": "workspace:*",
+        "@mailwarden/proton": "workspace:*",
+        "@mailwarden/relay": "workspace:*",
+        "@mailwarden/ui": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.30.0",
         "drizzle-orm": "^0.45.2",
         "hono": "^4.13.2",
@@ -31,6 +38,64 @@
         "drizzle-kit": "^0.31.10",
         "typescript": "^5.9.3",
         "wrangler": "^4.123.0",
+      },
+    },
+    "apps/bridge": {
+      "name": "@mailwarden/bridge",
+      "version": "0.1.0",
+      "bin": {
+        "mailwarden-bridge": "./src/cli.ts",
+      },
+      "dependencies": {
+        "@mailwarden/contracts": "workspace:*",
+        "@mailwarden/proton": "workspace:*",
+        "@mailwarden/relay": "workspace:*",
+      },
+    },
+    "apps/cloud": {
+      "name": "@mailwarden/cloud",
+    },
+    "apps/desktop": {
+      "name": "@mailwarden/desktop",
+      "version": "0.1.0",
+      "bin": {
+        "mailwarden-desktop": "./src/index.ts",
+      },
+      "dependencies": {
+        "@mailwarden/contracts": "workspace:*",
+        "@mailwarden/ui": "workspace:*",
+      },
+    },
+    "packages/auth": {
+      "name": "@mailwarden/auth",
+    },
+    "packages/contracts": {
+      "name": "@mailwarden/contracts",
+    },
+    "packages/db": {
+      "name": "@mailwarden/db",
+    },
+    "packages/organizations": {
+      "name": "@mailwarden/organizations",
+      "dependencies": {
+        "@mailwarden/contracts": "workspace:*",
+      },
+    },
+    "packages/proton": {
+      "name": "@mailwarden/proton",
+    },
+    "packages/relay": {
+      "name": "@mailwarden/relay",
+      "dependencies": {
+        "@mailwarden/contracts": "workspace:*",
+        "@mailwarden/proton": "workspace:*",
+      },
+    },
+    "packages/ui": {
+      "name": "@mailwarden/ui",
+      "version": "0.1.0",
+      "dependencies": {
+        "@mailwarden/contracts": "workspace:*",
       },
     },
   },
@@ -236,6 +301,26 @@
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
+
+    "@mailwarden/auth": ["@mailwarden/auth@workspace:packages/auth"],
+
+    "@mailwarden/bridge": ["@mailwarden/bridge@workspace:apps/bridge"],
+
+    "@mailwarden/cloud": ["@mailwarden/cloud@workspace:apps/cloud"],
+
+    "@mailwarden/contracts": ["@mailwarden/contracts@workspace:packages/contracts"],
+
+    "@mailwarden/db": ["@mailwarden/db@workspace:packages/db"],
+
+    "@mailwarden/desktop": ["@mailwarden/desktop@workspace:apps/desktop"],
+
+    "@mailwarden/organizations": ["@mailwarden/organizations@workspace:packages/organizations"],
+
+    "@mailwarden/proton": ["@mailwarden/proton@workspace:packages/proton"],
+
+    "@mailwarden/relay": ["@mailwarden/relay@workspace:packages/relay"],
+
+    "@mailwarden/ui": ["@mailwarden/ui@workspace:packages/ui"],
 
     "@modelcontextprotocol/ext-apps": ["@modelcontextprotocol/ext-apps@1.7.5", "", { "dependencies": { "@standard-schema/spec": "^1.1.0" }, "peerDependencies": { "@modelcontextprotocol/sdk": "^1.29.0", "react": "^17.0.0 || ^18.0.0 || ^19.0.0", "react-dom": "^17.0.0 || ^18.0.0 || ^19.0.0", "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["react", "react-dom"] }, "sha512-TjPH2S2y5UEGKhmI6+XGFuqfqOV4ppe1x6DA3txnUaEWkgtA4G5vo14jGKFZmegdkZ1H4QMLyujLvoU1BEdnAg=="],
 

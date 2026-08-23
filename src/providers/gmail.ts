@@ -6,6 +6,8 @@ import { ProviderError } from "../utils/errors";
 import { config } from "../config";
 import { sanitizeEmailContent } from "../utils/sanitizer";
 import { logger } from "../utils/logger";
+import { db, schema } from "../db";
+import { and, eq, inArray } from "drizzle-orm";
 
 export interface GmailCredentials {
   accessToken?: string;
@@ -127,21 +129,61 @@ export class GmailProvider implements MailProvider {
     accountId: string,
     query: MailSearchQuery
   ): Promise<MailSearchResult> {
+    const maxWanted = Math.min(Math.max(query.limit || 20, 1), 25);
     const params = new URLSearchParams();
     if (query.query) params.set("q", query.query);
-    if (query.limit) params.set("maxResults", query.limit.toString());
+    params.set("maxResults", maxWanted.toString());
     if (query.pageToken) params.set("pageToken", query.pageToken);
 
     const listResp = await this.callGmailApi(`/messages?${params.toString()}`);
-    const messageHeaders = listResp.messages || [];
+    const messageHeaders: { id: string; threadId?: string }[] = listResp.messages || [];
 
+    if (!messageHeaders.length) {
+      return {
+        messages: [],
+        nextPageToken: listResp.nextPageToken,
+        totalEstimated: listResp.resultSizeEstimate || 0,
+      };
+    }
+
+    const headerIds = messageHeaders.map((h) => h.id);
+    let idsToFetch = headerIds;
+
+    // Check which message IDs already exist in the database to avoid redundant subrequests
+    try {
+      const existing = await db
+        .select({ id: schema.emails.providerMessageId })
+        .from(schema.emails)
+        .where(
+          and(
+            eq(schema.emails.tenantId, principal.tenantId),
+            eq(schema.emails.accountId, accountId),
+            inArray(schema.emails.providerMessageId, headerIds)
+          )
+        );
+      const existingSet = new Set((existing as any[]).map((e: any) => e.id).filter(Boolean) as string[]);
+      idsToFetch = headerIds.filter((id) => !existingSet.has(id));
+    } catch {
+      // If db check fails for any reason, proceed with a safe subrequest slice
+      idsToFetch = headerIds.slice(0, 15);
+    }
+
+    // Fetch up to 20 un-ingested messages concurrently in batches of 5
     const messages: NormalizedEmail[] = [];
-    for (const h of messageHeaders.slice(0, 10)) {
-      try {
-        const fullMsg = await this.getMessage(principal, accountId, h.id);
-        messages.push(fullMsg);
-      } catch (err: any) {
-        logger.warn(`Failed to fetch full Gmail message ${h.id}`, { error: err.message });
+    const batch = idsToFetch.slice(0, 20);
+    const chunkSize = 5;
+
+    for (let i = 0; i < batch.length; i += chunkSize) {
+      const chunk = batch.slice(i, i + chunkSize);
+      const settled = await Promise.allSettled(
+        chunk.map((id) => this.getMessage(principal, accountId, id))
+      );
+      for (const res of settled) {
+        if (res.status === "fulfilled") {
+          messages.push(res.value);
+        } else {
+          logger.warn("Failed to fetch full Gmail message", { error: res.reason?.message });
+        }
       }
     }
 

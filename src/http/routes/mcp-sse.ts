@@ -138,12 +138,35 @@ async function authenticate(authHeader?: string, queryTicket?: string): Promise<
 }
 
 export const mcpRoutes = new Hono()
+  .get("/mcp", async (c) => {
+    return c.json({
+      name: "mailwarden",
+      version: "1.0.0",
+      description: "Mailwarden MCP Server",
+      endpoints: {
+        mcp: `${config.APP_BASE_URL}/mcp`,
+        rpc: `${config.APP_BASE_URL}/mcp/rpc`,
+        sse: `${config.APP_BASE_URL}/mcp/sse`,
+      },
+      status: "ready",
+    });
+  })
   .post("/mcp", async (c) => {
     const body = await readBody(c);
     let principal: AuthPrincipal;
     try {
       principal = await authenticate(c.req.header("authorization"));
     } catch (err: any) {
+      // In Mixed Auth Mode, allow initialize, ping, and tools/list unauthenticated so hosts can discover tools
+      if (body?.method === "initialize" || body?.method === "tools/list" || body?.method === "ping") {
+        const anonymousPrincipal: AuthPrincipal = {
+          tenantId: "anonymous",
+          userId: "anonymous",
+          scopes: [],
+        };
+        const res = await handleJsonRpcRequest(anonymousPrincipal, body);
+        return c.json(res);
+      }
       return c.json(
         { jsonrpc: "2.0", error: { code: -32000, message: err.message }, id: body?.id || null },
         401,
@@ -162,6 +185,14 @@ export const mcpRoutes = new Hono()
     try {
       principal = await authenticate(c.req.header("authorization"));
     } catch (err: any) {
+      if (body?.method === "initialize" || body?.method === "tools/list" || body?.method === "ping") {
+        const anonymousPrincipal: AuthPrincipal = {
+          tenantId: "anonymous",
+          userId: "anonymous",
+          scopes: [],
+        };
+        return c.json(await handleJsonRpcRequest(anonymousPrincipal, body));
+      }
       return c.json(
         { jsonrpc: "2.0", error: { code: -32000, message: err.message }, id: body?.id || null },
         401,
