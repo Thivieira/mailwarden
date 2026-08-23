@@ -31,8 +31,7 @@ Point in time: 2026-08-23. Production is **not deployed or migrated**.
 
 ### Migration `0007_global_identity_email_claims.sql`
 
-- adds `identity_email_claims(email PRIMARY KEY, user_id UNIQUE REFERENCES users ON DELETE CASCADE, created_at)`.
-- backfills normalized existing email claims.
+- adds `identity_email_claims(email PRIMARY KEY, user_id UNIQUE, created_at)` and backfills it.
 - new identity creation reserves the email atomically before creating the Personal Workspace and cleans the claim on rollback.
 
 No existing user, tenant, mailbox, provider connection, encrypted value, session, OAuth record, MCP credential, policy, message, or audit identifier moves. See `docs/architecture/IDENTITY_AND_WORKSPACE_MIGRATION.md`.

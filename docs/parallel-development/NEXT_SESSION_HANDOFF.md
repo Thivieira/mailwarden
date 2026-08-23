@@ -54,7 +54,7 @@ docs/
 ## Schema and migration state
 
 - `0006_platform_workspaces_and_relays.sql` adds tenant kind/status/plan, backfills Personal owner memberships, and creates organization invitation, relay device, provisioning session, and relay credential tables.
-- `0007_global_identity_email_claims.sql` adds one normalized-email claim per global identity, cascades it with identity deletion, and backfills existing users additively.
+- `0007_global_identity_email_claims.sql` adds and backfills one normalized-email claim per global identity. Claims are reserved before user creation and explicitly removed on rollback.
 - No existing tenant, user, mailbox, provider account, ciphertext, OAuth, session, message, or audit ID moves.
 - Provider credential AAD remains the original `tenantId + userId`.
 

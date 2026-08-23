@@ -287,7 +287,7 @@ describe("Platform workspace security", () => {
         stderr: "pipe",
       });
       expect(await proc.exited).toBe(0);
-      const check = Bun.spawn(["bun", "-e", `import { Database } from 'bun:sqlite'; const db = new Database(${JSON.stringify(database)}); const names = db.query("SELECT name FROM sqlite_master WHERE type='table'").all().map((r:any)=>r.name); const claimsFk = db.query("PRAGMA foreign_key_list(identity_email_claims)").all().some((r:any)=>r.table === 'users' && r.on_delete === 'CASCADE'); if (!names.includes('organization_invites') || !names.includes('relay_devices') || !claimsFk) process.exit(1);`], { stdout: "pipe", stderr: "pipe" });
+      const check = Bun.spawn(["bun", "-e", `import { Database } from 'bun:sqlite'; const db = new Database(${JSON.stringify(database)}); const names = db.query("SELECT name FROM sqlite_master WHERE type='table'").all().map((r:any)=>r.name); if (!names.includes('organization_invites') || !names.includes('relay_devices') || !names.includes('identity_email_claims')) process.exit(1);`], { stdout: "pipe", stderr: "pipe" });
       expect(await check.exited).toBe(0);
     } finally {
       await rm(dir, { recursive: true, force: true });

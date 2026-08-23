@@ -45,7 +45,7 @@ Migration `0006`:
 - creates organization-invite and relay-device/provisioning/credential tables;
 - does not rewrite identifiers, encrypted values, OAuth records, sessions, or mailbox data.
 
-Migration `0007` atomically reserves normalized email addresses for new global identities and backfills existing users without rewriting them. This closes concurrent duplicate-signup creation while retaining the existing ambiguous-login failure for any historical duplicate that requires manual resolution.
+Migration `0007` atomically reserves normalized email addresses for new global identities and backfills existing users without rewriting them. Claims deliberately have no immediate user foreign key because the address is reserved before its user row exists; every rollback path deletes the claim explicitly. This closes concurrent duplicate-signup creation while retaining the existing ambiguous-login failure for any historical duplicate that requires manual resolution.
 
 Before a remote migration, run read-only checks for duplicate normalized user emails, missing personal memberships, and invalid tenant/user foreign-key pairs. A duplicate email blocks organization invite acceptance and must be resolved explicitly; the migration intentionally does not add a global email unique index that could fail an existing production database.
 

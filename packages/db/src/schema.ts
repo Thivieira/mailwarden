@@ -41,10 +41,7 @@ export const identityEmailClaims = sqliteTable(
   "identity_email_claims",
   {
     email: text("email").primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .unique()
-      .references(() => users.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().unique(),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   }
 );

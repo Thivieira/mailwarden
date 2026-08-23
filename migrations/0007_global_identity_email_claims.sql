@@ -1,6 +1,6 @@
 CREATE TABLE identity_email_claims (
   email TEXT PRIMARY KEY NOT NULL,
-  user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL UNIQUE,
   created_at INTEGER NOT NULL
 );--> statement-breakpoint
 
