@@ -43,11 +43,10 @@ export function planSystemdInstall(options: SystemdPlanOptions): ServicePlan {
   const unitContents = `[Unit]
 Description=Mailwarden Bridge (Proton relay)
 Documentation=https://github.com/tavtech/mailwarden/blob/main/docs/operations/ALMALINUX.md
+# Ordered after Proton Bridge, but not Requires=: Bridge reports Proton as
+# unhealthy rather than refusing to start, so the relay stays diagnosable.
 After=network-online.target ${protonUnit}
 Wants=network-online.target
-# Bridge reports Proton Bridge as unhealthy rather than refusing to start, so the
-# relay stays diagnosable when Proton is down.
-After=${protonUnit}
 
 [Service]
 Type=simple

@@ -1,6 +1,6 @@
 # Identity and workspace migration decision
 
-Status: **implemented additively in migration `0006`**. Production migration has not been run.
+Status: **implemented additively in migrations `0006` and `0007`**. Production migrations have not been run.
 
 ## Read-only inventory
 
@@ -8,7 +8,7 @@ Status: **implemented additively in migration `0006`**. Production migration has
 
 | Area | Stored binding | Current authorization/compatibility consequence |
 | --- | --- | --- |
-| `users` | `id`, legacy `tenant_id`, email, role | `id` becomes the global identity; legacy tenant/role remain Personal Workspace compatibility fields |
+| `users` / `identity_email_claims` | `id`, legacy `tenant_id`, normalized unique email claim | `id` becomes the global identity; legacy tenant/role remain Personal Workspace compatibility fields |
 | `memberships` | `tenant_id`, `user_id`, role | canonical workspace authorization; migration backfills any missing personal membership |
 | sessions, OAuth codes/tokens, stream tickets | `tenant_id`, `user_id` | already bind a credential to one workspace; token verification must recheck live membership |
 | `user_auth_credentials` | `tenant_id`, unique `user_id` | login credential remains attached to the identity and its Personal Workspace anchor |
@@ -44,6 +44,8 @@ Migration `0006`:
 - inserts missing Personal Workspace owner memberships with `INSERT OR IGNORE`;
 - creates organization-invite and relay-device/provisioning/credential tables;
 - does not rewrite identifiers, encrypted values, OAuth records, sessions, or mailbox data.
+
+Migration `0007` atomically reserves normalized email addresses for new global identities and backfills existing users without rewriting them. This closes concurrent duplicate-signup creation while retaining the existing ambiguous-login failure for any historical duplicate that requires manual resolution.
 
 Before a remote migration, run read-only checks for duplicate normalized user emails, missing personal memberships, and invalid tenant/user foreign-key pairs. A duplicate email blocks organization invite acceptance and must be resolved explicitly; the migration intentionally does not add a global email unique index that could fail an existing production database.
 

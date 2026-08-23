@@ -13,7 +13,9 @@
   "scripts": {
     "dev": "bun run dev:cloud",
     "dev:cloud": "bun run ui:build && bun run --watch apps/cloud/src/index.ts",
-    "dev:bridge": "bun run apps/bridge/src/gateway.ts",
+    "dev:bridge": "bun run apps/bridge/src/daemon.ts",
+    "bridge": "bun run apps/bridge/src/cli.ts",
+    "bridge:daemon": "bun run apps/bridge/src/daemon.ts",
     "start": "bun run apps/cloud/src/index.ts",
     "build": "bun run deploy:dry",
     "test": "bun run ui:build && bun test",

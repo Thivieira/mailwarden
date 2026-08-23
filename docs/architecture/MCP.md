@@ -2,21 +2,21 @@
 
 ## Current implementation
 
-**SHIPPED:** Mailwarden exposes MCP over streamable HTTP, JSON-RPC, and SSE-compatible routes. Bearer/OAuth authentication resolves an `AuthPrincipal` containing one `tenantId`, one `userId`, permission scopes, and session metadata. Tools cover inbox status, attention, waiting states, search/read, drafts, human-approved sending, policies, relationships, onboarding, synchronization, privacy, and settings UI resources.
+**SHIPPED:** Mailwarden exposes MCP over streamable HTTP, JSON-RPC, and SSE-compatible routes. Bearer/OAuth authentication resolves one global `userId` and one active `workspaceId`/transitional `tenantId`, permission scopes, live membership/role, and session metadata. Tools cover inbox status, attention, waiting states, search/read, drafts, human-approved sending, policies, relationships, onboarding, synchronization, privacy, workspace context, and settings UI resources.
 
 MCP clients never receive provider credentials. Tool services query stored data and provider adapters on the server side. Mutation and send scopes are enforced in code; sending still requires a separate human approval flow.
 
 ## Current workspace behavior
 
-The principal's single tenant is the effective workspace. This preserves existing personal-vault isolation. MCP does not yet list or switch workspaces and must not infer cross-workspace aggregation.
+The principal's single tenant is the effective workspace. Token verification rechecks membership, and the `get_active_workspace` and `list_workspaces` tools expose context without combining mail. Existing personal credentials remain scoped to their original Personal Workspace.
 
-## Planned workspace behavior
+## Workspace selection
 
-Every MCP session/token will resolve exactly one `WorkspaceContext` unless a future tool explicitly requests and authorizes another workspace. Safe options include:
+Every MCP session/token resolves exactly one `WorkspaceContext`. Current selection paths are:
 
-- issue a workspace-scoped MCP credential/token;
-- require an explicit workspace selector during OAuth and bind it into the grant;
-- provide a controlled workspace-switch flow that issues a new scoped token.
+- legacy/password login defaults to Personal Workspace;
+- OAuth authorization accepts an optional `workspace_id` and binds it through code exchange and refresh;
+- the Platform workspace-selection API issues a new scoped token.
 
 Do not accept an arbitrary `tenantId` tool argument as authorization. Search, attention, waiting, inbox status, mailbox actions, drafts, policies, and settings all use the resolved workspace.
 
@@ -26,7 +26,9 @@ Do not accept an arbitrary `tenantId` tool argument as authorization. Search, at
 
 ## Compatibility
 
-Existing personal bearer and OAuth credentials must continue to resolve their current tenant during migration. A compatibility layer may map legacy token `tenantId` directly to the user's Personal Workspace until all grants are workspace-aware.
+Existing personal bearer and OAuth credentials continue to resolve their current tenant. New JWTs also carry `workspaceId`; transitional Cloud services retain the equal `tenantId` alias.
+
+**PARTIAL:** the OAuth authorization page does not yet render a workspace picker, so clients must use Personal by default or supply a Platform-approved `workspace_id` flow. Some team intelligence remains connector-user scoped even though core email/provider access is workspace scoped.
 
 ## Required security tests
 

@@ -11,7 +11,7 @@ Mailwarden's governing rule is: **AI determines meaning; code determines permiss
 - Tenant isolation, mailbox-ID guessing, MCP scopes, OAuth replay, prompt injection, approval binding, concurrency, and no-permanent-delete behavior have automated coverage.
 - Tokens are verified for issuer/audience and backed by session or OAuth-token state.
 
-The current principal contains one tenant. This is safe for current personal vaults but insufficient for multi-workspace membership; see the planned authorization model below.
+The current principal contains exactly one active workspace. Its signed workspace ID is revalidated against live membership on token, OAuth refresh, provider callback, stream-ticket, and human-session use.
 
 ### Encryption and secrets
 
@@ -36,14 +36,13 @@ Authentication, authorization denial, policy actions, provider changes, approval
 
 ## Current gaps
 
-- `memberships` are not yet resolved for request authorization.
-- User identity is tenant-local, so active multi-workspace sessions do not exist.
 - The Proton gateway authenticates with one long-lived bearer key and trusts context headers after that check.
-- Proton connector tokens are per account, not full independent organization relay identities.
-- Organization invite replay/role/seat enforcement is not implemented.
-- Formal device credential rotation, revocation propagation, and signed heartbeat/request protocol are planned.
+- Legacy Proton connector tokens remain per account alongside the new RelayDevice model.
+- Per-device provisioning, heartbeat, rotation, and revocation are implemented on Cloud, but the gateway does not consume the per-device gateway secret yet.
+- A signed/replay-resistant Cloud-to-gateway request assertion is still planned.
+- Some Team intelligence/policy services remain creator-user scoped.
 
-## Planned organization authorization
+## Organization authorization
 
 Authorization must resolve:
 

@@ -1,0 +1,38 @@
+[Unit]
+Description=Mailwarden Bridge (Proton relay)
+Documentation=https://github.com/tavtech/mailwarden/blob/main/docs/operations/ALMALINUX.md
+# Ordered after Proton Bridge, but not Requires=: Bridge reports Proton as
+# unhealthy rather than refusing to start, so the relay stays diagnosable.
+After=network-online.target proton-bridge.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mailwarden
+Group=mailwarden
+Environment=HOME=/var/lib/mailwarden
+Environment=MAILWARDEN_BRIDGE_CONFIG_DIR=/etc/mailwarden
+Environment=MAILWARDEN_BRIDGE_STATE_DIR=/var/lib/mailwarden
+ExecStart=/usr/local/bin/bun run /opt/mailwarden/apps/bridge/src/daemon.ts
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+# Hardening: the relay only needs loopback, its state directory, and outbound HTTPS.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+ReadWritePaths=/var/lib/mailwarden
+StateDirectory=mailwarden
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

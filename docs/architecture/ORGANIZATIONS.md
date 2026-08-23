@@ -1,101 +1,81 @@
 # Organizations architecture
 
-Organizations are a target domain built by evolving existing tenant isolation, not a second security hierarchy layered beside it.
+Team Organizations evolve Mailwarden's existing tenant isolation. A workspace is a tenant with `kind=personal|team`; there is no parallel organization security hierarchy.
 
-## Status inventory
+## Shipped Platform foundation
 
-### Already implemented
+- Existing `users.id` is the global identity.
+- Existing `users.tenant_id` remains its Personal Workspace compatibility anchor.
+- Existing tenants become active Personal Workspaces through migration defaults.
+- `memberships` is the canonical workspace authorization source with `owner`, `admin`, and `member` roles.
+- Sessions, OAuth codes/tokens, provider OAuth state, human sessions, and MCP credentials remain bound to exactly one selected workspace.
+- Every token verification rechecks the current membership and workspace status.
+- Team Organization create/list, active-workspace selection, invites, members, roles, removal, mailbox listing, quotas, relay devices, and audit events have Cloud APIs and D1 persistence.
+- Existing private-beta invites remain a separate signup gate.
 
-- `tenants` isolate stored mail, credentials, policies, drafts, approvals, and audit events.
-- `users` carry `tenant_id`, email, display name, and a coarse owner/admin/member role.
-- `memberships` connect a user and tenant and are seeded with an owner membership when a personal vault is created.
-- Authentication tokens carry one `tenantId` and one `userId`.
-- Mailbox and service queries generally constrain both values.
-- Private-beta signup invites exist as `beta_invites` in migration `0005`.
+The persisted table named `organizations` still represents contact/sender intelligence. Team Organizations are rows in `tenants` with `kind=team`; no risky rename was performed.
 
-### Partially implemented
-
-- A personal signup creates one tenant described in UI as a vault. This can become the user's Personal Workspace without recreating mailboxes or credentials.
-- Membership data exists, but request authorization does not resolve active membership/role from it.
-- Shared contracts define `Workspace`, `Organization`, `Membership`, `OrganizationInvite`, `WorkspaceContext`, and `PlanCapabilities`.
-- `packages/organizations` validates workspace context and role ordering, but Cloud routes do not use it yet.
-- A schema table named `organizations` exists, but it represents organizations associated with senders/relationships inside a user's email intelligence. It is not a Team Organization/workspace table. Renaming or disambiguating it requires a deliberate migration.
-
-### Planned
-
-- One global user identity belonging to a Personal Workspace and zero or more Team Organizations.
-- Active workspace selection for portal, API, and MCP.
-- Organization lifecycle, member management, role changes, and organization-specific invites.
-- Membership-backed authorization helpers such as `requireTenantMembership`, `requireTenantAdmin`, and `requireTenantOwner`.
-- Organization-owned mailboxes, relay inheritance, plan capabilities, seats, quotas, and audit surfaces.
-
-## Target model
+## Identity compatibility
 
 ```text
-User identity
-├── Membership (owner) ── Personal Workspace (existing personal tenant)
-├── Membership (admin) ── FoxDevStudio (organization tenant)
-└── Membership (member) ─ Acme Corp (organization tenant)
+Global user ID
+├── legacy users.tenant_id ── Personal Workspace
+├── membership ────────────── Personal Workspace
+├── membership ────────────── FoxDevStudio
+└── membership ────────────── Acme Corp
 ```
 
-A Team Organization is a tenant/workspace kind. It must not introduce an unrelated `organization_id` authorization tree beside `tenant_id`.
+No existing ID or encrypted row moves. Provider credential AAD remains the original `tenantId + userId`, so existing ciphertext stays decryptable. `identity_email_claims` provides atomic normalized-email uniqueness for new identities.
 
-## Migration constraint
+The Personal Workspace is currently an immutable identity anchor: deleting it would trigger legacy foreign-key cascades. Mailwarden exposes no workspace-deletion API.
 
-The current `users.tenant_id NOT NULL` model treats a user row as tenant-local. Multi-workspace membership therefore cannot be completed by adding UI alone. GPT-5.6 Sol must choose and migrate one canonical identity model, likely separating global identity from tenant membership while preserving existing user IDs or providing an explicit mapping.
+See [IDENTITY_AND_WORKSPACE_MIGRATION.md](./IDENTITY_AND_WORKSPACE_MIGRATION.md) for the complete inventory and migration decision.
 
-Before any schema change, inventory production counts and foreign-key usage for:
+## Authorization
 
-- users, tenants, memberships, sessions, OAuth codes/tokens, credentials;
-- every table carrying `tenant_id` and `user_id`;
-- private-beta owner bootstrap behavior;
-- audit references and encrypted provider-credential AAD.
-
-Do not change encryption context IDs casually: existing ciphertext is bound to current tenant/user values.
-
-## Personal Workspace
-
-Every existing normal user already has a personal tenant and must retain it. The migration should add workspace kind/metadata or an equivalent safe mapping; it must not recreate tenants, OAuth connections, mailbox IDs, indexed messages, MCP credentials, sessions, policies, sync cursors, or audit history.
-
-Personal-only users should continue to see the existing simple portal. Organization navigation should appear only when useful.
-
-## Team Organization
-
-Initial roles remain `owner`, `admin`, and `member`:
-
-- owner: destructive organization lifecycle and ownership transfer;
-- admin: members, invites, mailboxes, and relay administration within policy;
-- member: organization mail features and inherited relay use.
-
-No finer enterprise RBAC is planned for the first organization release.
-
-## Active workspace and authorization
-
-Every workspace-scoped operation must derive context from:
+Every workspace operation resolves:
 
 ```text
-authenticated user + selected workspace + verified membership + role
+authenticated user → selected workspace → live membership → role → resource workspace
 ```
 
-The selected workspace may be encoded in a scoped token/session or resolved from an explicit workspace selector, but a caller-supplied tenant ID is never sufficient. Resource IDs are still checked against the resolved workspace.
+A caller-supplied workspace, mailbox, invite, or device ID is never sufficient. Removed memberships delete workspace sessions and revoke workspace refresh tokens; subsequent bearer verification also fails if a stale token remains.
 
-MCP should default safely to the token's single resolved workspace. Cross-workspace aggregation is a separate explicitly designed feature, not an implicit search behavior.
+Role policy:
 
-## Mailbox ownership
+- owner: ownership changes and all admin operations;
+- admin: invitations, non-owner member management, mailboxes, and relay devices;
+- member: organization mail features and relay health visibility;
+- only owners may grant/remove owner;
+- self-promotion is denied;
+- an organization must retain an owner.
 
-A mailbox belongs to exactly one workspace. Current rows already carry `tenant_id` and `user_id`; the future migration must define whether `user_id` is the connector/owner, the permitted principal, or both. Do not add a parallel mailbox organization ACL until the simple workspace ownership model is insufficient.
+## Active workspace
 
-## Invites: two different products
+`POST /api/workspaces/:workspaceId/select` validates membership and issues a new workspace-scoped token/cookie. Existing password login and legacy credentials default to the Personal Workspace. OAuth authorization may bind an optional `workspace_id`; refresh preserves that workspace.
 
-- **SHIPPED:** `beta_invites` gates creation of a new private-beta user/personal vault.
-- **PLANNED:** organization invites add an existing or new identity to a Team Organization with a role.
+The portal's `?ws=` value is presentation state only and is revalidated through the Platform service. MCP never aggregates workspaces implicitly.
 
-They require separate tables, services, routes, tokens, expiry/replay rules, audit actions, and UI language.
+## Organization invitations
 
-## Relay inheritance
+`organization_invites` is separate from `beta_invites`. Organization tokens are random and hashed at rest, tenant/role bound, optionally email locked, expiring, revocable, and conditionally claimed once. A same-user retry can finish membership insertion after a transient failure; another identity cannot replay the token.
 
-**PLANNED:** organization administrators register relay devices/configuration once. Members then connect their own Proton mailbox using that inherited relay without seeing tunnel hostnames, ports, gateway secrets, systemd, or cloudflared. Device identity must replace the current permanent organization-wide bearer-secret concept before this is considered production-ready.
+A valid Team invitation may continue new-user signup. Signup still creates the user's Personal Workspace, then adds the invited Team membership; it does not turn the organization invite into a private-beta invite.
 
-## Plan capabilities
+## Mailboxes
 
-Capabilities belong in one Platform-owned resolver, not route conditionals. The shared contract establishes the boundary, but Personal/Team/Enterprise billing and enforcement are not implemented.
+A mailbox belongs to one workspace through `email_accounts.tenant_id`; `user_id` remains the connector/creator identity and encryption context. Team members can list Team mailboxes and provider lookup decrypts credentials using the original connector identity. Core email reads are Team workspace scoped.
+
+Some higher-level attention/waiting/policy intelligence remains creator-user scoped and is not yet a complete shared-team view. Cross-workspace access remains denied.
+
+## Plans
+
+Capabilities are centralized in `@mailwarden/organizations` for Personal, Team, and Enterprise. Platform enforces organization, seat, mailbox, and relay limits server side. This is static entitlement policy; billing is not implemented.
+
+## Still planned
+
+- organization deletion and explicit ownership-transfer workflow;
+- invite email delivery;
+- complete shared-team semantics for all intelligence/policy surfaces;
+- billing-backed entitlement assignment;
+- advanced mailbox ACLs, SSO, and SCIM.

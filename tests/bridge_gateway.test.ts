@@ -6,7 +6,7 @@ import {
   readCallContext,
   signGatewayRequest,
   verifyGatewayRequest,
-} from "../apps/bridge/src/core/gateway-auth";
+} from "@mailwarden/relay";
 
 const DEVICE_SECRET = "device-gateway-secret-value";
 const LEGACY_KEY = "legacy-deployment-key";

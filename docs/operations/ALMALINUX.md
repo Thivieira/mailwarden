@@ -1,72 +1,130 @@
 # AlmaLinux headless Proton relay
 
-This is Mailwarden's **manual reference deployment**, useful for advanced administrators, debugging, disaster recovery, and Bridge development. It is not the future customer installer.
+AlmaLinux/RHEL-compatible is Mailwarden's reference headless server. There are two
+paths, and they share the same runtime:
 
-Proton provides an RPM and notes that Red Hat derivatives can install it, but currently lists Ubuntu LTS and Fedora as officially supported Linux distributions. AlmaLinux compatibility is therefore owned and tested by Mailwarden, not guaranteed by Proton. Proton Bridge also requires a paid Proton plan and a supported password manager such as Pass or a Secret Service implementation. See [Proton Bridge for Linux](https://proton.me/support/bridge-for-linux).
+- **Bridge-managed (current default).** `infra/almalinux/install-bridge.sh` installs
+  the Mailwarden pieces, and `mailwarden-bridge` registers the device, runs the
+  gateway, supervises the tunnel, and explains failures.
+- **Manual reference.** The original three-service layout, kept for advanced
+  administration, debugging, disaster recovery, and Bridge development.
+
+Proton provides an RPM and notes that Red Hat derivatives can install it, but
+currently lists Ubuntu LTS and Fedora as officially supported Linux distributions.
+AlmaLinux compatibility is therefore owned and tested by Mailwarden, not guaranteed
+by Proton. Proton Bridge also requires a paid Proton plan and a supported password
+manager such as Pass or a Secret Service implementation. See
+[Proton Bridge for Linux](https://proton.me/support/bridge-for-linux).
+
+## What Mailwarden automates, and what it does not
+
+| Step | Automated |
+| --- | --- |
+| Service user, directories, permissions | yes |
+| Mailwarden Bridge systemd unit | yes |
+| Device registration with Mailwarden Cloud | yes (`mailwarden-bridge setup`) |
+| Proton Gateway lifecycle | yes (supervised inside the Bridge daemon) |
+| Cloudflare Tunnel lifecycle | yes, when Cloud issued a scoped tunnel credential |
+| Health, diagnostics, repair | yes (`status`, `doctor`, `repair`) |
+| Proton Mail Bridge installation | **no** — install the official package |
+| Proton account login | **no** — interactive, and it needs a working keyring |
+
+Proton Bridge installation and login stay manual on purpose: Proton does not document
+a supported headless login, and automating an unsupported path would fail in ways an
+operator could not diagnose.
 
 ## Runtime
 
 ```text
 systemd
-├── proton-bridge.service
-├── mailwarden-gateway.service
-└── cloudflared.service
+├── proton-bridge.service      # official Proton Mail Bridge (loopback IMAP/SMTP)
+└── mailwarden-bridge.service  # gateway + tunnel + heartbeat in one supervised process
 ```
 
-All three services run on the customer-controlled server. Proton Bridge and the Mailwarden Gateway bind to loopback. `cloudflared` creates outbound connections to Cloudflare; no inbound firewall port or public IP is required. See [Cloudflare Tunnel](https://developers.cloudflare.com/tunnel/).
+One Mailwarden unit replaces the previous gateway-plus-cloudflared pair: the daemon
+owns the gateway and starts `cloudflared` itself when Cloud has issued this device a
+tunnel credential. A host that already runs its own `cloudflared` service keeps it —
+Bridge detects an active unit and does not race it.
 
 ## Preconditions
 
 - supported paid Proton account(s);
-- current Proton Mail Bridge RPM downloaded from Proton and package signature verified;
-- Bun installed at the path used by the service unit;
+- current Proton Mail Bridge RPM from Proton, with the package signature verified;
+- Bun installed at the path used by the unit;
 - `pass`/GnuPG or another Bridge-supported password manager initialized for the service user;
-- a dedicated unprivileged `mailwarden` user with persistent home `/var/lib/mailwarden`;
-- this repository installed at `/opt/mailwarden` or the unit adjusted;
-- a Cloudflare Tunnel and published hostname routed to `http://localhost:8080`;
-- generated, high-entropy gateway API key stored outside Git.
+- this repository installed at `/opt/mailwarden` (or `REPO_DIR` set);
+- outbound HTTPS to Mailwarden Cloud and Cloudflare. No inbound port, no public IP.
 
-Do not copy a version-pinned RPM URL from an old runbook. Use Proton's current [RPM installation instructions](https://proton.me/support/installing-bridge-linux-rpm-file) and verification guidance.
+Do not copy a version-pinned RPM URL from an old runbook. Use Proton's current
+[RPM installation instructions](https://proton.me/support/installing-bridge-linux-rpm-file).
 
-## Manual setup outline
+## Install
 
-1. Install Proton Bridge, Bun, `pass`, and GnuPG.
-2. Create the `mailwarden` service account and initialize its GPG/Pass keyring.
-3. Run Proton Bridge interactively as `mailwarden`; sign in each paid account and record each account's Bridge-generated IMAP credentials in an approved secret store.
-4. Verify Bridge listens only on loopback and confirm its current IMAP/SMTP ports and STARTTLS settings. Do not assume the example ports if Bridge reports different values.
-5. Create `/etc/mailwarden/bridge.env` owned by root, group-readable only by the service group, mode `0640` or stricter:
+```bash
+sudo REPO_DIR=/opt/mailwarden bash /opt/mailwarden/infra/almalinux/install-bridge.sh
+```
 
-   ```text
-   PROTON_GATEWAY_API_KEY=<random secret>
-   PROTON_BRIDGE_HOST=127.0.0.1
-   PROTON_BRIDGE_IMAP_PORT=<reported IMAP port>
-   PROTON_BRIDGE_SMTP_PORT=<reported SMTP port>
-   PORT=8080
-   ```
+The script prints every privileged command before running it. It creates the
+`mailwarden` service user, `/etc/mailwarden` (0755) and `/var/lib/mailwarden` (0700),
+writes a starting `bridge.json` with no secrets in it, and installs
+`mailwarden-bridge.service`.
 
-   Per-account mode does not place Bridge usernames/passwords in this shared file; Cloud currently supplies encrypted per-mailbox credentials to the authenticated gateway request.
+Then, as the service user:
 
-6. Review and install the templates from `/infra/systemd`; adjust executable paths and service user to the real host.
-7. Install `cloudflared` using Cloudflare's documented service workflow and configure the tunnel to the loopback gateway. Cloudflare documents `cloudflared service install <TUNNEL_TOKEN>`; keep the token out of shell history where operational tooling permits. See [Tunnel setup](https://developers.cloudflare.com/tunnel/setup/).
-8. Enable services in dependency order and inspect their logs for secret leakage before connecting Cloud.
+```bash
+sudo -u mailwarden MAILWARDEN_BRIDGE_CONFIG_DIR=/etc/mailwarden \
+  MAILWARDEN_BRIDGE_STATE_DIR=/var/lib/mailwarden \
+  bun run /opt/mailwarden/apps/bridge/src/cli.ts setup --cloud=https://<your-mailwarden-host>
+sudo systemctl enable --now mailwarden-bridge
+```
+
+`setup` prints a short code and a URL. An organization owner approves the device in
+the browser; the device then receives an organization-scoped, renewable credential.
+No organization-wide bearer secret is ever copied to the machine.
 
 ## Verification
 
-From the relay host:
-
 ```bash
-systemctl --no-pager --full status proton-bridge mailwarden-gateway cloudflared
-curl -fsS -H "Authorization: Bearer $PROTON_GATEWAY_API_KEY" http://127.0.0.1:8080/v1/health
+systemctl --no-pager --full status proton-bridge mailwarden-bridge
+sudo -u mailwarden ... cli.ts status      # component health, one line each
+sudo -u mailwarden ... cli.ts doctor      # explains any failure and who can fix it
 ```
 
-Then verify the tunnel hostname over HTTPS with the same authorization header. Do not paste the real key into tickets or shared terminal recordings.
+`doctor --json` is the machine-readable form. Keep `MAILBOX_MUTATIONS_ENABLED=false`
+during commissioning and verify a read-only search from Cloud before enabling more.
 
-Finally use Mailwarden's connector status and a read-only mailbox search. Keep `MAILBOX_MUTATIONS_ENABLED=false` during commissioning.
+## Update
 
-## Known manual-path risks
+```bash
+sudo systemctl stop mailwarden-bridge
+sudo -u mailwarden git -C /opt/mailwarden pull   # or deploy the new checkout
+sudo bash /opt/mailwarden/infra/almalinux/install-bridge.sh   # idempotent; refreshes the unit
+sudo systemctl start mailwarden-bridge
+```
+
+Config is versioned: a Bridge that meets a config written by a newer Bridge refuses to
+start rather than reinterpreting it. There is no automatic updater, by design — one
+arrives only after signing, rollback, and interrupted-upgrade recovery are proven.
+
+## Uninstall and recovery
+
+```bash
+sudo bash /opt/mailwarden/infra/almalinux/install-bridge.sh --uninstall
+```
+
+This removes the unit only. Device credentials in `/var/lib/mailwarden` and any Proton
+Bridge installation and account data are left in place. To fully decommission a device,
+revoke it in Mailwarden (which the daemon observes on its next heartbeat, erasing the
+local credential) and then delete `/var/lib/mailwarden`.
+
+## Known risks on this path
 
 - Proton does not currently list AlmaLinux as an officially supported distribution.
-- Headless CLI flags and automation are not yet covered by a Mailwarden compatibility matrix.
-- The checked-in service units are templates and have not been packaged or installed automatically.
-- The current gateway bearer key is deployment-wide and must be replaced by scoped device identity for productized Bridge.
-- Updating Proton Bridge may require reinstalling the current package; validate account/cache retention and rollback before scheduling unattended updates.
+- Headless Linux typically has no unlocked Secret Service, so Bridge credentials fall
+  back to a 0600 file. `doctor` reports this rather than hiding it; protect the host
+  accordingly (disk encryption, restricted accounts).
+- Proton Bridge updates may require reinstalling the package; validate account/cache
+  retention before scheduling unattended updates.
+- The legacy `PROTON_GATEWAY_API_KEY` still authenticates the gateway for relays that
+  predate device identity. It is deployment-wide and should be retired once the device
+  is registered.

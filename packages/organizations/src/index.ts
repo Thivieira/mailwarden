@@ -25,7 +25,7 @@ const PLAN_CAPABILITIES: Record<PlanId, PlanCapabilities> = {
   personal: {
     canCreateOrganization: true,
     maxTeamOrganizations: 1,
-    maxOrganizationSeats: 5,
+    maxOrganizationSeats: 1,
     maxMailboxes: 3,
     maxRelayDevices: 0,
     sharedProtonRelay: false,
@@ -34,8 +34,8 @@ const PLAN_CAPABILITIES: Record<PlanId, PlanCapabilities> = {
   team: {
     canCreateOrganization: true,
     maxTeamOrganizations: 3,
-    maxOrganizationSeats: 25,
-    maxMailboxes: 100,
+    maxOrganizationSeats: 10,
+    maxMailboxes: 25,
     maxRelayDevices: 3,
     sharedProtonRelay: true,
     sso: false,

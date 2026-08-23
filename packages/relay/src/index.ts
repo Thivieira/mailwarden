@@ -10,3 +10,5 @@ export function isRelayHeartbeatFresh(
 }
 
 export * from "./observation";
+
+export * from "./gateway-auth";

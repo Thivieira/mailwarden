@@ -25,7 +25,7 @@ import {
   verifyGatewayRequest,
   type GatewayAuthSecrets,
   type GatewayCallContext,
-} from "./gateway-auth";
+} from "@mailwarden/relay";
 import { probeTcp } from "./system";
 
 export interface GatewayProtonSettings {
