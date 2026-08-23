@@ -75,7 +75,7 @@ export class BridgeCore {
     const config = options.config ?? (await loadBridgeConfig(paths, hostname()));
     const log = options.logger ?? createLogger(config.logLevel);
     const secrets = options.secrets ?? (await createSecretStore(paths, adapters));
-    const cloud = options.cloud ?? createCloudClient(config.cloudBaseUrl);
+    const cloud = options.cloud ?? createCloudClient(config.cloudBaseUrl, `${paths.stateDir}/dev-cloud.json`);
     const identity = new DeviceIdentityManager(secrets, cloud);
     const tunnel = new TunnelManager({
       adapters,

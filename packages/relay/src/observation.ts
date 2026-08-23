@@ -232,7 +232,7 @@ export function buildDiagnostics(observation: BridgeObservation): BridgeDiagnost
         "secrets.backend",
         "Credential storage",
         "warning",
-        observation.secrets.detail,
+        `Credentials are stored in a permissioned file (${observation.secrets.backend}) because no OS keyring is available to the Bridge user.`,
         "Install a Secret Service provider (or Pass) for the Bridge service user to hold credentials in the OS keyring.",
         "administrator"
       )

@@ -26,7 +26,7 @@ export async function startDaemon(core?: BridgeCore): Promise<DaemonHandle> {
   if (localApi) {
     log("info", "Local API listening for the desktop shell", {
       port: localApi.port,
-      tokenFile: bridge.paths.localApiTokenFile,
+      authFile: bridge.paths.localApiTokenFile,
     });
   }
 

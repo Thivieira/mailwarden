@@ -166,6 +166,12 @@ export interface DevCloudOptions {
   organizationId?: string;
   hostname?: string;
   now?: () => number;
+  /**
+   * File the fake registry is persisted to. Without it the adapter is purely
+   * in-memory, and a device registered by the CLI would look unknown to the
+   * daemon in another process.
+   */
+  statePath?: string;
 }
 
 /**
@@ -176,13 +182,48 @@ export interface DevCloudOptions {
  */
 export class DevCloudClient implements MailwardenCloudClient {
   readonly baseUrl = "dev://mailwarden-cloud";
-  private readonly pending = new Map<string, { authorizedAt: number; deviceName: string }>();
-  private readonly devices = new Map<string, RelayDeviceCredential>();
-  private readonly revoked = new Set<string>();
+  private pending = new Map<string, { authorizedAt: number; deviceName: string }>();
+  private devices = new Map<string, RelayDeviceCredential>();
+  private revoked = new Set<string>();
   private readonly now: () => number;
+  private hydrated = false;
 
   constructor(private readonly options: DevCloudOptions = {}) {
     this.now = options.now ?? Date.now;
+  }
+
+  private async hydrate(): Promise<void> {
+    if (this.hydrated || !this.options.statePath) {
+      this.hydrated = true;
+      return;
+    }
+    this.hydrated = true;
+    const file = Bun.file(this.options.statePath);
+    if (!(await file.exists())) return;
+    try {
+      const state = (await file.json()) as {
+        pending?: Array<[string, { authorizedAt: number; deviceName: string }]>;
+        devices?: Array<[string, RelayDeviceCredential]>;
+        revoked?: string[];
+      };
+      this.pending = new Map(state.pending ?? []);
+      this.devices = new Map(state.devices ?? []);
+      this.revoked = new Set(state.revoked ?? []);
+    } catch {
+      // A corrupt dev registry is not worth failing over.
+    }
+  }
+
+  private async persist(): Promise<void> {
+    if (!this.options.statePath) return;
+    await Bun.write(
+      this.options.statePath,
+      JSON.stringify({
+        pending: [...this.pending],
+        devices: [...this.devices],
+        revoked: [...this.revoked],
+      })
+    );
   }
 
   async ping() {
@@ -190,6 +231,7 @@ export class DevCloudClient implements MailwardenCloudClient {
   }
 
   async startProvisioning(request: RelayProvisioningStartRequest): Promise<RelayProvisioningStartResponse> {
+    await this.hydrate();
     const deviceCode = `dev_${crypto.randomUUID()}`;
     const pendingSeconds = this.options.pendingSeconds ?? 0;
     this.pending.set(deviceCode, {
@@ -197,6 +239,7 @@ export class DevCloudClient implements MailwardenCloudClient {
       deviceName: request.deviceName,
     });
     const userCode = `DEV-${Math.floor(1000 + Math.random() * 8999)}`;
+    await this.persist();
     return {
       deviceCode,
       userCode,
@@ -208,6 +251,7 @@ export class DevCloudClient implements MailwardenCloudClient {
   }
 
   async pollProvisioning(deviceCode: string): Promise<RelayProvisioningPollResponse> {
+    await this.hydrate();
     const entry = this.pending.get(deviceCode);
     if (!entry) return { state: "expired" };
     if (this.now() < entry.authorizedAt) return { state: "pending" };
@@ -216,6 +260,7 @@ export class DevCloudClient implements MailwardenCloudClient {
     const deviceId = `relaydev_${crypto.randomUUID().slice(0, 8)}`;
     const organizationId = this.options.organizationId ?? "org_dev";
     const credential = this.issue(deviceId, organizationId, 1);
+    await this.persist();
     return {
       state: "authorized",
       device: {
@@ -251,9 +296,11 @@ export class DevCloudClient implements MailwardenCloudClient {
   /** Test/dev hook: simulate an admin revoking the device in the portal. */
   revoke(deviceId: string): void {
     this.revoked.add(deviceId);
+    void this.persist();
   }
 
   async heartbeat(credential: RelayDeviceCredential): Promise<RelayHeartbeatResponse> {
+    await this.hydrate();
     if (this.revoked.has(credential.deviceId)) return { state: "revoked" };
     const known = this.devices.get(credential.deviceId);
     if (!known || known.deviceSecret !== credential.deviceSecret) return { state: "unknown_device" };
@@ -261,11 +308,15 @@ export class DevCloudClient implements MailwardenCloudClient {
   }
 
   async renewCredential(credential: RelayDeviceCredential): Promise<RelayDeviceCredential> {
+    await this.hydrate();
     if (this.revoked.has(credential.deviceId)) throw new CloudError("Device revoked", 403, "unauthorized");
-    return this.issue(credential.deviceId, credential.organizationId, credential.generation + 1);
+    const renewed = this.issue(credential.deviceId, credential.organizationId, credential.generation + 1);
+    await this.persist();
+    return renewed;
   }
 
   async fetchTunnelCredential(credential: RelayDeviceCredential): Promise<RelayTunnelCredential | null> {
+    await this.hydrate();
     if (this.revoked.has(credential.deviceId)) return null;
     return {
       tunnelId: `dev-tunnel-${credential.deviceId}`,
@@ -276,7 +327,7 @@ export class DevCloudClient implements MailwardenCloudClient {
   }
 }
 
-export function createCloudClient(baseUrl: string): MailwardenCloudClient {
-  if (!baseUrl || baseUrl.startsWith("dev://")) return new DevCloudClient();
+export function createCloudClient(baseUrl: string, devStatePath?: string): MailwardenCloudClient {
+  if (!baseUrl || baseUrl.startsWith("dev://")) return new DevCloudClient({ statePath: devStatePath });
   return new HttpCloudClient(baseUrl);
 }

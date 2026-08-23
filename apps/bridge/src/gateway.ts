@@ -26,7 +26,7 @@ export async function startProtonGateway(): Promise<RunningGateway> {
 
   const legacySharedKey = process.env.PROTON_GATEWAY_API_KEY ?? null;
   const secrets = await createSecretStore(paths, systemAdapters);
-  const identity = new DeviceIdentityManager(secrets, createCloudClient(config.cloudBaseUrl));
+  const identity = new DeviceIdentityManager(secrets, createCloudClient(config.cloudBaseUrl, `${paths.stateDir}/dev-cloud.json`));
   const registered = await identity.load();
 
   if (!legacySharedKey && !registered) {

@@ -92,11 +92,16 @@ const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
  * reachable over the network is not a Proton Bridge we can authenticate, so the
  * gateway refuses instead of silently accepting any certificate.
  */
-function tlsOptionsFor(host: string): { rejectUnauthorized: boolean } {
+export function tlsOptionsFor(host: string): { rejectUnauthorized: boolean; servername: string } {
   if (!LOOPBACK_HOSTS.has(host)) {
     throw new Error(`Proton Bridge host must be loopback, got ${host}`);
   }
-  return { rejectUnauthorized: false };
+  // `servername` must be present and must not be an IP: Node rejects an IP as
+  // SNI, and without it the STARTTLS handshake fails with "servername argument
+  // must be an string". Verification is off regardless — Proton Bridge presents
+  // a self-signed certificate on loopback — so the name is only there to satisfy
+  // the TLS layer.
+  return { rejectUnauthorized: false, servername: "localhost" };
 }
 
 function defaultImapFactory(settings: ImapClientSettings): ImapClientLike {
