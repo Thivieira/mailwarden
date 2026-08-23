@@ -20,6 +20,7 @@ import { onboardingTools } from "./tools/onboarding";
 import { policyTools } from "./tools/policies";
 import { syncTools } from "./tools/sync";
 import { settingsTools } from "./tools/settings";
+import { workspaceTools } from "./tools/workspaces";
 import { auditService } from "../services/audit";
 import { logger } from "../utils/logger";
 import { MailwardenError, AuthorizationError } from "../utils/errors";
@@ -35,6 +36,7 @@ export interface McpToolDefinition {
 }
 
 export const ALL_MCP_TOOLS: McpToolDefinition[] = [
+  ...workspaceTools,
   ...syncTools,
   ...readTools,
   ...intelligenceTools,

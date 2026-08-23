@@ -50,14 +50,14 @@ support, and failure isolation have not been qualified; do not describe it as un
 - Cloud authenticates the user/workspace and owns D1.
 - Cloud decrypts the mailbox's stored provider credentials only for the authorized tenant/user request.
 - Tunnel protects transport and removes public origin exposure; it does not replace gateway/device authentication.
-- Gateway currently trusts Cloud-supplied tenant/user/account headers after checking one gateway bearer key.
+- Gateway validates caller context and accepts a per-device bearer or signed v1 request; the legacy shared bearer remains enabled for compatibility.
 - Proton Bridge holds Proton account state and decrypts locally.
 
-The current gateway key is a deployment secret, not the future device identity model. Organization relays require independently registered device credentials, replay resistance, rotation, revocation, request scoping, and audit events.
+Registered relays have independently issued, rotatable and revocable device/gateway credentials. Cloud-to-gateway routing still has to select the organization device and adopt the signed request mode before the shared legacy bearer can be retired.
 
 ## Organization relay inheritance
 
-**PLANNED:** an organization owner registers a relay device once. Members connecting Proton select the organization; Cloud resolves the inherited healthy relay and sends only the member mailbox's authorized work to it. Members never configure hostname, API secret, ports, certificates, systemd, or cloudflared.
+**PARTIAL:** an organization admin can authorize and manage independently registered relay devices, and members can see organization relay health. Automatic healthy-relay selection and Cloud routing of member Proton mailbox work are still planned. Members must never configure hostname, API secret, ports, certificates, systemd, or cloudflared in the finished flow.
 
 ## Multiple relays
 

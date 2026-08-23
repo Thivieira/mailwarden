@@ -43,27 +43,19 @@ IMAP, SMTP, STARTTLS, gateway credentials, cloudflared, ports, systemd, and keyr
 - Cloud still authenticates to the gateway with a bearer token. Per-device auth needs no
   Cloud code change — Cloud stores the device's `gatewaySecret` in place of the shared key.
   The stronger signed mode is implemented and exported for Cloud to adopt.
-- Managed tunnel provisioning runs against a development Cloud adapter until Platform
-  ships the endpoints.
+- The versioned Cloud device API now matches the HTTP client for provisioning, polling,
+  heartbeat, credential renewal, and revocation. Managed tunnel lookup deliberately
+  returns no credential until Cloudflare allocation is implemented.
 
-**NOT STARTED:** packaging/installers for other platforms, updater, desktop shell.
+**NOT STARTED:** signed release packaging/installers for other platforms, updater, and native desktop shell.
 
-## Near-term Bridge Core
+## Remaining near-term work
 
-Claude Opus 5 should establish one reusable core behind daemon and CLI entrypoints:
-
-1. local configuration with schema/versioning;
-2. secret-store interface with one verified headless Linux implementation;
-3. Cloud authentication and short-lived device provisioning;
-4. organization selection and relay registration;
-5. device credential renewal, rotation, and revocation awareness;
-6. Proton Bridge discovery and explicit compatibility reporting;
-7. gateway lifecycle and loopback-only binding;
-8. Cloudflare Tunnel lifecycle using scoped tunnel credentials;
-9. heartbeat, health state, diagnostics, and repair actions;
-10. service install/uninstall with rollback.
-
-The first slice should not automate Proton login or package installation until official interfaces and failure behavior are verified.
+The core/daemon/CLI foundation is implemented. The next Bridge work is real Cloud
+interoperability testing, browser authorization UX, Cloud-routed gateway requests,
+managed tunnel credentials, packaging/signing, non-Linux service/secret adapters, and
+safe update/rollback. Do not automate Proton login until official interfaces and failure
+behavior are verified.
 
 ## Future architecture
 
@@ -84,7 +76,7 @@ Platform targets are Windows, macOS, Linux Desktop, and Linux Headless. They sha
 
 ## Device identity and provisioning
 
-**PLANNED:** a browser authorization produces a short-lived provisioning credential. After organization approval, the device receives renewable, organization-scoped credentials. Each device can be registered, rotated, revoked, audited, and health checked independently.
+**SHIPPED/PENDING DEPLOY:** browser-style device authorization produces a short-lived code. After organization approval, Cloud returns a one-time, renewable organization-scoped credential. Devices can be registered, rotated, revoked, audited, and health checked independently. The exact HTTP contract has local integration coverage but has not been deployed or exercised against production.
 
 Never copy one permanent organization bearer secret to every machine. A lost device must be revocable without rotating every relay.
 

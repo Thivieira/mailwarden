@@ -87,6 +87,7 @@ export interface RelayDevice {
   lastSeenAt?: string;
   revokedAt?: string;
   capabilities: RelayCapabilities;
+  health?: BridgeHealth;
 }
 
 export interface RelayHeartbeat {

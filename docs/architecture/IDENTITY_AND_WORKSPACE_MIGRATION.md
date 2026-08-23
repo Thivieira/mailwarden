@@ -49,4 +49,18 @@ Migration `0007` atomically reserves normalized email addresses for new global i
 
 Before a remote migration, run read-only checks for duplicate normalized user emails, missing personal memberships, and invalid tenant/user foreign-key pairs. A duplicate email blocks organization invite acceptance and must be resolved explicitly; the migration intentionally does not add a global email unique index that could fail an existing production database.
 
+```sql
+SELECT lower(email) AS normalized_email, count(*) AS identities
+FROM users
+GROUP BY lower(email)
+HAVING count(*) > 1;
+
+SELECT u.id, u.tenant_id, u.email
+FROM users u
+LEFT JOIN memberships m ON m.user_id = u.id AND m.tenant_id = u.tenant_id
+WHERE m.id IS NULL;
+
+PRAGMA foreign_key_check;
+```
+
 Rollback is application rollback plus leaving additive columns/tables unused. Dropping populated tables is not a safe production rollback.

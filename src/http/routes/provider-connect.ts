@@ -11,7 +11,8 @@ import { config } from "../../config";
 import { readBody, withPrincipal, type Env } from "../context";
 import { renderPage } from "../../ui/render";
 import { CallbackPage } from "../../ui/pages.gen.js";
-import { AuthenticationError, ConfigurationError } from "../../utils/errors";
+import { AuthenticationError, AuthorizationError, ConfigurationError } from "../../utils/errors";
+import { organizationService } from "../../services/organizations";
 
 function hostOf(url: string) {
   try {
@@ -153,11 +154,14 @@ export const providerConnectRoutes = new Hono<Env>()
     const email = String(input.email).toLowerCase();
     let [account] = await db.select().from(schema.emailAccounts).where(and(
       eq(schema.emailAccounts.tenantId, principal.tenantId),
-      eq(schema.emailAccounts.userId, principal.userId),
       eq(schema.emailAccounts.emailAddress, email)
     )).limit(1);
+    if (account && account.userId !== principal.userId) {
+      throw new AuthorizationError("This workspace mailbox is already connected by another member");
+    }
 
     if (!account) {
+      await organizationService.requireMailboxCapacity(principal, principal.tenantId);
       const id = nanoid();
       await db.insert(schema.emailAccounts).values({
         id, tenantId: principal.tenantId, userId: principal.userId, provider: "proton",

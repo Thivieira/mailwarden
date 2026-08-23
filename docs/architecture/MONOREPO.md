@@ -8,15 +8,16 @@ Mailwarden uses one Bun repository because Cloud, Bridge, Desktop, shared protoc
 mailwarden/
 ├── apps/
 │   ├── cloud/       # Cloud deploy composition; implementation transitions from /src
-│   ├── bridge/      # Proton Gateway executable; daemon/CLI planned
-│   └── desktop/     # Planned desktop boundary; technology open
+│   ├── bridge/      # Bridge Core, daemon, CLI, local API, Proton Gateway
+│   └── desktop/     # Loopback companion prototype; native packaging open
 ├── packages/
 │   ├── contracts/   # Cross-runtime protocol types
 │   ├── db/          # Canonical Drizzle schema
 │   ├── auth/        # Shared permission scopes
 │   ├── organizations/
 │   ├── proton/
-│   └── relay/
+│   ├── relay/
+│   └── ui/
 ├── infra/           # Cloudflare, AlmaLinux, systemd, packaging
 ├── migrations/      # Canonical ordered D1/local SQL migrations
 ├── src/             # Transitional Cloud implementation
@@ -46,7 +47,7 @@ flowchart BT
   Cloud --> DB
   Bridge[apps/bridge] --> Proton
   Bridge --> Relay
-  Desktop[apps/desktop - planned] --> Contracts
+  Desktop[apps/desktop] --> Contracts
 ```
 
 Applications compose packages. Packages do not import applications. `packages/contracts` contains cross-boundary language, not every internal interface. `packages/db` owns the schema, while D1 client creation remains a Cloud runtime concern.
@@ -65,15 +66,17 @@ The root config avoids working-directory tricks and keeps the existing Cloudflar
 
 ### Bridge
 
-- Current command: `bun run proton:gateway` or `bun run dev:bridge`.
-- Current entrypoint: `/apps/bridge/src/gateway.ts`.
-- Current gateway implementation: transitional `/src/services/proton-gateway.ts`.
+- Daemon: `bun run dev:bridge` or `bun run bridge:daemon`.
+- CLI: `bun run bridge -- help`.
+- Standalone gateway: `bun run proton:gateway`.
+- Bridge Core and gateway implementation: `/apps/bridge/src/core`.
+- Cloud device protocol: `/api/bridge/v1/*`; legacy `/api/relay/*` routes remain for portal compatibility.
 
-No Bridge release artifact is packaged yet.
+No signed Bridge release artifact is packaged yet. The systemd unit and AlmaLinux installer are reference operations, not a published distribution.
 
 ### Desktop
 
-No runtime or build exists. Do not add a root command until there is executable code.
+A Bun loopback companion runtime exists under `/apps/desktop`; it is not a native packaged application. Keep native-shell selection open until service integration, update, secret-store, and packaging requirements are compared.
 
 ## Database ownership
 
@@ -84,11 +87,11 @@ Bridge and Desktop must not import the D1 client or schema to query production d
 ## Testing
 
 - `bun test`: repository suite; currently includes Cloud unit/integration/security behavior and shared foundation checks.
-- `bun run typecheck`: Cloud/UI TypeScript check. Point-in-time failures are recorded in the next-session handoff.
+- `bun run typecheck`: strict TypeScript checks for the monorepo and MCP Apps.
 - `bun run build`: safe Wrangler dry-run bundle; does not deploy.
 - `bun run test:live`: production-oriented interactive verification; never run as a default gate.
 
-Keep existing tests where they are until moving them clarifies ownership. New cross-tenant attack tests belong in `tests/security`; Bridge tests should live next to Bridge or under a clearly named root suite once a daemon exists.
+Keep existing tests where they are until moving them clarifies ownership. Current root suites clearly name Platform security, Bridge Core/gateway/lifecycle, portal organizations, and existing Cloud behavior.
 
 ## Adding a package
 

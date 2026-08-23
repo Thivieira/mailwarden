@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 import { config } from "../config";
 import { db, schema } from "../db";
 import type { AuthPrincipal } from "../types/auth";
-import { AuthenticationError, ConfigurationError, ProviderError } from "../utils/errors";
+import { AuthenticationError, AuthorizationError, ConfigurationError, ProviderError } from "../utils/errors";
 import { encryptionService } from "./encryption";
 import { auditService } from "./audit";
 import { organizationService } from "./organizations";
@@ -200,13 +200,16 @@ export class ProviderOAuthService {
     let [account] = await db.select().from(schema.emailAccounts).where(
       and(
         eq(schema.emailAccounts.tenantId, state.tenantId),
-        eq(schema.emailAccounts.userId, state.userId),
         eq(schema.emailAccounts.emailAddress, input.email)
       )
     ).limit(1);
+    if (account && account.userId !== state.userId) {
+      throw new AuthorizationError("This workspace mailbox is already connected by another member");
+    }
 
     const provider = state.provider;
     if (!account) {
+      await organizationService.requireMailboxCapacity(state, state.tenantId);
       const accountId = nanoid();
       await db.insert(schema.emailAccounts).values({
         id: accountId,

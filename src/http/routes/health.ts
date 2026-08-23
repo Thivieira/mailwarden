@@ -4,7 +4,7 @@ import { config } from "../../config";
 import { sql } from "drizzle-orm";
 import { BUILD } from "../../build-info.gen";
 
-export const healthRoutes = new Hono().get("/health", async (c) => {
+async function health(c: any) {
   let dbStatus = "healthy";
   try {
     await db.select({ count: sql`count(*)` }).from(schema.tenants);
@@ -28,4 +28,8 @@ export const healthRoutes = new Hono().get("/health", async (c) => {
       protonGateway: "external-local-service",
     },
   });
-});
+}
+
+export const healthRoutes = new Hono()
+  .get("/health", health)
+  .get("/api/health", health);

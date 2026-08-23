@@ -235,6 +235,7 @@ export class UserAuthService {
       try {
         await db.delete(schema.users).where(eq(schema.users.id, created.userId));
         await db.delete(schema.tenants).where(eq(schema.tenants.id, created.tenantId));
+        await db.delete(schema.identityEmailClaims).where(eq(schema.identityEmailClaims.email, normalizedEmail));
       } catch {
         // ignore
       }

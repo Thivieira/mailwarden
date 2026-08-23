@@ -18,6 +18,7 @@ import { NotFoundError, TenantIsolationError } from "../utils/errors";
 import { config } from "../config";
 import { nanoid } from "nanoid";
 import { logger } from "../utils/logger";
+import { organizationService } from "./organizations";
 
 export interface MailSearchParams {
   query?: string;
@@ -43,6 +44,7 @@ export class EmailService {
     input: Omit<NormalizedEmail, "id" | "tenantId" | "userId" | "createdAt" | "updatedAt">
   ): Promise<NormalizedEmail> {
     authService.requirePrincipal(principal);
+    await organizationService.requireWorkspaceMembership(principal, principal.tenantId);
 
     // Sanitize untrusted content (strip tracking pixels, script injection, extract clean text)
     const sanitized = sanitizeEmailContent(input.textBody, input.htmlBody);
@@ -154,6 +156,7 @@ export class EmailService {
   async getEmail(principal: AuthPrincipal, messageId: string): Promise<NormalizedEmail> {
     authService.requirePrincipal(principal);
     authService.requireScope(principal, "mail.read");
+    const context = await organizationService.requireWorkspaceMembership(principal, principal.tenantId);
 
     const [row] = await db
       .select()
@@ -162,7 +165,7 @@ export class EmailService {
         and(
           eq(schema.emails.id, messageId),
           eq(schema.emails.tenantId, principal.tenantId),
-          eq(schema.emails.userId, principal.userId)
+          ...(context.workspace.kind === "personal" ? [eq(schema.emails.userId, principal.userId)] : [])
         )
       )
       .limit(1);
@@ -205,6 +208,7 @@ export class EmailService {
   ): Promise<{ threadState?: ThreadState; messages: NormalizedEmail[] }> {
     authService.requirePrincipal(principal);
     authService.requireScope(principal, "mail.read");
+    const context = await organizationService.requireWorkspaceMembership(principal, principal.tenantId);
 
     // Fetch thread messages ordered chronologically
     const rows = await db
@@ -213,7 +217,7 @@ export class EmailService {
       .where(
         and(
           eq(schema.emails.tenantId, principal.tenantId),
-          eq(schema.emails.userId, principal.userId),
+          ...(context.workspace.kind === "personal" ? [eq(schema.emails.userId, principal.userId)] : []),
           eq(schema.emails.accountId, accountId),
           eq(schema.emails.providerThreadId, threadId)
         )
@@ -229,7 +233,7 @@ export class EmailService {
       .where(
         and(
           eq(schema.threadStates.tenantId, principal.tenantId),
-          eq(schema.threadStates.userId, principal.userId),
+          ...(context.workspace.kind === "personal" ? [eq(schema.threadStates.userId, principal.userId)] : []),
           eq(schema.threadStates.accountId, accountId),
           eq(schema.threadStates.providerThreadId, threadId)
         )
@@ -274,14 +278,15 @@ export class EmailService {
   ): Promise<{ total: number; messages: NormalizedEmail[] }> {
     authService.requirePrincipal(principal);
     authService.requireScope(principal, "mail.search");
+    const context = await organizationService.requireWorkspaceMembership(principal, principal.tenantId);
 
     const limit = Math.min(params.limit || 50, 100);
     const offset = params.offset || 0;
 
     let conditions: any[] = [
       eq(schema.emails.tenantId, principal.tenantId),
-      eq(schema.emails.userId, principal.userId),
     ];
+    if (context.workspace.kind === "personal") conditions.push(eq(schema.emails.userId, principal.userId));
 
     if (params.accountId) {
       conditions.push(eq(schema.emails.accountId, params.accountId));
@@ -352,6 +357,7 @@ export class EmailService {
     action: MailboxActionType
   ): Promise<{ action: MailboxActionType; simulated: boolean; success: boolean }> {
     authService.requirePrincipal(principal);
+    const context = await organizationService.requireWorkspaceMembership(principal, principal.tenantId);
 
     if (action === "archive") {
       authService.requireScope(principal, "mail.archive");
@@ -378,7 +384,7 @@ export class EmailService {
           and(
             eq(schema.emails.id, messageId),
             eq(schema.emails.tenantId, principal.tenantId),
-            eq(schema.emails.userId, principal.userId)
+            ...(context.workspace.kind === "personal" ? [eq(schema.emails.userId, principal.userId)] : [])
           )
         );
     }

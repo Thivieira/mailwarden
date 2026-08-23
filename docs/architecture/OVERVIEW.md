@@ -31,11 +31,11 @@ Only Cloud may talk directly to D1. Portal and MCP execute within the Cloud appl
 
 ### Mailwarden Bridge
 
-**PARTIAL.** `apps/bridge` is now the executable boundary for the existing Proton Gateway. The gateway can use per-request Proton Bridge credentials to serve multiple configured accounts through one process. Connector registration and heartbeat APIs already exist in Cloud, but there is no standalone Bridge daemon, provisioning flow, organization relay registration, CLI, installer, repair flow, or managed tunnel provisioning yet.
+**PARTIAL.** `apps/bridge` contains Bridge Core, a daemon, CLI, loopback local API, Proton discovery and gateway, device identity, health/diagnostics, repair primitives, Cloudflare Tunnel process management, and secret storage. Cloud implements the matching versioned provisioning, heartbeat, renewal, and revocation protocol. The AlmaLinux/systemd reference path exists; managed tunnel allocation, signed release packaging, non-Linux service adapters, and automatic updates do not.
 
 ### Mailwarden Desktop
 
-**PLANNED.** `apps/desktop` reserves the product boundary without choosing Tauri, Electron, or a native toolkit. Desktop will manage Bridge and onboarding; it will never connect directly to D1.
+**PARTIAL.** `apps/desktop` is a small Bun loopback companion that reads Bridge health and renders the management surface. It is not a packaged native desktop product, and no Tauri/Electron/native toolkit decision has been made. Desktop never connects directly to D1.
 
 ## Shared packages
 
@@ -44,17 +44,18 @@ Only Cloud may talk directly to D1. Portal and MCP execute within the Cloud appl
 | `@mailwarden/contracts` | FOUNDATION | Cross-runtime workspace, mailbox, relay, provisioning, capability, and error types |
 | `@mailwarden/db` | SHIPPED/TRANSITIONAL | Canonical Drizzle D1 schema; Cloud runtime adapter remains in `/src/db` |
 | `@mailwarden/auth` | SHIPPED/FOUNDATION | Canonical MCP/API scopes and pure scope check |
-| `@mailwarden/organizations` | FOUNDATION | Workspace membership and role primitives; Team workflows are not implemented |
-| `@mailwarden/proton` | SHIPPED/FOUNDATION | Proton credential contract and gateway URL trust-boundary validation |
-| `@mailwarden/relay` | FOUNDATION | Shared relay health primitives |
+| `@mailwarden/organizations` | SHIPPED | Role ordering and centralized Personal/Team/Enterprise capabilities |
+| `@mailwarden/proton` | SHIPPED | Proton contracts, gateway URL validation, and Bridge discovery |
+| `@mailwarden/relay` | SHIPPED | Shared health/diagnostic interpretation and gateway request authentication |
+| `@mailwarden/ui` | PARTIAL | Shared status, diagnostic, and presentation primitives for portal/Desktop |
 
-Packages for `crypto`, `mail`, and `ui` were not created during kickoff because their current logic is still Cloud-specific. Create them only when a second real consumer or a clean domain extraction exists.
+Packages for `crypto` and `mail` were not created because their current behavior remains Cloud-specific. Extract them only when a second real consumer or a clean domain boundary exists.
 
 ## Persistence and tenancy
 
 **SHIPPED:** nearly all stored product data carries `tenant_id` and `user_id`; service queries enforce both where user ownership matters. Provider credentials are envelope-encrypted with tenant/user-bound additional authenticated data.
 
-**PARTIAL:** `tenants`, `users`, and `memberships` exist, but the identity model still binds each user row directly to one tenant and tokens resolve one tenant. Memberships are created for personal owners but are not yet the authorization source for multi-workspace access. See [ORGANIZATIONS.md](./ORGANIZATIONS.md).
+**SHIPPED/PENDING MIGRATION:** `users.id` is the global identity, while `users.tenant_id` remains the unchanged Personal Workspace compatibility and encryption anchor. Team Organizations are `tenants.kind=team`; memberships are the live authorization source. Tokens resolve exactly one active workspace and revalidate membership. Additive migrations `0006` and `0007` preserve all existing IDs and ciphertext. See [ORGANIZATIONS.md](./ORGANIZATIONS.md).
 
 ## Safety invariants
 

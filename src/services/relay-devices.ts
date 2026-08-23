@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, ne } from "drizzle-orm";
 import { customAlphabet, nanoid } from "nanoid";
 import { getPlanCapabilities } from "@mailwarden/organizations";
 import type {
@@ -41,7 +41,8 @@ function mapDevice(row: typeof schema.relayDevices.$inferSelect): RelayDevice {
     createdAt: row.createdAt.toISOString(),
     lastSeenAt: row.lastSeenAt?.toISOString(),
     revokedAt: row.revokedAt?.toISOString(),
-    capabilities: row.capabilities as RelayDevice["capabilities"],
+    capabilities: row.capabilities as unknown as RelayDevice["capabilities"],
+    health: row.lastHealth as unknown as RelayDevice["health"],
   };
 }
 
@@ -51,8 +52,9 @@ export class RelayDeviceService {
     const compactUserCode = userCode();
     const displayUserCode = `${compactUserCode.slice(0, 4)}-${compactUserCode.slice(4)}`;
     const expiresAt = new Date(Date.now() + 10 * 60_000);
+    const id = nanoid();
     await db.insert(schema.relayProvisioningSessions).values({
-      id: nanoid(),
+      id,
       deviceCodeHash: hash(deviceCode),
       userCodeHash: hash(compactUserCode),
       deviceName: input.deviceName.trim(),
@@ -63,6 +65,13 @@ export class RelayDeviceService {
       state: "pending",
       expiresAt,
       createdAt: new Date(),
+    });
+    await auditService.logEvent({
+      tenantId: "system",
+      action: "RELAY_PROVISIONING_STARTED",
+      resourceType: "relay_provisioning",
+      resourceId: id,
+      details: { platform: input.platform, protocolVersion: input.protocolVersion || 1 },
     });
 
     return {
@@ -132,11 +141,6 @@ export class RelayDeviceService {
 
     const deviceId = nanoid();
     const now = new Date();
-    const [claimed] = await db.update(schema.relayProvisioningSessions).set({ consumedAt: now, relayDeviceId: deviceId }).where(and(
-      eq(schema.relayProvisioningSessions.id, session.id), isNull(schema.relayProvisioningSessions.consumedAt)
-    )).returning();
-    if (!claimed) return this.pollProvisioning(deviceCode);
-
     try {
       await db.insert(schema.relayDevices).values({
         id: deviceId,
@@ -151,6 +155,13 @@ export class RelayDeviceService {
         createdAt: now,
         updatedAt: now,
       });
+      const [claimed] = await db.update(schema.relayProvisioningSessions).set({ consumedAt: now, relayDeviceId: deviceId }).where(and(
+        eq(schema.relayProvisioningSessions.id, session.id), isNull(schema.relayProvisioningSessions.consumedAt)
+      )).returning();
+      if (!claimed) {
+        await db.delete(schema.relayDevices).where(eq(schema.relayDevices.id, deviceId));
+        return this.pollProvisioning(deviceCode);
+      }
       const credential = await this.issueCredential(session.tenantId, deviceId, false);
       const [device] = await db.select().from(schema.relayDevices).where(eq(schema.relayDevices.id, deviceId)).limit(1);
       await auditService.logEvent({
@@ -163,6 +174,7 @@ export class RelayDeviceService {
       });
       return { state: "authorized", device: mapDevice(device), credential };
     } catch (error) {
+      await db.delete(schema.relayDevices).where(eq(schema.relayDevices.id, deviceId));
       await db.update(schema.relayProvisioningSessions).set({ consumedAt: null, relayDeviceId: null }).where(eq(schema.relayProvisioningSessions.id, session.id));
       throw error;
     }
@@ -227,6 +239,24 @@ export class RelayDeviceService {
     return credential;
   }
 
+  async renewDeviceCredential(deviceSecret: string, deviceId: string, generation: number): Promise<RelayDeviceCredential> {
+    const auth = await this.requireActiveCredential(deviceSecret, deviceId, generation);
+    const credential = await this.issueCredential(auth.device.tenantId, auth.device.id, true);
+    await auditService.logEvent({
+      tenantId: auth.device.tenantId,
+      action: "RELAY_CREDENTIAL_ROTATED",
+      resourceType: "relay_device",
+      resourceId: auth.device.id,
+      details: { generation: credential.generation, initiatedBy: "device" },
+    });
+    return credential;
+  }
+
+  async getTunnelCredential(deviceSecret: string, deviceId: string) {
+    await this.requireActiveCredential(deviceSecret, deviceId);
+    return null;
+  }
+
   async getGatewaySecret(organizationId: string, deviceId: string): Promise<string> {
     const [row] = await db.select().from(schema.relayDeviceCredentials).where(and(
       eq(schema.relayDeviceCredentials.tenantId, organizationId),
@@ -245,16 +275,12 @@ export class RelayDeviceService {
     const now = new Date();
     const rows = await db.select().from(schema.relayDeviceCredentials).where(eq(schema.relayDeviceCredentials.deviceId, deviceId));
     const generation = rows.reduce((max: number, row: any) => Math.max(max, row.generation), 0) + 1;
-    if (revokeExisting) {
-      await db.update(schema.relayDeviceCredentials).set({ revokedAt: now }).where(and(
-        eq(schema.relayDeviceCredentials.deviceId, deviceId), isNull(schema.relayDeviceCredentials.revokedAt)
-      ));
-    }
     const deviceSecret = `mwrd_${nanoid(48)}`;
     const gatewaySecret = `mwrg_${nanoid(48)}`;
     const expiresAt = new Date(now.getTime() + credentialTtlMs);
+    const credentialId = nanoid();
     await db.insert(schema.relayDeviceCredentials).values({
-      id: nanoid(),
+      id: credentialId,
       tenantId: organizationId,
       deviceId,
       generation,
@@ -263,6 +289,18 @@ export class RelayDeviceService {
       expiresAt,
       createdAt: now,
     });
+    if (revokeExisting) {
+      try {
+        await db.update(schema.relayDeviceCredentials).set({ revokedAt: now }).where(and(
+          eq(schema.relayDeviceCredentials.deviceId, deviceId),
+          ne(schema.relayDeviceCredentials.id, credentialId),
+          isNull(schema.relayDeviceCredentials.revokedAt)
+        ));
+      } catch (error) {
+        await db.delete(schema.relayDeviceCredentials).where(eq(schema.relayDeviceCredentials.id, credentialId));
+        throw error;
+      }
+    }
     return { deviceId, organizationId, deviceSecret, gatewaySecret, issuedAt: now.toISOString(), expiresAt: expiresAt.toISOString(), generation };
   }
 
@@ -274,6 +312,21 @@ export class RelayDeviceService {
       .where(eq(schema.relayDeviceCredentials.deviceSecretHash, hash(deviceSecret)))
       .limit(1);
     return row || null;
+  }
+
+  private async requireActiveCredential(deviceSecret: string, deviceId: string, generation?: number) {
+    const auth = await this.findCredential(deviceSecret);
+    if (
+      !auth ||
+      auth.credential.revokedAt ||
+      auth.credential.expiresAt <= new Date() ||
+      auth.device.revokedAt ||
+      auth.device.id !== deviceId ||
+      (generation !== undefined && auth.credential.generation !== generation)
+    ) {
+      throw new AuthenticationError("Relay device credential is invalid or revoked");
+    }
+    return auth;
   }
 }
 

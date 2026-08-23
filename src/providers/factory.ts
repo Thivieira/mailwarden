@@ -8,15 +8,16 @@ import { OutlookProvider, type OutlookCredentials } from "./outlook";
 import { ProtonBridgeProvider, type ProtonBridgeCredentials } from "./proton";
 import { encryptionService } from "../services/encryption";
 import { AccountOwnershipError, NotFoundError } from "../utils/errors";
+import { organizationService } from "../services/organizations";
 
 export class ProviderFactory {
   private mockProviderInstance: MockMailProvider = new MockMailProvider();
 
   async getProviderForAccount(principal: AuthPrincipal, accountId: string): Promise<MailProvider> {
+    await organizationService.requireWorkspaceMembership(principal, principal.tenantId);
     const [account] = await db.select().from(schema.emailAccounts).where(and(
       eq(schema.emailAccounts.id, accountId),
-      eq(schema.emailAccounts.tenantId, principal.tenantId),
-      eq(schema.emailAccounts.userId, principal.userId)
+      eq(schema.emailAccounts.tenantId, principal.tenantId)
     )).limit(1);
 
     if (!account) {
@@ -28,7 +29,7 @@ export class ProviderFactory {
     const [conn] = await db.select().from(schema.providerConnections).where(and(
       eq(schema.providerConnections.accountId, accountId),
       eq(schema.providerConnections.tenantId, principal.tenantId),
-      eq(schema.providerConnections.userId, principal.userId)
+      eq(schema.providerConnections.userId, account.userId)
     )).limit(1);
 
     if (!conn) {
@@ -40,7 +41,7 @@ export class ProviderFactory {
 
     const decryptedCreds = encryptionService.decryptJson<any>(conn.encryptedCredentials as any, {
       tenantId: principal.tenantId,
-      userId: principal.userId,
+      userId: account.userId,
     });
 
     switch (account.provider) {

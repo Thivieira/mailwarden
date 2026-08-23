@@ -109,7 +109,8 @@ export class OrganizationService {
 
   async createOrganization(principal: AuthPrincipal, input: { name: string; slug?: string }) {
     const name = String(input.name || "").trim();
-    if (name.length < 2 || name.length > 100) throw new ValidationError("Organization name must be 2-100 characters");
+    if (name.length < 2) throw new ValidationError("Organization name must be at least 2 characters long");
+    if (name.length > 100) throw new ValidationError("Organization name cannot exceed 100 characters");
 
     const [identity] = await db.select().from(schema.users).where(eq(schema.users.id, principal.userId)).limit(1);
     if (!identity) throw new AuthorizationError("Identity no longer exists");
@@ -316,6 +317,15 @@ export class OrganizationService {
     }));
   }
 
+  async requireMailboxCapacity(principal: Pick<AuthPrincipal, "userId">, workspaceId: string): Promise<void> {
+    const context = await this.requireWorkspaceMembership(principal, workspaceId);
+    const capabilities = getPlanCapabilities(context.workspace.plan);
+    const mailboxes = await db.select({ id: schema.emailAccounts.id }).from(schema.emailAccounts).where(
+      eq(schema.emailAccounts.tenantId, workspaceId)
+    );
+    if (mailboxes.length >= capabilities.maxMailboxes) throw new AuthorizationError("Workspace mailbox limit reached");
+  }
+
   private async requireTeamRole(principal: AuthPrincipal, workspaceId: string, role: MembershipRole) {
     const context = await this.requireWorkspaceMembership(principal, workspaceId, role);
     if (context.workspace.kind !== "team") throw new ValidationError("Operation requires a Team Organization");
@@ -351,7 +361,7 @@ export class OrganizationService {
       eq(schema.memberships.tenantId, workspaceId), eq(schema.memberships.role, "owner")
     ));
     if (!owners.some((owner: any) => owner.userId !== excludedUserId)) {
-      throw new AuthorizationError("Organization must retain at least one owner");
+      throw new AuthorizationError("Cannot remove sole owner of organization");
     }
   }
 }

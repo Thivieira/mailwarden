@@ -17,8 +17,8 @@ This is the canonical modular monorepo for the whole product:
 ```text
 apps/
 ├── cloud/       Cloudflare Worker composition
-├── bridge/      Proton Gateway executable; Bridge daemon/CLI planned
-└── desktop/     Planned management shell; technology undecided
+├── bridge/      Bridge Core, daemon, CLI, local API, and Proton Gateway
+└── desktop/     Loopback companion prototype; native packaging undecided
 
 packages/
 ├── contracts/       cross-runtime workspace/mailbox/relay contracts
@@ -26,7 +26,8 @@ packages/
 ├── auth/            shared permission scopes
 ├── organizations/   workspace membership/role foundation
 ├── proton/          Proton boundary types and validation
-└── relay/           relay health foundation
+├── relay/           relay health and gateway authentication
+└── ui/              shared product presentation primitives
 
 infra/           Cloudflare, AlmaLinux, systemd, packaging
 migrations/      canonical SQL migrations
@@ -39,9 +40,9 @@ The deploy boundary has moved to `apps/cloud`; implementation under `/src` moves
 
 ## Applications
 
-- **Cloud — SHIPPED:** Worker, portal, API, MCP, OAuth, intelligence, synchronization, policy, audit, approval, and D1 composition.
-- **Bridge — PARTIAL:** existing Proton Gateway has an application entrypoint. Device provisioning, daemon, CLI, managed tunnel, installer, repair, and updates are planned.
-- **Desktop — PLANNED:** no framework has been selected and no runtime ships yet.
+- **Cloud — SHIPPED/PENDING DEPLOY:** Worker, portal, API, MCP, OAuth, intelligence, synchronization, policy, audit, approval, and D1 composition are established. Global identity compatibility, Team Organizations, membership authorization, relay devices, and Bridge v1 APIs are implemented and validated locally but are not deployed.
+- **Bridge — PARTIAL:** Bridge Core, daemon, CLI, local API, Proton discovery/gateway, diagnostics, repair primitives, device credentials, tunnel process management, systemd, and the AlmaLinux installer exist. Managed Cloudflare Tunnel allocation, release packaging, and updater remain planned.
+- **Desktop — PARTIAL:** a Bun loopback companion consumes Bridge health and shared UI contracts. Native shell technology, installers, signing, and updates remain open.
 
 Only Cloud accesses D1. Bridge and Desktop use authenticated Cloud protocols.
 
@@ -56,12 +57,13 @@ Proton Bridge decrypts locally and exposes loopback IMAP/SMTP. Mailwarden's goal
 ## Safety invariants
 
 - Queries and resources are scoped to authenticated tenant/user context.
+- Workspace access is revalidated through live membership and role on every credential use.
 - Provider credentials use tenant/user-bound AES-256-GCM envelope encryption.
 - Sending requires human review of the exact hashed payload.
 - Sends are idempotent.
 - No permanent-delete operation reaches a provider.
 - Dry-run keeps mailbox changes simulated until explicitly enabled.
-- Private-beta signup invites are separate from future organization invites.
+- Private-beta signup invites and Team Organization invitations are separate persisted flows.
 
 ## Development
 
@@ -78,7 +80,9 @@ Useful commands:
 
 ```bash
 bun run dev:cloud       # local Bun Cloud runtime
-bun run dev:bridge      # current Proton Gateway
+bun run dev:bridge      # Bridge daemon
+bun run bridge -- help  # Bridge CLI
+bun run proton:gateway  # standalone Proton Gateway
 bun test
 bun run typecheck
 bun run build           # Wrangler dry-run bundle; does not deploy

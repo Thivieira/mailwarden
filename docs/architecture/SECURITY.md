@@ -36,10 +36,10 @@ Authentication, authorization denial, policy actions, provider changes, approval
 
 ## Current gaps
 
-- The Proton gateway authenticates with one long-lived bearer key and trusts context headers after that check.
+- The Proton gateway accepts per-device bearer and replay-resistant signed v1 requests, but Cloud mailbox routing has not adopted the signed mode yet; the legacy shared bearer remains enabled during transition.
 - Legacy Proton connector tokens remain per account alongside the new RelayDevice model.
-- Per-device provisioning, heartbeat, rotation, and revocation are implemented on Cloud, but the gateway does not consume the per-device gateway secret yet.
-- A signed/replay-resistant Cloud-to-gateway request assertion is still planned.
+- Public device-provisioning start needs abuse controls and expired-session cleanup before broad exposure.
+- Managed Cloudflare Tunnel allocation and scoped tunnel credential persistence are not implemented.
 - Some Team intelligence/policy services remain creator-user scoped.
 
 ## Organization authorization
@@ -54,16 +54,11 @@ Reusable Cloud primitives should include user authentication, membership enforce
 
 Security tests should cover tenant spoofing, member/admin/owner boundaries, invite replay, mailbox guessing, cross-workspace MCP, seat/quota bypass, relay credential leakage, cross-tenant Proton relay use, and revoked devices.
 
-## Planned Bridge/device controls
+## Bridge/device controls
 
-- short-lived browser/device provisioning authorization;
-- renewable device credentials scoped to one organization/device;
-- independent registration, rotation, revocation, and audit;
-- signed or mutually authenticated Cloud-to-relay requests;
-- native OS secret stores and a verified headless Linux alternative;
-- redacted diagnostics bundles;
-- tunnel credentials scoped to one tunnel, never Cloudflare account API tokens;
-- heartbeat timestamps and replay/freshness validation.
+**Implemented locally:** short-lived browser/device authorization, renewable organization/device credentials, independent registration/rotation/revocation/audit, hashed device secrets, encrypted gateway secrets, heartbeat identity checks, a signed gateway request mode, redacted diagnostics, Linux Secret Service when available, and a 0600 headless fallback.
+
+**Planned:** Cloud adoption of signed gateway calls, managed device-scoped tunnel credentials, native Windows/macOS secret stores, provisioning abuse controls, and stronger heartbeat replay/freshness enforcement.
 
 ## Logging rules
 

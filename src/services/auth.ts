@@ -224,12 +224,20 @@ export class AuthService {
     const tenantId = nanoid();
     const userId = nanoid();
     const now = new Date();
+    const email = params.ownerEmail.toLowerCase();
 
-    await db.insert(schema.tenants).values({ id: tenantId, name: params.tenantName, slug: params.slug, createdAt: now, updatedAt: now });
-    await db.insert(schema.users).values({ id: userId, tenantId, email: params.ownerEmail.toLowerCase(), displayName: params.ownerDisplayName, role: "owner", createdAt: now, updatedAt: now });
-    await db.insert(schema.memberships).values({ id: nanoid(), tenantId, userId, role: "owner", createdAt: now });
+    try {
+      await db.insert(schema.identityEmailClaims).values({ email, userId, createdAt: now });
+    } catch {
+      throw new AuthenticationError("An account with this email address already exists");
+    }
 
-    await db.insert(schema.signatureProfiles).values([
+    try {
+      await db.insert(schema.tenants).values({ id: tenantId, name: params.tenantName, slug: params.slug, createdAt: now, updatedAt: now });
+      await db.insert(schema.users).values({ id: userId, tenantId, email, displayName: params.ownerDisplayName, role: "owner", createdAt: now, updatedAt: now });
+      await db.insert(schema.memberships).values({ id: nanoid(), tenantId, userId, role: "owner", createdAt: now });
+
+      await db.insert(schema.signatureProfiles).values([
       {
         id: nanoid(), tenantId, userId, name: "professional", displayName: "Professional Signature",
         plainText: `${params.ownerDisplayName}\n${params.tenantName}`,
@@ -244,7 +252,13 @@ export class AuthService {
         signOff: "Sincerely,", replyMode: "full", newMessageMode: "full", isDefault: false,
         createdAt: now, updatedAt: now,
       },
-    ]);
+      ]);
+    } catch (error) {
+      await db.delete(schema.users).where(eq(schema.users.id, userId));
+      await db.delete(schema.tenants).where(eq(schema.tenants.id, tenantId));
+      await db.delete(schema.identityEmailClaims).where(eq(schema.identityEmailClaims.email, email));
+      throw error;
+    }
 
     if (params.issueInitialToken === false) return { tenantId, userId };
 

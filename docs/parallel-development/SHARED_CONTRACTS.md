@@ -10,15 +10,16 @@ Current foundations:
 
 | Contract | Status | Purpose |
 | --- | --- | --- |
-| `Workspace`, `Organization` | FOUNDATION | Personal/Team workspace identity |
-| `Membership`, `MembershipRole` | FOUNDATION | User-to-workspace role |
-| `OrganizationInvite` | PLANNED CONTRACT | Team invitation; distinct from private-beta invites |
-| `WorkspaceContext` | FOUNDATION | Explicit user/workspace/membership authorization context |
-| `PlanCapabilities` | PLANNED CONTRACT | Centralized entitlement output; billing not implemented |
+| `Workspace`, `Organization` | SHIPPED | Personal/Team workspace identity |
+| `Membership`, `MembershipRole` | SHIPPED | User-to-workspace authorization role |
+| `OrganizationInvite` | SHIPPED | Team invitation; distinct from private-beta invites |
+| `WorkspaceContext` | SHIPPED | Explicit user/workspace/membership authorization context |
+| `PlanCapabilities` | SHIPPED | Centralized static entitlement output; billing not implemented |
 | `Mailbox`, provider/status types | PARTIAL | Cross-surface mailbox summary; existing internal account model is richer |
-| `RelayDevice`, `RelayStatus`, `RelayCapabilities` | PLANNED CONTRACT | Independently registered organization relay |
-| `RelayHeartbeat` | PLANNED CONTRACT | Cloud-visible relay health |
-| relay provisioning request/response | PLANNED CONTRACT | Device bootstrap boundary; protocol not implemented |
+| `RelayDevice`, `RelayStatus`, `RelayCapabilities` | SHIPPED | Independently registered organization relay and its latest optional health snapshot |
+| `BridgeHealth`, `RelayHeartbeatResponse` | SHIPPED | Canonical Cloud/Bridge health and revocation response |
+| relay provisioning and device credential contracts | SHIPPED | Versioned device bootstrap, renewal, and revocation boundary |
+| tunnel, diagnostics, and repair contracts | PARTIAL | Implemented by Bridge; managed Cloud tunnel allocation is not shipped |
 | `ApiError` | FOUNDATION | Stable cross-client error envelope |
 
 Type presence does not mean a feature is shipped. Architecture documents and endpoint implementation determine runtime status.
@@ -36,7 +37,7 @@ Database schema lives in `packages/db`; shared permission scopes live in `packag
 
 ## Naming collision
 
-The current Cloud domain has an internal `Organization` type/table for organizations inferred or recorded in email relationships. It is not a Team Organization workspace. New cross-runtime code must import Team workspace contracts from `@mailwarden/contracts`. Sol must resolve the persisted naming collision in a reviewed migration before organization APIs ship.
+The current Cloud domain has an internal `organizations` table for contact intelligence. It is not a Team Organization workspace. Team Organizations ship as `tenants.kind=team`, and cross-runtime code imports their contracts from `@mailwarden/contracts`. The intelligence table was deliberately not renamed because a cosmetic production migration would add risk without changing the security model.
 
 ## Change procedure
 

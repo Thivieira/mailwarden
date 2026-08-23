@@ -22,6 +22,8 @@ import { readBody, type Env } from "../context";
 import { renderPage } from "../../ui/render";
 import { PortalLandingPage, PortalDashboardPage } from "../../ui/portal.gen.js";
 import { ALL_SCOPES, type AuthPrincipal } from "../../types/auth";
+import { organizationService } from "../../services/organizations";
+import { AuthorizationError } from "../../utils/errors";
 
 function hostOf(url: string) {
   try {
@@ -350,26 +352,33 @@ export const portalRoutes = new Hono<Env>()
       const accountId = body.accountId;
 
       if (accountId) {
+        const [account] = await db.select().from(schema.emailAccounts).where(eq(schema.emailAccounts.id, accountId)).limit(1);
+        if (!account) return c.redirect("/portal");
+        const context = await organizationService.requireWorkspaceMembership(session.principal, account.tenantId);
+        if (context.workspace.kind === "team") {
+          await organizationService.requireWorkspaceMembership(session.principal, account.tenantId, "admin");
+        }
+        const workspacePrincipal = { ...session.principal, workspaceId: account.tenantId, tenantId: account.tenantId };
         try {
-          await privacyService.disconnectAccount(session.principal, accountId);
+          await privacyService.disconnectAccount(workspacePrincipal, accountId);
         } catch {}
 
         await db.delete(schema.emails).where(
           and(
             eq(schema.emails.accountId, accountId),
-            eq(schema.emails.tenantId, session.principal.tenantId)
+            eq(schema.emails.tenantId, account.tenantId)
           )
         );
         await db.delete(schema.emailIdentities).where(
           and(
             eq(schema.emailIdentities.accountId, accountId),
-            eq(schema.emailIdentities.tenantId, session.principal.tenantId)
+            eq(schema.emailIdentities.tenantId, account.tenantId)
           )
         );
         await db.delete(schema.emailAccounts).where(
           and(
             eq(schema.emailAccounts.id, accountId),
-            eq(schema.emailAccounts.tenantId, session.principal.tenantId)
+            eq(schema.emailAccounts.tenantId, account.tenantId)
           )
         );
       }
@@ -389,7 +398,10 @@ export const portalRoutes = new Hono<Env>()
       const accountId = body.accountId;
 
       if (accountId) {
-        await syncService.syncAccount(session.principal, accountId, 25);
+        const [account] = await db.select().from(schema.emailAccounts).where(eq(schema.emailAccounts.id, accountId)).limit(1);
+        if (!account) return c.redirect("/portal");
+        await organizationService.requireWorkspaceMembership(session.principal, account.tenantId);
+        await syncService.syncAccount({ ...session.principal, workspaceId: account.tenantId, tenantId: account.tenantId }, accountId, 25);
         return c.redirect(`/portal?synced=1`);
       }
     } catch (err: any) {
@@ -411,6 +423,8 @@ export const portalRoutes = new Hono<Env>()
       }
 
       const workspaceId = String(body.workspaceId || session.principal.tenantId).trim();
+      await organizationService.requireWorkspaceMembership(session.principal, workspaceId);
+      const workspacePrincipal = { ...session.principal, workspaceId, tenantId: workspaceId };
       const mode = body.mode === "direct" ? "direct" : "gateway";
       const gatewayUrl = body.gatewayUrl ? String(body.gatewayUrl).trim().replace(/\/+$/, "") : "http://localhost:8788";
       const gatewayApiKey = body.gatewayApiKey ? String(body.gatewayApiKey).trim() : undefined;
@@ -443,6 +457,9 @@ export const portalRoutes = new Hono<Env>()
         .limit(1);
 
       const targetAccountId = existingAcc ? existingAcc.id : nanoid();
+      if (existingAcc && existingAcc.userId !== session.principal.userId) {
+        throw new AuthorizationError("This organization mailbox is already connected by another member");
+      }
 
       if (existingAcc) {
         await db
@@ -456,6 +473,7 @@ export const portalRoutes = new Hono<Env>()
           })
           .where(eq(schema.emailAccounts.id, existingAcc.id));
       } else {
+        await organizationService.requireMailboxCapacity(workspacePrincipal, workspaceId);
         await db.insert(schema.emailAccounts).values({
           id: targetAccountId,
           tenantId: workspaceId,
@@ -518,7 +536,7 @@ export const portalRoutes = new Hono<Env>()
       }
 
       try {
-        await syncService.syncAccount(session.principal, targetAccountId, 25);
+        await syncService.syncAccount(workspacePrincipal, targetAccountId, 25);
       } catch {}
 
       return c.redirect(`/portal?ws=${encodeURIComponent(workspaceId)}&connected=Proton%20Mail&email=${encodeURIComponent(emailAddress)}`);
@@ -553,6 +571,7 @@ export const portalRoutes = new Hono<Env>()
       };
 
       const isOrg = activeWorkspace.kind === "team";
+      const activePrincipal = { ...principal, workspaceId: activeWorkspace.id, tenantId: activeWorkspace.id };
 
       // Fetch accounts scoped to active workspace
       const accounts = await db
@@ -565,23 +584,20 @@ export const portalRoutes = new Hono<Env>()
           priorityRole: schema.emailAccounts.priorityRole,
         })
         .from(schema.emailAccounts)
-        .where(
-          and(
-            eq(schema.emailAccounts.tenantId, activeWorkspace.id),
-            eq(schema.emailAccounts.userId, principal.userId)
-          )
-        );
+        .where(isOrg
+          ? eq(schema.emailAccounts.tenantId, activeWorkspace.id)
+          : and(eq(schema.emailAccounts.tenantId, activeWorkspace.id), eq(schema.emailAccounts.userId, principal.userId)));
 
       let googleAuthUrl: string | undefined;
       let microsoftAuthUrl: string | undefined;
 
       try {
-        const gRes = await providerOAuthService.buildAuthorizationUrl(principal, "gmail", "full");
+        const gRes = await providerOAuthService.buildAuthorizationUrl(activePrincipal, "gmail", "full");
         googleAuthUrl = gRes.authUrl;
       } catch {}
 
       try {
-        const mRes = await providerOAuthService.buildAuthorizationUrl(principal, "outlook", "full");
+        const mRes = await providerOAuthService.buildAuthorizationUrl(activePrincipal, "outlook", "full");
         microsoftAuthUrl = mRes.authUrl;
       } catch {}
 

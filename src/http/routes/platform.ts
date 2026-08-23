@@ -36,6 +36,21 @@ const heartbeatInput = z.object({
   accounts: z.object({ connected: z.number().int().nonnegative(), configured: z.number().int().nonnegative() }),
   observedAt: z.string().datetime(),
 });
+const bridgeHeartbeatInput = z.object({
+  heartbeat: z.object({
+    deviceId: z.string(),
+    observedAt: z.string().datetime(),
+    status: z.enum(["provisioning", "online", "degraded", "offline", "needs_attention"]),
+    gatewayReachable: z.boolean(),
+    protonBridgeReachable: z.boolean(),
+    tunnelConnected: z.boolean(),
+    connectedAccountCount: z.number().int().nonnegative(),
+  }),
+  health: heartbeatInput,
+  generation: z.number().int().positive(),
+});
+const deviceCredentialInput = z.object({ deviceId: z.string().min(1), generation: z.number().int().positive() });
+const deviceIdentityInput = z.object({ deviceId: z.string().min(1) });
 
 async function parsed<T extends z.ZodType>(c: any, validator: T): Promise<z.infer<T>> {
   const result = validator.safeParse(await readBody(c));
@@ -53,6 +68,12 @@ function bearer(c: any): string {
   const header = c.req.header("authorization") || "";
   if (!header.startsWith("Bearer ")) throw new AuthenticationError("Device credential required");
   return header.slice(7).trim();
+}
+
+function requireBridgeV1(c: any): void {
+  if (c.req.header("x-mailwarden-bridge-protocol") !== "1") {
+    throw new ValidationError("Unsupported Mailwarden Bridge protocol version");
+  }
 }
 
 export const platformRoutes = new Hono<Env>()
@@ -123,6 +144,32 @@ export const platformRoutes = new Hono<Env>()
   .post("/api/relay/heartbeat", async (c) => c.json(
     await relayDeviceService.heartbeat(bearer(c), await parsed(c, heartbeatInput))
   ))
+
+  .post("/api/bridge/v1/provisioning/start", async (c) => {
+    requireBridgeV1(c);
+    return c.json(await relayDeviceService.startProvisioning(await parsed(c, provisioningStartInput)), 201);
+  })
+  .post("/api/bridge/v1/provisioning/poll", async (c) => {
+    requireBridgeV1(c);
+    const input = await parsed(c, pollProvisioningInput);
+    return c.json(await relayDeviceService.pollProvisioning(input.deviceCode));
+  })
+  .post("/api/bridge/v1/devices/heartbeat", async (c) => {
+    requireBridgeV1(c);
+    const input = await parsed(c, bridgeHeartbeatInput);
+    return c.json(await relayDeviceService.heartbeat(bearer(c), input.health));
+  })
+  .post("/api/bridge/v1/devices/credential/renew", async (c) => {
+    requireBridgeV1(c);
+    const input = await parsed(c, deviceCredentialInput);
+    return c.json(await relayDeviceService.renewDeviceCredential(bearer(c), input.deviceId, input.generation));
+  })
+  .post("/api/bridge/v1/devices/tunnel", async (c) => {
+    requireBridgeV1(c);
+    const input = await parsed(c, deviceIdentityInput);
+    await relayDeviceService.getTunnelCredential(bearer(c), input.deviceId);
+    return c.json({ error: "NotFound", message: "No managed tunnel is provisioned for this relay device" }, 404);
+  })
   .get("/api/organizations/:workspaceId/relay-devices", async (c) => c.json({ devices: await relayDeviceService.listDevices(principal(c), c.req.param("workspaceId")) }))
   .delete("/api/organizations/:workspaceId/relay-devices/:deviceId", async (c) => c.json(
     await relayDeviceService.revokeDevice(principal(c), c.req.param("workspaceId"), c.req.param("deviceId"))

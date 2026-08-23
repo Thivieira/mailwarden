@@ -12,6 +12,7 @@ import { ALL_SCOPES, type AuthPrincipal } from "../src/types/auth";
 import { nanoid } from "nanoid";
 
 import { inviteService } from "../src/services/invites";
+import { relayDeviceService } from "../src/services/relay-devices";
 
 describe("Mailwarden Organizations, Portal & Product Experience", () => {
   let principal: AuthPrincipal;
@@ -42,8 +43,8 @@ describe("Mailwarden Organizations, Portal & Product Experience", () => {
     expect(personal).toBeDefined();
     expect(personal?.name).toBe("Personal Workspace");
 
-    const activeCtx = await workspaceService.getActiveWorkspace(principal, personal?.id);
-    expect(activeCtx.workspace.id).toBe(personal?.id);
+    const activeCtx = await workspaceService.getActiveWorkspace(principal, personal!.id);
+    expect(activeCtx.workspace.id).toBe(personal!.id);
     expect(activeCtx.membership.role).toBe("owner");
   });
 
@@ -95,7 +96,7 @@ describe("Mailwarden Organizations, Portal & Product Experience", () => {
 
     expect(invite.email).toBe("dan@foxdevstudio.com");
     expect(invite.role).toBe("admin");
-    expect(invite.inviteUrl).toContain("org_invite=");
+    expect(invite.inviteUrl).toContain("organization_invite=");
 
     // 3. List pending invites
     const pending = await organizationMemberService.listPendingInvites(principal, organization.id);
@@ -121,32 +122,52 @@ describe("Mailwarden Organizations, Portal & Product Experience", () => {
 
     // 1. Relay status
     const status = await relayAndDeviceService.getRelayStatus(principal, organization.id);
-    expect(status.status).toBe("online");
-    expect(status.endpointUrl).toContain("relay.foxdevstudio.com");
+    expect(status.status).toBe("offline");
 
     // 2. List Bridge devices
     const devices = await relayAndDeviceService.listRelayDevices(principal, organization.id);
-    expect(devices.length).toBeGreaterThanOrEqual(1);
-    expect(devices[0]?.name).toContain("Central Server");
-    expect(devices[0]?.status).toBe("online");
+    expect(devices).toHaveLength(0);
 
     // 3. Request provisioning for a new laptop device
-    const prov = await relayAndDeviceService.requestProvisioning(principal, organization.id, {
+    const prov = await relayDeviceService.startProvisioning({
       deviceName: "Thiago MacBook Pro",
       platform: "macOS (Apple Silicon)",
+      version: "0.1.0",
+      protocolVersion: 1,
+      capabilities: { protonImap: true, protonSmtp: true, cloudflareTunnel: true },
     });
 
-    expect(prov.relayDevice.status).toBe("provisioning");
-    expect(prov.provisioningToken).toBeDefined();
+    expect(prov.deviceCode.startsWith("mwrp_")).toBe(true);
 
-    // 4. Approve pairing
-    const paired = await relayAndDeviceService.approveProvisioning(principal, organization.id, prov.provisioningToken);
-    expect(paired.status).toBe("online");
+    await relayDeviceService.authorizeProvisioning(principal, organization.id, prov.userCode);
+    const paired = await relayDeviceService.pollProvisioning(prov.deviceCode);
+    expect(paired.state).toBe("authorized");
+    expect(paired.device?.status).toBe("offline");
+    expect(paired.credential?.deviceSecret.startsWith("mwrd_")).toBe(true);
+
+    const heartbeat = await relayDeviceService.heartbeat(paired.credential!.deviceSecret, {
+      status: "online",
+      version: { version: "0.1.0", protocol: 1, platform: "darwin-arm64" },
+      deviceId: paired.device!.id,
+      organizationId: organization.id,
+      components: [],
+      accounts: { connected: 1, configured: 1 },
+      observedAt: new Date().toISOString(),
+    });
+    expect(heartbeat.state).toBe("ok");
+    expect((await relayAndDeviceService.getRelayStatus(principal, organization.id)).connectedAccountsCount).toBe(1);
 
     // 5. Revoke device
-    await relayAndDeviceService.revokeDevice(principal, organization.id, paired.id);
+    await relayAndDeviceService.revokeDevice(principal, organization.id, paired.device!.id);
     const afterRevoke = await relayAndDeviceService.listRelayDevices(principal, organization.id);
-    expect(afterRevoke.some((d) => d.id === paired.id)).toBe(false);
+    expect(afterRevoke.find((d) => d.id === paired.device!.id)?.revokedAt).toBeDefined();
+    expect((await relayDeviceService.heartbeat(paired.credential!.deviceSecret, {
+      status: "online",
+      version: { version: "0.1.0", protocol: 1, platform: "darwin-arm64" },
+      components: [],
+      accounts: { connected: 1, configured: 1 },
+      observedAt: new Date().toISOString(),
+    })).state).toBe("revoked");
   });
 
   // 5. Human-First Diagnostics & Safe Repair Mapping
@@ -176,8 +197,8 @@ describe("Mailwarden Organizations, Portal & Product Experience", () => {
     });
 
     const res = await relayAndDeviceService.executeSafeRepair(principal, organization.id, "restart_bridge");
-    expect(res.success).toBe(true);
-    expect(res.message).toContain("restarted and verified");
+    expect(res.success).toBe(false);
+    expect(res.message).toContain("requires a connected Mailwarden Bridge");
   });
 
   // 7. Plan Capabilities
