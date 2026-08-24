@@ -19,8 +19,24 @@ export async function startDaemon(core?: BridgeCore): Promise<DaemonHandle> {
   const bridge = core ?? (await BridgeCore.create());
   const log = bridge.log;
 
-  await bridge.startGateway();
-  await bridge.startTunnel();
+  // A gateway that cannot bind must not take the daemon down with it: the relay
+  // stays up so the heartbeat, the local API, and `doctor` can explain the
+  // problem — a port conflict is diagnosable, a dead process is not.
+  try {
+    await bridge.startGateway();
+  } catch (error) {
+    log("error", "Could not start the Proton gateway; the relay is running degraded", {
+      message: error instanceof Error ? error.message : "unknown error",
+    });
+  }
+
+  try {
+    await bridge.startTunnel();
+  } catch (error) {
+    log("error", "Could not start the managed tunnel", {
+      message: error instanceof Error ? error.message : "unknown error",
+    });
+  }
 
   const localApi = bridge.config.localApi.enabled ? await startLocalApi(bridge) : null;
   if (localApi) {
@@ -63,7 +79,9 @@ export async function startDaemon(core?: BridgeCore): Promise<DaemonHandle> {
     schedule(nextSeconds);
   };
 
-  schedule(1);
+  // Report immediately: the floor exists to pace the loop, not to delay the first
+  // beat. Waiting for it made a freshly started relay look offline for 30 seconds.
+  void cycle();
 
   const handle: DaemonHandle = {
     core: bridge,

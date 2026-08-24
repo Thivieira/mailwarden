@@ -14,6 +14,8 @@ import { nanoid } from "nanoid";
 import { inviteService } from "../src/services/invites";
 import { relayDeviceService } from "../src/services/relay-devices";
 
+process.env.RELAY_PROVISIONING_STARTS_PER_MINUTE ||= "10000";
+
 describe("Mailwarden Organizations, Portal & Product Experience", () => {
   let principal: AuthPrincipal;
 

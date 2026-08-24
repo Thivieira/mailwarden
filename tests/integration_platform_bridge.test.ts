@@ -29,15 +29,23 @@ let server: ReturnType<typeof Bun.serve>;
 let baseUrl: string;
 let dir: string;
 
+let previousRateLimit: string | undefined;
+
 beforeAll(async () => {
   server = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: app.fetch });
   baseUrl = `http://127.0.0.1:${server.port}`;
   dir = await mkdtemp(join(tmpdir(), "mailwarden-interop-"));
+  // This suite provisions many devices a second; the production limit is a
+  // deliberate anti-abuse floor, not something these tests are measuring.
+  previousRateLimit = process.env.RELAY_PROVISIONING_STARTS_PER_MINUTE;
+  process.env.RELAY_PROVISIONING_STARTS_PER_MINUTE = "10000";
 });
 
 afterAll(async () => {
   await server.stop(true);
   await rm(dir, { recursive: true, force: true });
+  if (previousRateLimit === undefined) delete process.env.RELAY_PROVISIONING_STARTS_PER_MINUTE;
+  else process.env.RELAY_PROVISIONING_STARTS_PER_MINUTE = previousRateLimit;
 });
 
 async function owner(label: string) {
@@ -294,8 +302,7 @@ describe("Provisioning abuse limits", () => {
       await cloud.startProvisioning(request).catch(() => undefined);
       await expect(cloud.startProvisioning(request)).rejects.toThrow();
     } finally {
-      if (previous === undefined) delete process.env.RELAY_PROVISIONING_STARTS_PER_MINUTE;
-      else process.env.RELAY_PROVISIONING_STARTS_PER_MINUTE = previous;
+      process.env.RELAY_PROVISIONING_STARTS_PER_MINUTE = previous ?? "10000";
     }
   });
 
@@ -327,5 +334,73 @@ describe("Provisioning abuse limits", () => {
       .where(eq(schema.relayProvisioningSessions.deviceName, "stale"));
     expect(remaining.length).toBe(0);
     expect((await cloud.pollProvisioning(start.deviceCode)).state).toBe("denied");
+  });
+});
+
+describe("Workspace API shape", () => {
+  test("returns workspaces a switcher can render, not authorization contexts", async () => {
+    const account = await owner("ShapeCheck");
+    const context = await organizationService.createOrganization(account.principal, { name: `Shape ${nanoid(6)}` });
+    const token = await authService.createToken({
+      id: account.userId,
+      tenantId: account.tenantId,
+      email: account.email,
+      displayName: "ShapeCheck",
+      role: "owner",
+    });
+
+    const response = await fetch(`${baseUrl}/api/workspaces`, {
+      headers: { Authorization: `Bearer ${token.token}` },
+    });
+    const body = (await response.json()) as { workspaces: Array<Record<string, unknown>> };
+
+    expect(response.status).toBe(200);
+    expect(body.workspaces.length).toBe(2);
+    for (const workspace of body.workspaces) {
+      // The regression this pins: `kind` used to be nested under `workspace`.
+      expect(typeof workspace.id).toBe("string");
+      expect(["personal", "team"]).toContain(workspace.kind as string);
+      expect(["owner", "admin", "member"]).toContain(workspace.role as string);
+      expect(workspace.workspace).toBeUndefined();
+      expect(workspace.membership).toBeUndefined();
+    }
+    expect(body.workspaces.some((workspace) => workspace.id === context.workspace.id)).toBe(true);
+  });
+});
+
+describe("Daemon heartbeat cadence", () => {
+  test("reports on startup instead of waiting out the interval floor", async () => {
+    const team = await teamOrganization("Cadence");
+    const core = await bridgeFor("cadence");
+    await provision(core, team.principal, team.organizationId);
+
+    const { startDaemon } = await import("../apps/bridge/src/daemon");
+    core.config = {
+      ...core.config,
+      gateway: { ...core.config.gateway, port: 0 },
+      localApi: { ...core.config.localApi, enabled: false },
+    };
+
+    let beats = 0;
+    const original = core.heartbeatOnce.bind(core);
+    core.heartbeatOnce = async () => {
+      beats += 1;
+      return original();
+    };
+
+    const handle = await startDaemon(core);
+    try {
+      // The floor is 30s; if the first beat waited for it, nothing lands here.
+      const deadline = Date.now() + 8_000;
+      let devices = await relayDeviceService.listDevices(team.principal, team.organizationId);
+      while (!devices[0]?.lastSeenAt && Date.now() < deadline) {
+        await Bun.sleep(100);
+        devices = await relayDeviceService.listDevices(team.principal, team.organizationId);
+      }
+      expect(beats).toBeGreaterThan(0);
+      expect(devices[0]!.lastSeenAt).toBeTruthy();
+    } finally {
+      await handle.stop();
+    }
   });
 });

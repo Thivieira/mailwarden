@@ -40,7 +40,11 @@ const adapters: ProtonDiscoveryAdapters = {
   probeTcp: async () => false,
 };
 
+let previousRateLimit: string | undefined;
+
 beforeAll(async () => {
+  previousRateLimit = process.env.RELAY_PROVISIONING_STARTS_PER_MINUTE;
+  process.env.RELAY_PROVISIONING_STARTS_PER_MINUTE = "10000";
   cloudServer = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: app.fetch });
   baseUrl = `http://127.0.0.1:${cloudServer.port}`;
   dir = await mkdtemp(join(tmpdir(), "mailwarden-control-"));
@@ -49,6 +53,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await cloudServer.stop(true);
   await rm(dir, { recursive: true, force: true });
+  if (previousRateLimit === undefined) delete process.env.RELAY_PROVISIONING_STARTS_PER_MINUTE;
+  else process.env.RELAY_PROVISIONING_STARTS_PER_MINUTE = previousRateLimit;
 });
 
 async function teamOwner(label: string) {

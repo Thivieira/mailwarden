@@ -26,7 +26,10 @@ const credentialTtlMs = 90 * 24 * 60 * 60 * 1000;
 /** Tunable so an operator can tighten it without a deploy of new logic. */
 function maxProvisioningStartsPerMinute(): number {
   const configured = Number(process.env.RELAY_PROVISIONING_STARTS_PER_MINUTE);
-  return Number.isFinite(configured) && configured > 0 ? configured : 30;
+  // A coarse backstop on an unauthenticated endpoint: two sessions a second is
+  // far below any abuse worth worrying about and far above real onboarding, which
+  // is one session per machine.
+  return Number.isFinite(configured) && configured > 0 ? configured : 120;
 }
 /** Keep expired sessions briefly so a late poll still gets "expired", not "unknown". */
 const PROVISIONING_RETENTION_MS = 60 * 60 * 1000;

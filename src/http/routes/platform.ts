@@ -81,7 +81,17 @@ function requireBridgeV1(c: any): void {
 export const platformRoutes = new Hono<Env>()
   .use("/api/*", withPrincipal)
 
-  .get("/api/workspaces", async (c) => c.json({ workspaces: await organizationService.listWorkspaces(principal(c)) }))
+  /**
+   * The switcher needs a workspace plus the caller's role in it — not the whole
+   * authorization context. Returning contexts here shipped a shape no client
+   * expected: `kind` sat one level down, so every consumer read `undefined`.
+   */
+  .get("/api/workspaces", async (c) => {
+    const contexts = await organizationService.listWorkspaces(principal(c));
+    return c.json({
+      workspaces: contexts.map((context) => ({ ...context.workspace, role: context.membership.role })),
+    });
+  })
 
   .get("/api/workspaces/current", async (c) => {
     const current = principal(c);
