@@ -93,6 +93,12 @@
         "@mailwarden/proton": "workspace:*",
       },
     },
+    "packages/triage-contract": {
+      "name": "@mailwarden/triage-contract",
+      "dependencies": {
+        "zod": "^4.4.3",
+      },
+    },
     "packages/triage-events": {
       "name": "@mailwarden/triage-events",
       "dependencies": {
@@ -330,6 +336,8 @@
     "@mailwarden/proton": ["@mailwarden/proton@workspace:packages/proton"],
 
     "@mailwarden/relay": ["@mailwarden/relay@workspace:packages/relay"],
+
+    "@mailwarden/triage-contract": ["@mailwarden/triage-contract@workspace:packages/triage-contract"],
 
     "@mailwarden/triage-events": ["@mailwarden/triage-events@workspace:packages/triage-events"],
 
