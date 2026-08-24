@@ -1,4 +1,39 @@
-import { Alert, Record, SiteHeader } from "./parts";
+import {
+  Alert,
+  Record,
+  SiteHeader,
+  Check,
+  X,
+  Seal,
+  CircleCheck,
+  CircleAlert,
+  Eye,
+  EyeOff,
+  ChevronDown,
+  ChevronRight,
+  UserIcon,
+  BuildingIcon,
+  BotIcon,
+  CopyIcon,
+  SyncIcon,
+  LogOutIcon,
+  PlusIcon,
+  TrashIcon,
+  ShieldCheckIcon,
+  MailIcon,
+  UsersIcon,
+  ZapIcon,
+  LaptopIcon,
+  KeyIcon,
+  TerminalIcon,
+  ServerIcon,
+  SearchIcon,
+  SettingsIcon,
+  SparklesIcon,
+  GoogleBrandIcon,
+  MicrosoftBrandIcon,
+  ProtonBrandIcon,
+} from "./parts";
 import {
   UI_THEME,
   formatRelayStatusBadge,
@@ -98,13 +133,14 @@ export function PortalLandingPage(props: {
       <SiteHeader host={props.host} showSignOut={Boolean(props.loggedInUser)} />
       <main class="sheet">
         <div style="text-align: center; margin-bottom: 2rem;">
-          <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(59, 130, 246, 0.1); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.2); padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.8125rem; font-weight: 500; margin-bottom: 1rem;">
-            <span>Intelligent Email Control &bull; Private Beta</span>
+          <div class="badge-pill" style="margin-bottom: 1rem; border-color: rgba(59, 130, 246, 0.3); background: rgba(59, 130, 246, 0.08); color: var(--primary);">
+            <SparklesIcon size={13} />
+            <span>Private Beta &bull; Conversational Email Layer</span>
           </div>
-          <h1 style="font-size: 2.25rem; line-height: 1.2; margin-bottom: 0.75rem; font-weight: 700; letter-spacing: -0.025em;">
+          <h1 style="font-size: 2.25rem; line-height: 1.2; margin-bottom: 0.75rem; font-weight: 700; letter-spacing: -0.03em;">
             Your email, managed through normal conversation.
           </h1>
-          <p class="lede" style="max-width: 38rem; margin: 0 auto; color: #94a3b8; font-size: 1.0625rem;">
+          <p class="lede" style="max-width: 38rem; margin: 0 auto; color: var(--muted-foreground); font-size: 1.0625rem;">
             Connect Gmail, Outlook, or Proton. Receive daily executive briefings, filter noise automatically, and control everything via ChatGPT or Claude with 100% human approval.
           </p>
         </div>
@@ -124,18 +160,23 @@ export function PortalLandingPage(props: {
                   <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 600;">Active Vault:</div>
                   <div style="font-size: 0.9375rem; font-weight: 600; color: var(--foreground);">{props.loggedInUser.email}</div>
                 </div>
-                <span style="font-size: 0.75rem; background: rgba(74, 222, 128, 0.15); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.3); padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600;">Signed In</span>
+                <span class="badge-pill" style="background: rgba(16, 185, 129, 0.12); color: #10b981; border-color: rgba(16, 185, 129, 0.25);">
+                  <span class="status-dot is-live" style="background: #10b981;"></span>
+                  Signed In
+                </span>
               </div>
               <div style="display: flex; flex-direction: column; gap: 0.6rem;">
                 <a
                   href="/portal"
-                  style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; background: var(--primary); color: var(--primary-foreground); text-decoration: none; padding: 0.65rem 1rem; border-radius: var(--radius-md); font-weight: 600; font-size: 0.875rem;"
+                  class="btn btn-primary"
+                  style="text-decoration: none; height: 2.4rem;"
                 >
                   <span>Go to Vault Dashboard &rarr;</span>
                 </a>
                 <a
                   href="/portal/logout"
-                  style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; background: var(--secondary); color: var(--secondary-foreground); border: 1px solid var(--border); text-decoration: none; padding: 0.55rem 1rem; border-radius: var(--radius-md); font-weight: 500; font-size: 0.8125rem;"
+                  class="btn btn-secondary btn-sm"
+                  style="text-decoration: none;"
                 >
                   <span>Sign Out</span>
                 </a>
@@ -155,12 +196,13 @@ export function PortalLandingPage(props: {
             <div class="card-content">
               <form method="post" action={isSignup ? "/portal/auth/signup" : "/portal/auth/login"}>
                 {props.inviteCode && (
-                  <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; padding: 0.75rem; border-radius: 6px; font-size: 0.8125rem; margin-bottom: 1rem;">
-                    <strong>Private Beta Invite Code Applied:</strong> <code style="font-family: monospace;">{props.inviteCode}</code>
+                  <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: #10b981; padding: 0.75rem; border-radius: var(--radius-md); font-size: 0.8125rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <Check size={14} />
+                    <div><strong>Private Beta Invite Code Applied:</strong> <code style="font-family: var(--font-mono);">{props.inviteCode}</code></div>
                   </div>
                 )}
                 {requiresInvite && !props.inviteCode && (
-                  <div style="background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); color: #fef08a; padding: 0.75rem; border-radius: 6px; font-size: 0.8125rem; margin-bottom: 1rem;">
+                  <div style="background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); color: #eab308; padding: 0.75rem; border-radius: var(--radius-md); font-size: 0.8125rem; margin-bottom: 1rem;">
                     <strong>Private Beta Notice:</strong> Mailwarden is currently invite-only. Please provide an invite code or use an invite link to create a new vault.
                   </div>
                 )}
@@ -226,7 +268,7 @@ export function PortalLandingPage(props: {
                       value={props.inviteCode || ""}
                       placeholder="e.g. mw_inv_..."
                       required={Boolean(props.isPrivateBeta)}
-                      style="width: 100%; box-sizing: border-box; background: var(--input); color: var(--foreground); border: 1px solid var(--border); padding: 0.55rem 0.75rem; border-radius: var(--radius-md); font-size: 0.875rem; font-family: monospace;"
+                      style="width: 100%; box-sizing: border-box; background: var(--input); color: var(--foreground); border: 1px solid var(--border); padding: 0.55rem 0.75rem; border-radius: var(--radius-md); font-size: 0.875rem; font-family: var(--font-mono);"
                     />
                   </div>
                 )}
@@ -234,21 +276,22 @@ export function PortalLandingPage(props: {
                 <div style="margin-top: 1.25rem;">
                   <button
                     type="submit"
-                    style="width: 100%; background: var(--primary); color: var(--primary-foreground); border: none; padding: 0.65rem 1rem; border-radius: var(--radius-md); font-weight: 600; font-size: 0.875rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem;"
+                    class="btn btn-primary"
+                    style="width: 100%; height: 2.5rem; font-size: 0.875rem;"
                   >
                     <span>{isSignup ? "Create Vault \u2192" : "Sign in \u2192"}</span>
                   </button>
                 </div>
               </form>
 
-              <div style="margin-top: 1rem; text-align: center; font-size: 0.8125rem; color: #94a3b8;">
+              <div style="margin-top: 1.25rem; text-align: center; font-size: 0.8125rem; color: var(--muted-foreground);">
                 {isSignup ? (
                   <span>
-                    Already have a vault? <a href="/portal/login" style="color: #60a5fa; text-decoration: none; font-weight: 500;">Sign in</a>
+                    Already have a vault? <a href="/portal/login" style="font-weight: 600;">Sign in</a>
                   </span>
                 ) : (
                   <span>
-                    Need to create a vault? <a href="/portal/signup" style="color: #60a5fa; text-decoration: none; font-weight: 500;">Create Vault</a>
+                    Need to create a vault? <a href="/portal/signup" style="font-weight: 600;">Create Vault</a>
                   </span>
                 )}
               </div>
@@ -278,17 +321,17 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
 
   return (
     <>
-      <SiteHeader host={props.host} showSignOut={true} />
+      <SiteHeader host={props.host} wide={true} showSignOut={true} />
 
-      <main class="sheet" style="max-width: 68rem; margin: 0 auto; padding: 1.5rem 1rem 4rem 1rem;">
+      <main class="sheet sheet-wide">
         {/* TOP BAR: WORKSPACE SWITCHER & USER BADGE */}
         <div
-          style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--border);"
+          style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.75rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--border);"
         >
           {/* Workspace Switcher */}
           <div style="position: relative; display: flex; align-items: center; gap: 0.75rem;">
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="font-size: 0.8125rem; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.05em;">
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+              <span style="font-size: 0.75rem; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.08em;">
                 Workspace:
               </span>
               <div class="workspace-switcher-dropdown" style="position: relative;">
@@ -296,26 +339,27 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                   type="button"
                   id="workspaceSwitcherBtn"
                   data-action="toggle-ws-menu"
-                  style="display: inline-flex; align-items: center; gap: 0.6rem; background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.4rem 0.85rem; border-radius: var(--radius-md); font-size: 0.875rem; font-weight: 600; cursor: pointer;"
+                  class="btn btn-secondary"
+                  style="font-size: 0.875rem; padding: 0.45rem 0.85rem; height: auto;"
                   aria-haspopup="true"
                   aria-expanded="false"
                 >
-                  <span style="font-size: 1rem;">{isOrg ? "\uD83C\uDFE2" : "\uD83D\uDC64"}</span>
-                  <span>{props.activeWorkspace.name}</span>
-                  <span style="font-size: 0.7rem; color: var(--muted-foreground); background: rgba(255,255,255,0.06); padding: 0.1rem 0.4rem; border-radius: 4px; text-transform: uppercase;">
+                  <span style="display: flex; align-items: center; color: var(--primary);">
+                    {isOrg ? <BuildingIcon size={16} /> : <UserIcon size={16} />}
+                  </span>
+                  <span style="font-weight: 600;">{props.activeWorkspace.name}</span>
+                  <span class="badge-pill" style="font-size: 0.6875rem; padding: 0.05rem 0.4rem; text-transform: uppercase; font-weight: 700;">
                     {props.activeWorkspace.kind}
                   </span>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
+                  <ChevronDown size={14} />
                 </button>
 
                 {/* Dropdown Menu */}
                 <div
                   id="workspaceDropdownMenu"
-                  style="display: none; position: absolute; top: calc(100% + 6px); left: 0; min-width: 16rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); z-index: 50; padding: 0.5rem 0;"
+                  style="display: none; position: absolute; top: calc(100% + 8px); left: 0; min-width: 17rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.2), 0 0 0 1px var(--border); z-index: 50; padding: 0.5rem 0; overflow: hidden;"
                 >
-                  <div style="padding: 0.35rem 0.85rem; font-size: 0.7rem; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.05em;">
+                  <div style="padding: 0.4rem 0.85rem; font-size: 0.6875rem; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.08em;">
                     Personal Workspaces
                   </div>
                   {props.workspaces
@@ -323,19 +367,23 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                     .map((w) => (
                       <a
                         href={`/portal?ws=${w.id}`}
-                        style={`display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.85rem; color: var(--foreground); text-decoration: none; font-size: 0.875rem; ${w.id === props.activeWorkspace.id ? "background: rgba(255,255,255,0.06); font-weight: 600;" : ""}`}
+                        style={`display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 0.85rem; color: var(--foreground); text-decoration: none; font-size: 0.875rem; transition: background 120ms ease; ${w.id === props.activeWorkspace.id ? "background: var(--muted); font-weight: 600;" : ""}`}
                       >
-                        <span style="display: flex; align-items: center; gap: 0.5rem;">
-                          <span>\uD83D\uDC64</span>
+                        <span style="display: flex; align-items: center; gap: 0.55rem;">
+                          <UserIcon size={15} />
                           <span>{w.name}</span>
                         </span>
-                        {w.id === props.activeWorkspace.id && <span style="color: #34d399;">✓</span>}
+                        {w.id === props.activeWorkspace.id && (
+                          <span style="color: #10b981; display: flex; align-items: center;">
+                            <Check size={14} />
+                          </span>
+                        )}
                       </a>
                     ))}
 
                   <div style="height: 1px; background: var(--border); margin: 0.4rem 0;"></div>
 
-                  <div style="padding: 0.35rem 0.85rem; font-size: 0.7rem; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.05em;">
+                  <div style="padding: 0.4rem 0.85rem; font-size: 0.6875rem; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.08em;">
                     Team Organizations
                   </div>
                   {props.workspaces
@@ -343,13 +391,17 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                     .map((w) => (
                       <a
                         href={`/portal?ws=${w.id}`}
-                        style={`display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.85rem; color: var(--foreground); text-decoration: none; font-size: 0.875rem; ${w.id === props.activeWorkspace.id ? "background: rgba(255,255,255,0.06); font-weight: 600;" : ""}`}
+                        style={`display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 0.85rem; color: var(--foreground); text-decoration: none; font-size: 0.875rem; transition: background 120ms ease; ${w.id === props.activeWorkspace.id ? "background: var(--muted); font-weight: 600;" : ""}`}
                       >
-                        <span style="display: flex; align-items: center; gap: 0.5rem;">
-                          <span>\uD83C\uDFE2</span>
+                        <span style="display: flex; align-items: center; gap: 0.55rem;">
+                          <BuildingIcon size={15} />
                           <span>{w.name}</span>
                         </span>
-                        {w.id === props.activeWorkspace.id && <span style="color: #34d399;">✓</span>}
+                        {w.id === props.activeWorkspace.id && (
+                          <span style="color: #10b981; display: flex; align-items: center;">
+                            <Check size={14} />
+                          </span>
+                        )}
                       </a>
                     ))}
 
@@ -358,9 +410,9 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                   <button
                     type="button"
                     data-action="open-create-org"
-                    style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.85rem; background: none; border: none; color: #60a5fa; font-size: 0.8125rem; font-weight: 600; cursor: pointer; text-align: left;"
+                    style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.85rem; background: none; border: none; color: var(--primary); font-size: 0.8125rem; font-weight: 600; cursor: pointer; text-align: left;"
                   >
-                    <span>+</span>
+                    <PlusIcon size={14} />
                     <span>Create Organization</span>
                   </button>
                 </div>
@@ -369,17 +421,23 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
           </div>
 
           {/* User badge and actions */}
-          <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <div style="text-align: right;">
-              <div style="font-size: 0.875rem; font-weight: 600; color: var(--foreground);">{props.user.displayName}</div>
-              <div style="font-size: 0.75rem; color: var(--muted-foreground);">{props.user.email}</div>
+          <div style="display: flex; align-items: center; gap: 0.85rem;">
+            <div style="text-align: right; display: flex; flex-direction: column; justify-content: center;">
+              <div style="font-size: 0.875rem; font-weight: 600; color: var(--foreground); line-height: 1.2;">
+                {props.user.displayName}
+              </div>
+              <div style="font-size: 0.75rem; color: var(--muted-foreground); line-height: 1.2; margin-top: 0.15rem;">
+                {props.user.email}
+              </div>
             </div>
             <button
               type="button"
               data-action="open-chatgpt-modal"
-              style="display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); padding: 0.4rem 0.75rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+              class="btn btn-secondary"
+              style="color: var(--primary); border-color: color-mix(in oklch, var(--primary) 25%, var(--border));"
             >
-              <span>\uD83E\uDD16 Connect ChatGPT</span>
+              <BotIcon size={15} />
+              <span>Connect ChatGPT</span>
             </button>
           </div>
         </div>
@@ -392,24 +450,24 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
         {isOrg && (
           <div
             role="tablist"
-            style="display: flex; gap: 0.4rem; margin-bottom: 1.5rem; overflow-x: auto; padding-bottom: 0.25rem; border-bottom: 1px solid var(--border);"
+            style="display: flex; gap: 0.35rem; margin-bottom: 1.75rem; overflow-x: auto; padding-bottom: 0.35rem; border-bottom: 1px solid var(--border);"
           >
             {[
-              { id: "overview", label: "Overview", icon: "\uD83D\uDCCA" },
-              { id: "members", label: `Members (${props.members?.length || 1})`, icon: "\uD83D\uDC65" },
-              { id: "mailboxes", label: `Mailboxes (${props.accounts.length})`, icon: "\uD83D\uDCEC" },
-              { id: "relay", label: "Proton Relay", icon: "\u26A1" },
-              { id: "devices", label: `Bridge Devices (${devices.length})`, icon: "\uD83D\uDCBB" },
-              { id: "plan", label: "Plan & Security", icon: "\uD83D\uDEE1\uFE0F" },
+              { id: "overview", label: "Overview", icon: <SparklesIcon size={15} /> },
+              { id: "members", label: `Members (${props.members?.length || 1})`, icon: <UsersIcon size={15} /> },
+              { id: "mailboxes", label: `Mailboxes (${props.accounts.length})`, icon: <MailIcon size={15} /> },
+              { id: "relay", label: "Proton Relay", icon: <ZapIcon size={15} /> },
+              { id: "devices", label: `Bridge Devices (${devices.length})`, icon: <LaptopIcon size={15} /> },
+              { id: "plan", label: "Plan & Security", icon: <ShieldCheckIcon size={15} /> },
             ].map((tab) => (
               <a
                 href={`/portal?ws=${props.activeWorkspace.id}&tab=${tab.id}`}
                 role="tab"
                 aria-selected={activeTab === tab.id ? "true" : "false"}
-                style={`display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.5rem 0.9rem; border-radius: var(--radius-md) var(--radius-md) 0 0; text-decoration: none; font-size: 0.875rem; font-weight: 600; white-space: nowrap; ${
+                style={`display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.95rem; border-radius: var(--radius-md) var(--radius-md) 0 0; text-decoration: none; font-size: 0.875rem; font-weight: 600; white-space: nowrap; transition: all 140ms ease; ${
                   activeTab === tab.id
-                    ? "background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-bottom-color: var(--card);"
-                    : "color: var(--muted-foreground);"
+                    ? "background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-bottom-color: var(--card); box-shadow: 0 -2px 6px rgba(0,0,0,0.03);"
+                    : "color: var(--muted-foreground); border: 1px solid transparent;"
                 }`}
               >
                 <span>{tab.icon}</span>
@@ -426,68 +484,90 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
           <>
             {/* Quick Summary Card */}
             <div
-              style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; background: linear-gradient(135deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;"
+              style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 1.35rem 1.65rem; margin-bottom: 1.75rem; box-shadow: var(--shadow-xs);"
             >
               <div>
-                <h2 style="font-size: 1.125rem; font-weight: 700; margin: 0 0 0.25rem 0; color: var(--foreground);">
+                <div class="badge-pill" style="margin-bottom: 0.5rem; background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.25); color: #10b981;">
+                  <ShieldCheckIcon size={13} />
+                  <span>100% Human-Approved Outbound Protection</span>
+                </div>
+                <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 0.25rem 0; color: var(--foreground); letter-spacing: -0.02em;">
                   Personal Mail Vault
                 </h2>
-                <p style="margin: 0; font-size: 0.875rem; color: var(--muted-foreground);">
-                  Connected accounts are synchronized directly to your personal vault with 100% human-approved outbound protection.
+                <p style="margin: 0; font-size: 0.875rem; color: var(--muted-foreground); max-width: 42rem;">
+                  Connected accounts are synchronized directly to your personal vault with zero third-party leakage and mandatory approval for outgoing mail.
                 </p>
               </div>
               <div style="display: flex; gap: 0.75rem; align-items: center;">
                 <button
                   type="button"
                   data-action="open-create-org"
-                  style="display: inline-flex; align-items: center; gap: 0.4rem; background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.45rem 0.85rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                  class="btn btn-secondary"
+                  style="font-size: 0.8125rem;"
                 >
-                  <span>\uD83C\uDFE2 Create Organization &rarr;</span>
+                  <BuildingIcon size={15} />
+                  <span>Create Organization &rarr;</span>
                 </button>
               </div>
             </div>
 
             {/* SECTION 1: Connected Mailboxes */}
-            <section class="card" style="margin-bottom: 1.5rem;">
+            <section class="card" style="margin-bottom: 1.75rem;">
               <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                  <h2 class="card-title">1. Connected Mailboxes ({props.accounts.length})</h2>
+                  <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                    <span class="badge-pill" style="font-size: 0.75rem; font-weight: 700; background: var(--primary); color: var(--primary-foreground); border: none; width: 1.35rem; height: 1.35rem; padding: 0; justify-content: center;">
+                      1
+                    </span>
+                    <h2 class="card-title">Connected Mailboxes ({props.accounts.length})</h2>
+                  </div>
                   <p class="card-desc">Link your personal Gmail, Microsoft 365, or Proton accounts.</p>
                 </div>
               </div>
               <div class="card-content">
                 {props.accounts.length === 0 ? (
-                  <div style="padding: 2rem 1rem; background: rgba(255, 255, 255, 0.02); border: 1px dashed var(--border); border-radius: var(--radius-md); text-align: center; margin-bottom: 1rem;">
-                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">\uD83D\uDCEC</div>
-                    <p style="margin: 0 0 0.5rem 0; font-size: 0.9375rem; font-weight: 600; color: var(--foreground);">
+                  <div style="padding: 2.5rem 1.5rem; background: var(--muted); border: 1px dashed var(--border); border-radius: var(--radius-lg); text-align: center; margin-bottom: 1.25rem;">
+                    <div style="display: inline-flex; align-items: center; justify-content: center; width: 3rem; height: 3rem; border-radius: 50%; background: var(--secondary); margin-bottom: 0.75rem; color: var(--muted-foreground);">
+                      <MailIcon size={24} />
+                    </div>
+                    <p style="margin: 0 0 0.35rem 0; font-size: 0.9375rem; font-weight: 600; color: var(--foreground);">
                       No mailboxes connected yet
                     </p>
-                    <p style="margin: 0; font-size: 0.8125rem; color: var(--muted-foreground);">
-                      Connect your first email account below to start receiving conversational briefings.
+                    <p style="margin: 0; font-size: 0.8125rem; color: var(--muted-foreground); max-width: 24rem; margin: 0 auto;">
+                      Connect your first email account below to start receiving conversational briefings and AI inbox control.
                     </p>
                   </div>
                 ) : (
-                  <div style="display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 1.25rem;">
+                  <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem;">
                     {props.accounts.map((acc) => {
                       const statusBadge = formatMailboxStatusBadge(acc.status as any);
                       return (
                         <div
-                          style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: var(--radius-md);"
+                          style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.875rem 1.15rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); transition: border-color 120ms ease;"
                         >
-                          <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            <span
-                              style={`background: ${
-                                acc.provider === "gmail" ? "#ea4335" : acc.provider === "proton" ? "#6d4aff" : "#00a4ef"
-                              }; color: #fff; font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 4px; text-transform: uppercase;`}
-                            >
-                              {acc.provider}
-                            </span>
+                          <div style="display: flex; align-items: center; gap: 0.85rem;">
+                            {acc.provider === "gmail" ? (
+                              <span class="badge-pill" style="background: rgba(234, 67, 53, 0.1); border-color: rgba(234, 67, 53, 0.25); color: #ea4335; font-weight: 700;">
+                                <GoogleBrandIcon size={14} />
+                                <span>GMAIL</span>
+                              </span>
+                            ) : acc.provider === "proton" ? (
+                              <span class="badge-pill" style="background: rgba(109, 74, 255, 0.1); border-color: rgba(109, 74, 255, 0.25); color: #6d4aff; font-weight: 700;">
+                                <ProtonBrandIcon size={14} />
+                                <span>PROTON</span>
+                              </span>
+                            ) : (
+                              <span class="badge-pill" style="background: rgba(0, 164, 239, 0.1); border-color: rgba(0, 164, 239, 0.25); color: #00a4ef; font-weight: 700;">
+                                <MicrosoftBrandIcon size={14} />
+                                <span>MICROSOFT</span>
+                              </span>
+                            )}
                             <div>
-                              <div style="font-weight: 600; font-size: 0.875rem; color: var(--foreground);">
+                              <div style="font-weight: 600; font-size: 0.9375rem; color: var(--foreground); line-height: 1.3;">
                                 {acc.emailAddress}
                               </div>
-                              <div style="font-size: 0.75rem; color: var(--muted-foreground); display: flex; align-items: center; gap: 0.4rem;">
-                                <span style={`display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: ${statusBadge.dotColor};`}></span>
+                              <div style="font-size: 0.75rem; color: var(--muted-foreground); display: flex; align-items: center; gap: 0.4rem; margin-top: 0.15rem;">
+                                <span class="status-dot is-live" style={`background: ${statusBadge.dotColor};`}></span>
                                 <span>{statusBadge.label}</span>
                               </div>
                             </div>
@@ -498,9 +578,10 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                               <input type="hidden" name="accountId" value={acc.id} />
                               <button
                                 type="submit"
-                                style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.35rem 0.65rem; border-radius: var(--radius-sm); font-size: 0.75rem; font-weight: 600; cursor: pointer;"
+                                class="btn btn-secondary btn-sm"
                               >
-                                Sync Now
+                                <SyncIcon size={13} />
+                                <span>Sync Now</span>
                               </button>
                             </form>
 
@@ -508,10 +589,10 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                               <input type="hidden" name="accountId" value={acc.id} />
                               <button
                                 type="submit"
-                                class="btn-confirm-delete"
-                                style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #f87171; padding: 0.35rem 0.65rem; border-radius: var(--radius-sm); font-size: 0.75rem; font-weight: 600; cursor: pointer;"
+                                class="btn btn-destructive btn-sm btn-confirm-delete"
                               >
-                                Disconnect
+                                <TrashIcon size={13} />
+                                <span>Disconnect</span>
                               </button>
                             </form>
                           </div>
@@ -522,44 +603,49 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                 )}
 
                 {/* Connect Provider Buttons */}
-                <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border);">
+                <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; padding-top: 0.85rem; border-top: 1px solid var(--border);">
                   {props.googleAuthUrl ? (
                     <a
                       href={props.googleAuthUrl}
-                      style="display: inline-flex; align-items: center; gap: 0.5rem; background: #ea4335; color: #fff; text-decoration: none; padding: 0.55rem 0.95rem; border-radius: var(--radius-md); font-weight: 600; font-size: 0.8125rem;"
+                      class="provider-btn"
                     >
+                      <GoogleBrandIcon size={16} />
                       <span>Connect Google / Gmail</span>
                     </a>
                   ) : (
                     <button
                       disabled
-                      style="background: rgba(255,255,255,0.05); color: #94a3b8; border: 1px solid var(--border); padding: 0.55rem 0.95rem; border-radius: var(--radius-md); font-size: 0.8125rem;"
+                      class="provider-btn"
                     >
-                      Google (Configuring...)
+                      <GoogleBrandIcon size={16} />
+                      <span>Google (Configuring...)</span>
                     </button>
                   )}
 
                   {props.microsoftAuthUrl ? (
                     <a
                       href={props.microsoftAuthUrl}
-                      style="display: inline-flex; align-items: center; gap: 0.5rem; background: #00a4ef; color: #fff; text-decoration: none; padding: 0.55rem 0.95rem; border-radius: var(--radius-md); font-weight: 600; font-size: 0.8125rem;"
+                      class="provider-btn"
                     >
+                      <MicrosoftBrandIcon size={16} />
                       <span>Connect Microsoft 365</span>
                     </a>
                   ) : (
                     <button
                       disabled
-                      style="background: rgba(255,255,255,0.05); color: #94a3b8; border: 1px solid var(--border); padding: 0.55rem 0.95rem; border-radius: var(--radius-md); font-size: 0.8125rem;"
+                      class="provider-btn"
                     >
-                      Microsoft (Configuring...)
+                      <MicrosoftBrandIcon size={16} />
+                      <span>Microsoft (Configuring...)</span>
                     </button>
                   )}
 
                   <button
                     type="button"
                     data-action="open-proton-modal"
-                    style="display: inline-flex; align-items: center; gap: 0.5rem; background: #6d4aff; color: #fff; border: none; padding: 0.55rem 0.95rem; border-radius: var(--radius-md); font-weight: 600; font-size: 0.8125rem; cursor: pointer;"
+                    class="provider-btn"
                   >
+                    <ProtonBrandIcon size={16} />
                     <span>Connect Proton Mail</span>
                   </button>
                 </div>
@@ -567,56 +653,109 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
             </section>
 
             {/* SECTION 2: AI & MCP Access Tokens */}
-            <section class="card" style="margin-bottom: 1.5rem;">
+            <section class="card" style="margin-bottom: 1.75rem;">
               <div class="card-header">
-                <h2 class="card-title">2. Connect Mailwarden to ChatGPT &amp; Claude</h2>
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                  <span class="badge-pill" style="font-size: 0.75rem; font-weight: 700; background: var(--primary); color: var(--primary-foreground); border: none; width: 1.35rem; height: 1.35rem; padding: 0; justify-content: center;">
+                    2
+                  </span>
+                  <h2 class="card-title">Connect Mailwarden to ChatGPT &amp; Claude</h2>
+                </div>
                 <p class="card-desc">Use the credentials below to add Mailwarden as a Custom MCP Tool in ChatGPT or Claude Desktop.</p>
               </div>
               <div class="card-content">
-                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                  {/* MCP Server URL */}
                   <div>
-                    <label for="mcpSseUrlInput" style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase;">
-                      MCP Server URL (SSE)
-                    </label>
-                    <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                      <label for="mcpSseUrlInput" style="font-size: 0.75rem; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.06em;">
+                        MCP Server URL (SSE)
+                      </label>
+                      <span class="badge-pill" style="font-size: 0.6875rem; padding: 0.05rem 0.35rem;">
+                        SSE ENDPOINT
+                      </span>
+                    </div>
+                    <div class="code-input-group">
                       <input
                         id="mcpSseUrlInput"
                         type="text"
                         readonly
                         value={`https://${props.host}/mcp/sse`}
-                        style="width: 100%; background: var(--input); color: var(--foreground); border: 1px solid var(--border); padding: 0.45rem 0.75rem; border-radius: var(--radius-md); font-family: monospace; font-size: 0.8125rem;"
                       />
                       <button
                         type="button"
-                        class="btn-copy"
+                        class="btn btn-secondary btn-sm btn-copy"
                         data-target="mcpSseUrlInput"
-                        style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.45rem 0.75rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                        style="margin-right: 0.35rem;"
                       >
-                        Copy
+                        <CopyIcon size={13} />
+                        <span>Copy</span>
                       </button>
                     </div>
                   </div>
 
+                  {/* Vault Access Token */}
                   <div>
-                    <label for="vaultTokenInput" style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase;">
-                      Vault Access Token (Bearer)
-                    </label>
-                    <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                      <label for="vaultTokenInput" style="font-size: 0.75rem; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.06em;">
+                        Vault Access Token (Bearer)
+                      </label>
+                      <span class="badge-pill" style="font-size: 0.6875rem; padding: 0.05rem 0.35rem;">
+                        BEARER TOKEN
+                      </span>
+                    </div>
+                    <div class="code-input-group">
                       <input
                         id="vaultTokenInput"
                         type="password"
                         readonly
                         value={props.token}
-                        style="width: 100%; background: var(--input); color: var(--foreground); border: 1px solid var(--border); padding: 0.45rem 0.75rem; border-radius: var(--radius-md); font-family: monospace; font-size: 0.8125rem;"
                       />
-                      <button
-                        type="button"
-                        class="btn-copy"
-                        data-target="vaultTokenInput"
-                        style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.45rem 0.75rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
-                      >
-                        Copy
-                      </button>
+                      <div style="display: flex; gap: 0.35rem; margin-right: 0.35rem;">
+                        <button
+                          type="button"
+                          class="btn btn-outline btn-sm"
+                          data-action="toggle-token-visibility"
+                          data-target="vaultTokenInput"
+                          title="Show / Hide token"
+                        >
+                          <Eye size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-sm btn-copy"
+                          data-target="vaultTokenInput"
+                        >
+                          <CopyIcon size={13} />
+                          <span>Copy</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Setup Instructions Box */}
+                <div style="margin-top: 1.25rem; background: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.25rem;">
+                  <div style="font-size: 0.8125rem; font-weight: 600; color: var(--foreground); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.4rem;">
+                    <BotIcon size={15} />
+                    <span>How to add Mailwarden to your AI assistant:</span>
+                  </div>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.75rem; margin-top: 0.75rem;">
+                    <div style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 0.75rem;">
+                      <div style="font-weight: 600; font-size: 0.8125rem; color: var(--foreground); margin-bottom: 0.25rem;">
+                        ChatGPT Custom MCP
+                      </div>
+                      <p style="margin: 0; font-size: 0.75rem; color: var(--muted-foreground);">
+                        Open <strong>Settings &rarr; Connected Apps &rarr; Add Custom MCP Tool</strong>. Paste the Server URL and Token above.
+                      </p>
+                    </div>
+                    <div style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 0.75rem;">
+                      <div style="font-weight: 600; font-size: 0.8125rem; color: var(--foreground); margin-bottom: 0.25rem;">
+                        Claude Desktop
+                      </div>
+                      <p style="margin: 0; font-size: 0.75rem; color: var(--muted-foreground);">
+                        Add Mailwarden to your <code style="font-size: 0.7rem;">claude_desktop_config.json</code> under <code style="font-size: 0.7rem;">mcpServers</code> using SSE URL.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -634,10 +773,10 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
             {activeTab === "overview" && (
               <div>
                 {/* Org Metric Cards Grid */}
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.75rem;">
                   {/* Members Metric */}
-                  <div style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.25rem;">
-                    <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 600; text-transform: uppercase;">
+                  <div style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; box-shadow: var(--shadow-xs);">
+                    <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;">
                       Team Members
                     </div>
                     <div style="font-size: 1.75rem; font-weight: 700; color: var(--foreground); margin: 0.25rem 0;">
@@ -645,15 +784,15 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                     </div>
                     <a
                       href={`/portal?ws=${props.activeWorkspace.id}&tab=members`}
-                      style="font-size: 0.75rem; color: #60a5fa; text-decoration: none; font-weight: 600;"
+                      style="font-size: 0.8125rem; font-weight: 600; text-decoration: none;"
                     >
                       Manage Teammates &rarr;
                     </a>
                   </div>
 
                   {/* Mailboxes Metric */}
-                  <div style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.25rem;">
-                    <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 600; text-transform: uppercase;">
+                  <div style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; box-shadow: var(--shadow-xs);">
+                    <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;">
                       Organization Mailboxes
                     </div>
                     <div style="font-size: 1.75rem; font-weight: 700; color: var(--foreground); margin: 0.25rem 0;">
@@ -661,19 +800,19 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                     </div>
                     <a
                       href={`/portal?ws=${props.activeWorkspace.id}&tab=mailboxes`}
-                      style="font-size: 0.75rem; color: #60a5fa; text-decoration: none; font-weight: 600;"
+                      style="font-size: 0.8125rem; font-weight: 600; text-decoration: none;"
                     >
                       View Mailboxes &rarr;
                     </a>
                   </div>
 
                   {/* Proton Relay Status Metric */}
-                  <div style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.25rem;">
-                    <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 600; text-transform: uppercase;">
+                  <div style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; box-shadow: var(--shadow-xs);">
+                    <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;">
                       Proton Relay
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.5rem; margin: 0.25rem 0;">
-                      <span style={`display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: ${relayBadge.dotColor};`}></span>
+                      <span class="status-dot is-live" style={`background: ${relayBadge.dotColor};`}></span>
                       <span style="font-size: 1.25rem; font-weight: 700; color: var(--foreground);">
                         {relayBadge.label}
                       </span>
@@ -684,8 +823,8 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                   </div>
 
                   {/* Bridge Device Metric */}
-                  <div style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.25rem;">
-                    <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 600; text-transform: uppercase;">
+                  <div style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; box-shadow: var(--shadow-xs);">
+                    <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;">
                       Bridge Devices
                     </div>
                     <div style="font-size: 1.75rem; font-weight: 700; color: var(--foreground); margin: 0.25rem 0;">
@@ -693,7 +832,7 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                     </div>
                     <a
                       href={`/portal?ws=${props.activeWorkspace.id}&tab=devices`}
-                      style="font-size: 0.75rem; color: #60a5fa; text-decoration: none; font-weight: 600;"
+                      style="font-size: 0.8125rem; font-weight: 600; text-decoration: none;"
                     >
                       View Devices &rarr;
                     </a>
@@ -702,35 +841,38 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
 
                 {/* Relay Highlight Banner */}
                 <div
-                  style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem; margin-bottom: 1.5rem;"
+                  style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 1.5rem; margin-bottom: 1.75rem; box-shadow: var(--shadow-xs);"
                 >
                   <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
                     <div>
-                      <div style="display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(109, 74, 255, 0.15); color: #a78bfa; border: 1px solid rgba(109, 74, 255, 0.3); padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.5rem;">
-                        <span>\u26A1 Shared Organization Relay</span>
+                      <div class="badge-pill" style="background: rgba(109, 74, 255, 0.1); color: #6d4aff; border-color: rgba(109, 74, 255, 0.25); font-weight: 700; margin-bottom: 0.5rem;">
+                        <ZapIcon size={13} />
+                        <span>Shared Organization Relay</span>
                       </div>
                       <h3 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 0.35rem 0; color: var(--foreground);">
                         {props.activeWorkspace.name} is ready for Proton Mail
                       </h3>
-                      <p style="margin: 0; font-size: 0.875rem; color: var(--muted-foreground); max-width: 36rem;">
+                      <p style="margin: 0; font-size: 0.875rem; color: var(--muted-foreground); max-width: 38rem;">
                         All organization members can connect their individual Proton accounts with zero local bridge installation. Synchronization is managed automatically by your team relay.
                       </p>
                     </div>
 
-                    <div style="display: flex; gap: 0.5rem;">
+                    <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
                       <button
                         type="button"
                         data-action="open-proton-modal"
-                        style="background: #6d4aff; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: var(--radius-md); font-weight: 600; font-size: 0.8125rem; cursor: pointer;"
+                        class="btn btn-primary"
                       >
-                        + Connect Proton Account
+                        <PlusIcon size={14} />
+                        <span>Connect Proton Account</span>
                       </button>
                       <button
                         type="button"
                         data-action="open-bridge-wizard"
-                        style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.5rem 0.85rem; border-radius: var(--radius-md); font-weight: 600; font-size: 0.8125rem; cursor: pointer;"
+                        class="btn btn-secondary"
                       >
-                        Relay Settings
+                        <SettingsIcon size={14} />
+                        <span>Relay Settings</span>
                       </button>
                     </div>
                   </div>
@@ -749,32 +891,34 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                   <button
                     type="button"
                     data-action="open-invite-member"
-                    style="background: var(--primary); color: var(--primary-foreground); border: none; padding: 0.45rem 0.85rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                    class="btn btn-primary btn-sm"
                   >
-                    + Invite Teammate
+                    <PlusIcon size={13} />
+                    <span>Invite Teammate</span>
                   </button>
                 </div>
                 <div class="card-content">
                   {props.createdOrgInviteUrl && (
-                    <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: var(--radius-md); padding: 0.875rem 1rem; margin-bottom: 1.25rem;">
-                      <div style="font-weight: 600; font-size: 0.875rem; color: #60a5fa; margin-bottom: 0.25rem;">
-                        Teammate Invitation Created
+                    <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-bottom: 1.5rem;">
+                      <div style="font-weight: 600; font-size: 0.875rem; color: var(--primary); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.4rem;">
+                        <Check size={14} />
+                        <span>Teammate Invitation Created</span>
                       </div>
-                      <div style="display: flex; gap: 0.5rem;">
+                      <div class="code-input-group">
                         <input
                           id="orgInviteInput"
                           type="text"
                           readonly
                           value={props.createdOrgInviteUrl}
-                          style="width: 100%; background: var(--input); border: 1px solid var(--border); color: var(--foreground); padding: 0.45rem 0.75rem; border-radius: var(--radius-md); font-family: monospace; font-size: 0.8125rem;"
                         />
                         <button
                           type="button"
-                          class="btn-copy"
+                          class="btn btn-secondary btn-sm btn-copy"
                           data-target="orgInviteInput"
-                          style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.45rem 0.75rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                          style="margin-right: 0.35rem;"
                         >
-                          Copy
+                          <CopyIcon size={13} />
+                          <span>Copy</span>
                         </button>
                       </div>
                     </div>
@@ -784,7 +928,7 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                   <div style="overflow-x: auto;">
                     <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem;">
                       <thead>
-                        <tr style="border-bottom: 1px solid var(--border); color: var(--muted-foreground); font-size: 0.75rem; text-transform: uppercase;">
+                        <tr style="border-bottom: 1px solid var(--border); color: var(--muted-foreground); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">
                           <th style="padding: 0.75rem 0.5rem;">Member</th>
                           <th style="padding: 0.75rem 0.5rem;">Role</th>
                           <th style="padding: 0.75rem 0.5rem;">Status</th>
@@ -811,31 +955,29 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                                 <div style="font-size: 0.75rem; color: var(--muted-foreground);">{m.email}</div>
                               </td>
                               <td style="padding: 0.875rem 0.5rem;">
-                                <span
-                                  style={`background: ${roleInfo.badgeBg}; color: ${roleInfo.badgeColor}; font-size: 0.75rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 4px;`}
-                                >
+                                <span class="badge-pill" style={`background: ${roleInfo.badgeBg}; color: ${roleInfo.badgeColor}; border: none; font-weight: 700;`}>
                                   {roleInfo.label}
                                 </span>
                               </td>
                               <td style="padding: 0.875rem 0.5rem;">
-                                <span style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.75rem; color: #34d399;">
-                                  <span style="width: 6px; height: 6px; border-radius: 50%; background: #34d399;"></span>
+                                <span class="badge-pill" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: none;">
+                                  <span class="status-dot is-live" style="background: #10b981;"></span>
                                   <span>Active</span>
                                 </span>
                               </td>
                               <td style="padding: 0.875rem 0.5rem; text-align: right;">
                                 {m.isSelf ? (
-                                  <span style="font-size: 0.75rem; color: var(--muted-foreground);">You</span>
+                                  <span style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 600;">You</span>
                                 ) : (
                                   <form method="post" action="/portal/organizations/members/remove" style="display: inline;">
                                     <input type="hidden" name="orgId" value={props.activeWorkspace.id} />
                                     <input type="hidden" name="memberUserId" value={m.userId} />
                                     <button
                                       type="submit"
-                                      class="btn-confirm-delete"
-                                      style="background: none; border: none; color: #f87171; font-size: 0.75rem; font-weight: 600; cursor: pointer;"
+                                      class="btn btn-destructive btn-sm btn-confirm-delete"
                                     >
-                                      Remove
+                                      <TrashIcon size={12} />
+                                      <span>Remove</span>
                                     </button>
                                   </form>
                                 )}
@@ -861,33 +1003,43 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                   <button
                     type="button"
                     data-action="open-proton-modal"
-                    style="background: #6d4aff; color: #fff; border: none; padding: 0.45rem 0.85rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                    class="btn btn-primary btn-sm"
                   >
-                    + Connect Proton Mailbox
+                    <PlusIcon size={13} />
+                    <span>Connect Proton Mailbox</span>
                   </button>
                 </div>
                 <div class="card-content">
-                  <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+                  <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                     {props.accounts.map((acc) => {
                       const statusBadge = formatMailboxStatusBadge(acc.status as any);
                       return (
                         <div
-                          style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: var(--radius-md);"
+                          style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.875rem 1.15rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs);"
                         >
-                          <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            <span
-                              style={`background: ${
-                                acc.provider === "gmail" ? "#ea4335" : acc.provider === "proton" ? "#6d4aff" : "#00a4ef"
-                              }; color: #fff; font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 4px; text-transform: uppercase;`}
-                            >
-                              {acc.provider}
-                            </span>
+                          <div style="display: flex; align-items: center; gap: 0.85rem;">
+                            {acc.provider === "gmail" ? (
+                              <span class="badge-pill" style="background: rgba(234, 67, 53, 0.1); border-color: rgba(234, 67, 53, 0.25); color: #ea4335; font-weight: 700;">
+                                <GoogleBrandIcon size={14} />
+                                <span>GMAIL</span>
+                              </span>
+                            ) : acc.provider === "proton" ? (
+                              <span class="badge-pill" style="background: rgba(109, 74, 255, 0.1); border-color: rgba(109, 74, 255, 0.25); color: #6d4aff; font-weight: 700;">
+                                <ProtonBrandIcon size={14} />
+                                <span>PROTON</span>
+                              </span>
+                            ) : (
+                              <span class="badge-pill" style="background: rgba(0, 164, 239, 0.1); border-color: rgba(0, 164, 239, 0.25); color: #00a4ef; font-weight: 700;">
+                                <MicrosoftBrandIcon size={14} />
+                                <span>MICROSOFT</span>
+                              </span>
+                            )}
                             <div>
-                              <div style="font-weight: 600; font-size: 0.875rem; color: var(--foreground);">
+                              <div style="font-weight: 600; font-size: 0.9375rem; color: var(--foreground); line-height: 1.3;">
                                 {acc.emailAddress}
                               </div>
-                              <div style="font-size: 0.75rem; color: var(--muted-foreground); display: flex; align-items: center; gap: 0.4rem;">
-                                <span style={`display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: ${statusBadge.dotColor};`}></span>
+                              <div style="font-size: 0.75rem; color: var(--muted-foreground); display: flex; align-items: center; gap: 0.4rem; margin-top: 0.15rem;">
+                                <span class="status-dot is-live" style={`background: ${statusBadge.dotColor};`}></span>
                                 <span>{statusBadge.label}</span>
                               </div>
                             </div>
@@ -898,9 +1050,10 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                               <input type="hidden" name="accountId" value={acc.id} />
                               <button
                                 type="submit"
-                                style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.35rem 0.65rem; border-radius: var(--radius-sm); font-size: 0.75rem; font-weight: 600; cursor: pointer;"
+                                class="btn btn-secondary btn-sm"
                               >
-                                Sync Now
+                                <SyncIcon size={13} />
+                                <span>Sync Now</span>
                               </button>
                             </form>
 
@@ -908,10 +1061,10 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                               <input type="hidden" name="accountId" value={acc.id} />
                               <button
                                 type="submit"
-                                class="btn-confirm-delete"
-                                style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #f87171; padding: 0.35rem 0.65rem; border-radius: var(--radius-sm); font-size: 0.75rem; font-weight: 600; cursor: pointer;"
+                                class="btn btn-destructive btn-sm btn-confirm-delete"
                               >
-                                Disconnect
+                                <TrashIcon size={13} />
+                                <span>Disconnect</span>
                               </button>
                             </form>
                           </div>
@@ -933,48 +1086,51 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                       <p class="card-desc">Centralized synchronization bridge for all team Proton Mail accounts.</p>
                     </div>
                     <span
-                      style={`background: ${relayBadge.badgeBg}; color: ${relayBadge.badgeColor}; border: 1px solid ${relayBadge.badgeBorder}; font-size: 0.75rem; font-weight: 700; padding: 0.25rem 0.6rem; border-radius: 9999px; display: inline-flex; align-items: center; gap: 0.4rem;`}
+                      class="badge-pill"
+                      style={`background: ${relayBadge.badgeBg}; color: ${relayBadge.badgeColor}; border-color: ${relayBadge.badgeBorder}; font-weight: 700;`}
                     >
-                      <span style={`display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: ${relayBadge.dotColor};`}></span>
+                      <span class="status-dot is-live" style={`background: ${relayBadge.dotColor};`}></span>
                       <span>{relayBadge.label}</span>
                     </span>
                   </div>
                 </div>
                 <div class="card-content">
-                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-                    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem;">
-                      <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 600; text-transform: uppercase;">
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 1.75rem;">
+                    <div style="background: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem;">
+                      <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;">
                         Gateway Endpoint
                       </div>
-                      <div style="font-family: monospace; font-size: 0.8125rem; color: #38bdf8; margin-top: 0.25rem;">
+                      <div style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--primary); margin-top: 0.35rem; word-break: break-all;">
                         {relayEndpoint || "Not reported yet"}
                       </div>
                     </div>
 
-                    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem;">
-                      <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 600; text-transform: uppercase;">
+                    <div style="background: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem;">
+                      <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;">
                         Accounts Connected
                       </div>
-                      <div style="font-size: 1.125rem; font-weight: 700; color: var(--foreground); margin-top: 0.25rem;">
+                      <div style="font-size: 1.25rem; font-weight: 700; color: var(--foreground); margin-top: 0.25rem;">
                         {relay.connectedAccountsCount} active Proton accounts
                       </div>
                     </div>
                   </div>
 
-                  <div style="display: flex; gap: 0.75rem;">
+                  <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
                     <button
                       type="button"
                       data-action="open-diagnostics"
-                      style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.5rem 0.85rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                      class="btn btn-secondary"
                     >
-                      \uD83D\uDD0D Run Diagnostics
+                      <SearchIcon size={14} />
+                      <span>Run Diagnostics</span>
                     </button>
                     <button
                       type="button"
                       data-action="open-bridge-wizard"
-                      style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.5rem 0.85rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                      class="btn btn-secondary"
                     >
-                      \u2699\uFE0F Setup / Reconfigure Bridge
+                      <SettingsIcon size={14} />
+                      <span>Setup / Reconfigure Bridge</span>
                     </button>
                   </div>
                 </div>
@@ -992,21 +1148,22 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                   <button
                     type="button"
                     data-action="open-bridge-wizard"
-                    style="background: var(--primary); color: var(--primary-foreground); border: none; padding: 0.45rem 0.85rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                    class="btn btn-primary btn-sm"
                   >
-                    + Pair New Device
+                    <PlusIcon size={13} />
+                    <span>Pair New Device</span>
                   </button>
                 </div>
                 <div class="card-content">
                   <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                     {devices.length === 0 && (
-                      <div style="padding: 1.25rem; background: rgba(255,255,255,0.02); border: 1px dashed var(--border); border-radius: var(--radius-md); text-align: center;">
+                      <div style="padding: 2.5rem 1.5rem; background: var(--muted); border: 1px dashed var(--border); border-radius: var(--radius-lg); text-align: center;">
                         <div style="font-weight: 700; font-size: 0.9375rem; color: var(--foreground);">
                           No Bridge devices yet
                         </div>
                         <div style="font-size: 0.8125rem; color: var(--muted-foreground); margin-top: 0.35rem;">
                           Install Mailwarden Bridge on the server that runs Proton Bridge, run
-                          <span style="font-family: monospace;"> mailwarden-bridge setup</span>, then approve its code here.
+                          <code style="font-family: var(--font-mono);"> mailwarden-bridge setup</code>, then approve its code here.
                         </div>
                       </div>
                     )}
@@ -1014,16 +1171,18 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                       const devBadge = formatRelayStatusBadge(dev.status as any);
                       return (
                         <div
-                          style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: var(--radius-md);"
+                          style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 1.25rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs);"
                         >
                           <div style="display: flex; align-items: center; gap: 0.85rem;">
-                            <span style="font-size: 1.5rem;">\uD83D\uDDA5\uFE0F</span>
+                            <div style="width: 2.5rem; height: 2.5rem; border-radius: var(--radius-md); background: var(--secondary); display: flex; align-items: center; justify-content: center; color: var(--foreground); flex: none;">
+                              <LaptopIcon size={20} />
+                            </div>
                             <div>
                               <div style="font-weight: 700; font-size: 0.9375rem; color: var(--foreground);">
                                 {dev.name}
                               </div>
                               <div style="font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.15rem;">
-                                <span>{dev.platform}</span> &bull; <span>{dev.version}</span> &bull;{" "}
+                                <span>{dev.platform}</span> &bull; <span>v{dev.version}</span> &bull;{" "}
                                 <span>
                                   {dev.revokedAt
                                     ? "Revoked"
@@ -1037,27 +1196,30 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
 
                           <div style="display: flex; align-items: center; gap: 0.6rem;">
                             <span
-                              style={`background: ${devBadge.badgeBg}; color: ${devBadge.badgeColor}; border: 1px solid ${devBadge.badgeBorder}; font-size: 0.75rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 4px;`}
+                              class="badge-pill"
+                              style={`background: ${devBadge.badgeBg}; color: ${devBadge.badgeColor}; border-color: ${devBadge.badgeBorder}; font-weight: 600;`}
                             >
+                              <span class="status-dot is-live" style={`background: ${devBadge.dotColor};`}></span>
                               {devBadge.label}
                             </span>
                             <button
                               type="button"
                               data-action="open-diagnostics"
                               data-device={dev.id}
-                              style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.35rem 0.65rem; border-radius: var(--radius-sm); font-size: 0.75rem; font-weight: 600; cursor: pointer;"
+                              class="btn btn-secondary btn-sm"
                             >
-                              Diagnostics
+                              <SearchIcon size={12} />
+                              <span>Diagnostics</span>
                             </button>
                             <form method="post" action="/portal/organizations/devices/revoke" style="display: inline;">
                               <input type="hidden" name="orgId" value={props.activeWorkspace.id} />
                               <input type="hidden" name="deviceId" value={dev.id} />
                               <button
                                 type="submit"
-                                class="btn-confirm-delete"
-                                style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #f87171; padding: 0.35rem 0.65rem; border-radius: var(--radius-sm); font-size: 0.75rem; font-weight: 600; cursor: pointer;"
+                                class="btn btn-destructive btn-sm btn-confirm-delete"
                               >
-                                Revoke
+                                <TrashIcon size={12} />
+                                <span>Revoke</span>
                               </button>
                             </form>
                           </div>
@@ -1077,31 +1239,32 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                   <p class="card-desc">Current workspace quota, seats, and security settings.</p>
                 </div>
                 <div class="card-content">
-                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-                    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem;">
-                      <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 600; text-transform: uppercase;">
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.75rem;">
+                    <div style="background: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem;">
+                      <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;">
                         Seats
                       </div>
-                      <div style="font-size: 1.25rem; font-weight: 700; color: var(--foreground); margin-top: 0.25rem;">
+                      <div style="font-size: 1.35rem; font-weight: 700; color: var(--foreground); margin-top: 0.25rem;">
                         {props.members?.length || 1} / {props.planCapabilities?.maxOrganizationSeats || 10} seats used
                       </div>
                     </div>
 
-                    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem;">
-                      <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 600; text-transform: uppercase;">
+                    <div style="background: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem;">
+                      <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;">
                         Bridge Devices
                       </div>
-                      <div style="font-size: 1.25rem; font-weight: 700; color: var(--foreground); margin-top: 0.25rem;">
+                      <div style="font-size: 1.35rem; font-weight: 700; color: var(--foreground); margin-top: 0.25rem;">
                         {devices.length} / {props.planCapabilities?.maxRelayDevices || 3} relays active
                       </div>
                     </div>
 
-                    <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem;">
-                      <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 600; text-transform: uppercase;">
+                    <div style="background: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem;">
+                      <div style="font-size: 0.75rem; color: var(--muted-foreground); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;">
                         Shared Proton Relay
                       </div>
-                      <div style="font-size: 1.25rem; font-weight: 700; color: #34d399; margin-top: 0.25rem;">
-                        Active &bull; Unlimited
+                      <div style="font-size: 1.35rem; font-weight: 700; color: #10b981; margin-top: 0.25rem; display: flex; align-items: center; gap: 0.4rem;">
+                        <Check size={18} />
+                        <span>Active &bull; Unlimited</span>
                       </div>
                     </div>
                   </div>
@@ -1119,20 +1282,28 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
         <div
           id="createOrgModal"
           class="modal-backdrop"
-          style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; padding: 1rem;"
+          style="display: none;"
         >
-          <div
-            style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); width: 100%; max-width: 28rem; padding: 1.5rem; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);"
-          >
-            <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0 0 0.5rem 0; color: var(--foreground);">
-              Create Organization
-            </h3>
+          <div class="modal-box">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0; color: var(--foreground); display: flex; align-items: center; gap: 0.5rem;">
+                <BuildingIcon size={18} />
+                <span>Create Organization</span>
+              </h3>
+              <button
+                type="button"
+                data-action="close-create-org"
+                style="background: none; border: none; color: var(--muted-foreground); font-size: 1.25rem; cursor: pointer; padding: 0.2rem;"
+              >
+                &times;
+              </button>
+            </div>
             <p style="font-size: 0.8125rem; color: var(--muted-foreground); margin: 0 0 1.25rem 0;">
               Organizations let you invite teammates, share a centralized Proton Relay, and manage company mailboxes.
             </p>
 
             <form method="post" action="/portal/organizations/create">
-              <div style="margin-bottom: 1rem;">
+              <div style="margin-bottom: 1.25rem;">
                 <label for="orgNameInput" style="display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.35rem; color: var(--foreground);">
                   Organization Name
                 </label>
@@ -1146,17 +1317,17 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                 />
               </div>
 
-              <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem;">
+              <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
                 <button
                   type="button"
                   data-action="close-create-org"
-                  style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.5rem 0.85rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                  class="btn btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  style="background: var(--primary); color: var(--primary-foreground); border: none; padding: 0.5rem 1rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                  class="btn btn-primary"
                 >
                   Create &rarr;
                 </button>
@@ -1169,14 +1340,22 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
         <div
           id="inviteMemberModal"
           class="modal-backdrop"
-          style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; padding: 1rem;"
+          style="display: none;"
         >
-          <div
-            style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); width: 100%; max-width: 28rem; padding: 1.5rem; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);"
-          >
-            <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0 0 0.5rem 0; color: var(--foreground);">
-              Invite Teammate to {props.activeWorkspace.name}
-            </h3>
+          <div class="modal-box">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0; color: var(--foreground); display: flex; align-items: center; gap: 0.5rem;">
+                <UsersIcon size={18} />
+                <span>Invite Teammate to {props.activeWorkspace.name}</span>
+              </h3>
+              <button
+                type="button"
+                data-action="close-invite-member"
+                style="background: none; border: none; color: var(--muted-foreground); font-size: 1.25rem; cursor: pointer; padding: 0.2rem;"
+              >
+                &times;
+              </button>
+            </div>
             <p style="font-size: 0.8125rem; color: var(--muted-foreground); margin: 0 0 1.25rem 0;">
               Send an invitation link to your coworker. They will get access to this organization workspace.
             </p>
@@ -1198,7 +1377,7 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                 />
               </div>
 
-              <div style="margin-bottom: 1rem;">
+              <div style="margin-bottom: 1.25rem;">
                 <label for="inviteRoleSelect" style="display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.35rem; color: var(--foreground);">
                   Role in Organization
                 </label>
@@ -1212,17 +1391,17 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                 </select>
               </div>
 
-              <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem;">
+              <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
                 <button
                   type="button"
                   data-action="close-invite-member"
-                  style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.5rem 0.85rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                  class="btn btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  style="background: var(--primary); color: var(--primary-foreground); border: none; padding: 0.5rem 1rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                  class="btn btn-primary"
                 >
                   Create Invitation Link
                 </button>
@@ -1235,14 +1414,13 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
         <div
           id="bridgeWizardModal"
           class="modal-backdrop"
-          style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; padding: 1rem;"
+          style="display: none;"
         >
-          <div
-            style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); width: 100%; max-width: 34rem; padding: 1.75rem; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); max-height: 90vh; overflow-y: auto;"
-          >
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-              <h3 style="font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--foreground);">
-                Set Up Mailwarden Bridge
+          <div class="modal-box" style="max-width: 34rem; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <h3 style="font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--foreground); display: flex; align-items: center; gap: 0.5rem;">
+                <ServerIcon size={20} />
+                <span>Set Up Mailwarden Bridge</span>
               </h3>
               <button
                 type="button"
@@ -1260,30 +1438,32 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
             <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
               {/* Option A: Server */}
               <div
-                style="border: 2px solid #3b82f6; background: rgba(59, 130, 246, 0.05); border-radius: var(--radius-md); padding: 1rem;"
+                style="border: 2px solid var(--primary); background: var(--muted); border-radius: var(--radius-lg); padding: 1.15rem;"
               >
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                  <div style="font-weight: 700; font-size: 0.9375rem; color: #60a5fa;">
-                    \uD83C\uDFE2 Company Server (Recommended for Teams)
+                  <div style="font-weight: 700; font-size: 0.9375rem; color: var(--foreground); display: flex; align-items: center; gap: 0.4rem;">
+                    <ServerIcon size={16} />
+                    <span>Company Server (Recommended for Teams)</span>
                   </div>
-                  <span style="font-size: 0.7rem; background: #2563eb; color: #fff; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 700;">
+                  <span class="badge-pill" style="font-size: 0.6875rem; background: var(--primary); color: var(--primary-foreground); border: none; font-weight: 700;">
                     24/7 SYNC
                   </span>
                 </div>
                 <p style="font-size: 0.8125rem; color: var(--muted-foreground); margin: 0 0 0.75rem 0;">
                   A central Linux server (AlmaLinux, Debian, Ubuntu) keeps Proton accounts syncing continuously even when employee laptops are turned off.
                 </p>
-                <div style="font-family: monospace; font-size: 0.75rem; background: #090d16; padding: 0.6rem; border-radius: 4px; color: #38bdf8; border: 1px solid var(--border);">
+                <div style="font-family: var(--font-mono); font-size: 0.75rem; background: var(--card); padding: 0.65rem 0.85rem; border-radius: var(--radius-md); color: var(--foreground); border: 1px solid var(--border);">
                   curl -fsSL https://mailwarden.dev/install-bridge.sh | bash
                 </div>
               </div>
 
               {/* Option B: Desktop */}
               <div
-                style="border: 1px solid var(--border); background: rgba(255, 255, 255, 0.02); border-radius: var(--radius-md); padding: 1rem;"
+                style="border: 1px solid var(--border); background: var(--card); border-radius: var(--radius-lg); padding: 1.15rem;"
               >
-                <div style="font-weight: 700; font-size: 0.9375rem; color: var(--foreground); margin-bottom: 0.35rem;">
-                  \uD83D\uDCBB This Computer (Desktop App)
+                <div style="font-weight: 700; font-size: 0.9375rem; color: var(--foreground); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.4rem;">
+                  <LaptopIcon size={16} />
+                  <span>This Computer (Desktop App)</span>
                 </div>
                 <p style="font-size: 0.8125rem; color: var(--muted-foreground); margin: 0 0 0.75rem 0;">
                   Mailwarden Bridge runs in the background on this computer. Synchronization is active whenever this computer is online.
@@ -1291,9 +1471,10 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                 <button
                   type="button"
                   data-action="download-desktop"
-                  style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.4rem 0.75rem; border-radius: var(--radius-md); font-size: 0.75rem; font-weight: 600; cursor: pointer;"
+                  class="btn btn-secondary btn-sm"
                 >
-                  Download Mailwarden Desktop Companion &rarr;
+                  <LaptopIcon size={13} />
+                  <span>Download Mailwarden Desktop Companion &rarr;</span>
                 </button>
               </div>
             </div>
@@ -1302,7 +1483,7 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
               <button
                 type="button"
                 data-action="close-bridge-wizard"
-                style="background: var(--primary); color: var(--primary-foreground); border: none; padding: 0.5rem 1rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                class="btn btn-primary"
               >
                 Done
               </button>
@@ -1310,7 +1491,7 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
           </div>
         </div>
 
-        {/* MODAL 4: Diagnostics & Safe Repair — one per registered device, from real heartbeat health */}
+        {/* MODAL 4: Diagnostics & Safe Repair */}
         {devices.map((dev) => {
           const health = dev.health;
           const controllable = Boolean(health?.endpoint) && !dev.revokedAt;
@@ -1318,14 +1499,23 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
             <div
               id={`diagnosticsModal_${dev.id}`}
               class="modal-backdrop"
-              style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; padding: 1rem;"
+              style="display: none;"
             >
-              <div
-                style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); width: 100%; max-width: 32rem; padding: 1.5rem; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);"
-              >
-                <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0 0 0.5rem 0; color: var(--foreground);">
-                  \uD83D\uDD0D {dev.name}
-                </h3>
+              <div class="modal-box" style="max-width: 32rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0; color: var(--foreground); display: flex; align-items: center; gap: 0.45rem;">
+                    <SearchIcon size={18} />
+                    <span>{dev.name}</span>
+                  </h3>
+                  <button
+                    type="button"
+                    data-action="close-diagnostics"
+                    data-device={dev.id}
+                    style="background: none; border: none; color: var(--muted-foreground); font-size: 1.25rem; cursor: pointer;"
+                  >
+                    &times;
+                  </button>
+                </div>
                 <p style="font-size: 0.8125rem; color: var(--muted-foreground); margin: 0 0 1.25rem 0;">
                   {health
                     ? `Reported by the device at ${new Date(health.observedAt).toUTCString()}.`
@@ -1334,18 +1524,18 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
 
                 <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem;">
                   {(health?.components || []).map((component) => (
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.65rem 0.85rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius-md);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.65rem 0.85rem; background: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-md);">
                       <span style="font-size: 0.8125rem; font-weight: 600; text-transform: capitalize;">
                         {component.component}
                       </span>
                       <span
                         style={`font-size: 0.75rem; font-weight: 600; text-align: right; color: ${
                           component.status === "ok"
-                            ? "#34d399"
+                            ? "#10b981"
                             : component.status === "degraded" || component.status === "needs_attention"
-                              ? "#fbbf24"
+                              ? "#eab308"
                               : component.status === "down"
-                                ? "#f87171"
+                                ? "#ef4444"
                                 : "#9ca3af"
                         };`}
                       >
@@ -1372,15 +1562,16 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                       </select>
                       <button
                         type="submit"
-                        style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.45rem 0.85rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                        class="btn btn-secondary btn-sm"
                       >
-                        \u26A1 Run repair
+                        <ZapIcon size={12} />
+                        <span>Run repair</span>
                       </button>
                     </form>
                   ) : (
                     <span style="font-size: 0.75rem; color: var(--muted-foreground); max-width: 22rem;">
                       Remote repair needs a reachable relay endpoint. Run{" "}
-                      <span style="font-family: monospace;">mailwarden-bridge doctor</span> on the device itself.
+                      <code style="font-family: var(--font-mono);">mailwarden-bridge doctor</code> on the device itself.
                     </span>
                   )}
 
@@ -1388,7 +1579,7 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                     type="button"
                     data-action="close-diagnostics"
                     data-device={dev.id}
-                    style="background: var(--primary); color: var(--primary-foreground); border: none; padding: 0.45rem 0.85rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                    class="btn btn-primary btn-sm"
                   >
                     Close
                   </button>
@@ -1402,14 +1593,13 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
         <div
           id="protonModal"
           class="modal-backdrop"
-          style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; padding: 1rem;"
+          style="display: none;"
         >
-          <div
-            style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); width: 100%; max-width: 30rem; padding: 1.5rem; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);"
-          >
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-              <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0; color: var(--foreground);">
-                Connect Proton Mailbox
+          <div class="modal-box">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0; color: var(--foreground); display: flex; align-items: center; gap: 0.5rem;">
+                <ProtonBrandIcon size={18} />
+                <span>Connect Proton Mailbox</span>
               </h3>
               <button
                 type="button"
@@ -1431,7 +1621,7 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
               <input type="hidden" name="mode" value="gateway" />
               <input type="hidden" name="gatewayUrl" value={relayEndpoint ? `${relayEndpoint}/v1` : ""} />
               {!relayEndpoint && (
-                <p style="font-size: 0.8125rem; color: #fbbf24; margin: 0 0 1rem 0;">
+                <p style="font-size: 0.8125rem; color: #eab308; margin: 0 0 1rem 0; background: rgba(234, 179, 8, 0.1); padding: 0.65rem 0.85rem; border-radius: var(--radius-md); border: 1px solid rgba(234, 179, 8, 0.25);">
                   No Mailwarden Bridge has reported a reachable relay endpoint yet. Pair a Bridge device first;
                   Proton accounts connect through it.
                 </p>
@@ -1451,7 +1641,7 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                 />
               </div>
 
-              <div style="margin-bottom: 1rem;">
+              <div style="margin-bottom: 1.25rem;">
                 <label for="bridgePasswordInput" style="display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.35rem; color: var(--foreground);">
                   16-Character Bridge Password
                 </label>
@@ -1461,21 +1651,21 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                   name="bridgePassword"
                   placeholder="e.g. abcd-efgh-ijkl-mnop"
                   required
-                  style="width: 100%; box-sizing: border-box; background: var(--input); color: var(--foreground); border: 1px solid var(--border); padding: 0.55rem 0.75rem; border-radius: var(--radius-md); font-size: 0.875rem; font-family: monospace;"
+                  style="width: 100%; box-sizing: border-box; background: var(--input); color: var(--foreground); border: 1px solid var(--border); padding: 0.55rem 0.75rem; border-radius: var(--radius-md); font-size: 0.875rem; font-family: var(--font-mono);"
                 />
               </div>
 
-              <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem;">
+              <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
                 <button
                   type="button"
                   data-action="close-proton-modal"
-                  style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.5rem 0.85rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                  class="btn btn-secondary"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  style="background: #6d4aff; color: #fff; border: none; padding: 0.5rem 1rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                  class="btn btn-primary"
                 >
                   Connect Proton &rarr;
                 </button>
@@ -1488,14 +1678,13 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
         <div
           id="chatGptModal"
           class="modal-backdrop"
-          style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; padding: 1rem;"
+          style="display: none;"
         >
-          <div
-            style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); width: 100%; max-width: 32rem; padding: 1.5rem; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);"
-          >
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-              <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0; color: var(--foreground);">
-                \uD83E\uDD16 Connect Mailwarden to ChatGPT
+          <div class="modal-box" style="max-width: 32rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0; color: var(--foreground); display: flex; align-items: center; gap: 0.5rem;">
+                <BotIcon size={18} />
+                <span>Connect Mailwarden to ChatGPT</span>
               </h3>
               <button
                 type="button"
@@ -1507,53 +1696,69 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
             </div>
 
             <p style="font-size: 0.8125rem; color: var(--muted-foreground); margin: 0 0 1.25rem 0;">
-              In ChatGPT, go to <strong>Settings &rarr; Connected Apps &rarr; Add Custom MCP Tool</strong>, then paste the details below:
+              In ChatGPT, navigate to <strong>Settings &rarr; Connected Apps &rarr; Add Custom MCP Tool</strong>, then paste these credentials:
             </p>
 
-            <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;">
               <div>
-                <label for="chatGptSseUrl" style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase;">
-                  Server URL (SSE)
-                </label>
-                <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <label for="chatGptSseUrl" style="font-size: 0.75rem; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.06em;">
+                    Server URL (SSE)
+                  </label>
+                  <span class="badge-pill" style="font-size: 0.6875rem; padding: 0.05rem 0.35rem;">SSE</span>
+                </div>
+                <div class="code-input-group">
                   <input
                     id="chatGptSseUrl"
                     type="text"
                     readonly
                     value={`https://${props.host}/mcp/sse`}
-                    style="width: 100%; background: var(--input); color: var(--foreground); border: 1px solid var(--border); padding: 0.45rem 0.75rem; border-radius: var(--radius-md); font-family: monospace; font-size: 0.8125rem;"
                   />
                   <button
                     type="button"
-                    class="btn-copy"
+                    class="btn btn-secondary btn-sm btn-copy"
                     data-target="chatGptSseUrl"
-                    style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.45rem 0.75rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                    style="margin-right: 0.35rem;"
                   >
-                    Copy
+                    <CopyIcon size={13} />
+                    <span>Copy</span>
                   </button>
                 </div>
               </div>
 
               <div>
-                <label for="chatGptToken" style="display: block; font-size: 0.75rem; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase;">
-                  Bearer Token
-                </label>
-                <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <label for="chatGptToken" style="font-size: 0.75rem; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.06em;">
+                    Bearer Token
+                  </label>
+                  <span class="badge-pill" style="font-size: 0.6875rem; padding: 0.05rem 0.35rem;">BEARER</span>
+                </div>
+                <div class="code-input-group">
                   <input
                     id="chatGptToken"
                     type="password"
                     readonly
                     value={props.token}
-                    style="width: 100%; background: var(--input); color: var(--foreground); border: 1px solid var(--border); padding: 0.45rem 0.75rem; border-radius: var(--radius-md); font-family: monospace; font-size: 0.8125rem;"
                   />
-                  <button
-                    type="button"
-                    class="btn-copy"
-                    data-target="chatGptToken"
-                    style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.45rem 0.75rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
-                  >
-                    Copy
-                  </button>
+                  <div style="display: flex; gap: 0.35rem; margin-right: 0.35rem;">
+                    <button
+                      type="button"
+                      class="btn btn-outline btn-sm"
+                      data-action="toggle-token-visibility"
+                      data-target="chatGptToken"
+                      title="Show / Hide token"
+                    >
+                      <Eye size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-sm btn-copy"
+                      data-target="chatGptToken"
+                    >
+                      <CopyIcon size={13} />
+                      <span>Copy</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1562,7 +1767,7 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
               <button
                 type="button"
                 data-action="close-chatgpt-modal"
-                style="background: var(--primary); color: var(--primary-foreground); border: none; padding: 0.45rem 0.85rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                class="btn btn-primary"
               >
                 Done
               </button>
@@ -1570,7 +1775,7 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
           </div>
         </div>
 
-        {/* JAVASCRIPT LOGIC VIA EVENT DELEGATION (0 JSX TYPE ERRORS) */}
+        {/* JAVASCRIPT LOGIC VIA EVENT DELEGATION */}
         <script
           innerHTML={`
           function setModal(id, show) {
@@ -1613,21 +1818,29 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
               setModal('chatGptModal', false);
             } else if (action === 'download-desktop') {
               alert('Mailwarden Desktop Companion pairing initiated.');
+            } else if (action === 'toggle-token-visibility') {
+              var targetInputId = target.getAttribute('data-target');
+              var inp = document.getElementById(targetInputId);
+              if (inp) {
+                inp.type = inp.type === 'password' ? 'text' : 'password';
+              }
             }
 
-            // Copy handler
+            // Copy handler with visual feedback
             var copyBtn = e.target.closest('.btn-copy');
             if (copyBtn) {
               var targetId = copyBtn.getAttribute('data-target');
               var input = document.getElementById(targetId);
               if (input) {
                 navigator.clipboard.writeText(input.value);
-                var oldText = copyBtn.textContent;
-                copyBtn.textContent = 'Copied!';
-                copyBtn.style.color = '#34d399';
+                var originalHtml = copyBtn.innerHTML;
+                copyBtn.innerHTML = '<span>✓ Copied!</span>';
+                copyBtn.style.color = '#10b981';
+                copyBtn.style.borderColor = 'rgba(16, 185, 129, 0.4)';
                 setTimeout(function() {
-                  copyBtn.textContent = oldText;
+                  copyBtn.innerHTML = originalHtml;
                   copyBtn.style.color = '';
+                  copyBtn.style.borderColor = '';
                 }, 2000);
               }
             }
@@ -1649,7 +1862,7 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
           document.addEventListener('submit', function(e) {
             var btn = e.submitter;
             if (btn && btn.classList && btn.classList.contains('btn-confirm-delete')) {
-              if (!confirm('Are you sure you want to remove this item?')) {
+              if (!confirm('Are you sure you want to proceed with this action?')) {
                 e.preventDefault();
               }
             }

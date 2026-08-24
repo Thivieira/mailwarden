@@ -105,6 +105,10 @@ a { color: var(--primary); text-underline-offset: 0.2em; text-decoration-thickne
   gap: 1rem;
 }
 
+.site-header-inner.is-wide {
+  max-width: 68rem;
+}
+
 /* Tracked caps, so the wordmark reads as a mark rather than as a line of body copy. */
 .brand {
   display: flex;
@@ -128,6 +132,11 @@ a { color: var(--primary); text-underline-offset: 0.2em; text-decoration-thickne
   max-width: 42rem;
   margin: 0 auto;
   padding: clamp(1.75rem, 3.5vw, 2.5rem) 1.5rem 5rem;
+}
+
+.sheet.sheet-wide {
+  max-width: 68rem;
+  padding: clamp(1.25rem, 2.5vw, 2rem) 1.5rem 5rem;
 }
 
 /* No background texture. The ledger rules that lived here were removed at the user's
@@ -491,6 +500,202 @@ code {
   font-variant-numeric: tabular-nums;
   color: var(--muted-foreground);
   overflow-wrap: anywhere;
+}
+
+/* ---- Portal & Dashboard Components ------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.5rem 0.875rem;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 100ms ease;
+  white-space: nowrap;
+  user-select: none;
+}
+.btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: var(--shadow-xs);
+}
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.btn-secondary {
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  border-color: var(--border);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--foreground) 8%, var(--secondary));
+  border-color: color-mix(in oklch, var(--foreground) 18%, var(--border));
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--foreground);
+  border-color: var(--border);
+}
+.btn-outline:hover:not(:disabled) {
+  background: var(--muted);
+  border-color: color-mix(in oklch, var(--foreground) 20%, var(--border));
+}
+
+.btn-destructive {
+  background: color-mix(in oklch, var(--destructive) 12%, transparent);
+  color: var(--destructive);
+  border-color: color-mix(in oklch, var(--destructive) 24%, transparent);
+}
+.btn-destructive:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--destructive) 20%, transparent);
+  border-color: color-mix(in oklch, var(--destructive) 40%, transparent);
+}
+
+.btn-sm {
+  font-size: 0.75rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-sm);
+  height: 1.85rem;
+}
+
+.btn-lg {
+  font-size: 0.875rem;
+  padding: 0.65rem 1.15rem;
+  height: 2.5rem;
+}
+
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.status-dot.is-live {
+  animation: pulse-status 2.4s ease-in-out infinite;
+}
+
+@keyframes pulse-status {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.85); }
+}
+
+/* Modal Dialog System */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: modal-fade-in 160ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-box {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  width: 100%;
+  max-width: 30rem;
+  padding: 1.5rem;
+  box-shadow: 0 20px 35px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border);
+  animation: modal-zoom-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes modal-zoom-in {
+  from { opacity: 0; transform: scale(0.96) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Provider Connection Buttons */
+.provider-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.95rem;
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: all 140ms ease;
+}
+.provider-btn:hover:not(:disabled) {
+  border-color: color-mix(in oklch, var(--foreground) 24%, var(--border));
+  background: var(--secondary);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px -2px rgba(0, 0, 0, 0.1);
+}
+.provider-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Monospace Code Input Box with Copy */
+.code-input-group {
+  display: flex;
+  align-items: center;
+  position: relative;
+  background: var(--input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.code-input-group:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 35%, transparent);
+}
+.code-input-group input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  padding: 0.55rem 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  outline: none;
+  box-shadow: none;
 }
 
 @media (max-width: 30rem) {

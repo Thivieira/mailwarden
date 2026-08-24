@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-08-23
+
+### Added
+
+- Standardized Lucide-compliant SVG brand and interface icons (`UserIcon`, `BuildingIcon`, `BotIcon`, `GoogleBrandIcon`, `MicrosoftBrandIcon`, `ProtonBrandIcon`, `LaptopIcon`, `ServerIcon`, etc.) replacing raw unicode escape sequences across all templates.
+- Complete portal design system with uniform `.btn` variants, `.badge-pill`, pulsing `.status-dot` indicators, `.provider-btn`, and monospace `.code-input-group` developer fields.
+- Token visibility toggle and animated clipboard copy feedback (`✓ Copied!`) for MCP credentials.
+
+### Changed
+
+- Modernized the Web Portal dashboard (`/portal`) layout with high-contrast "Personal Mail Vault" greeting banner, clean mailbox list cards, and polished responsive modal dialogs.
+- Standardized OAuth provider buttons for Google, Microsoft 365, and Proton Mail with consistent hover states and brand marks.
+- Refined workspace switcher dropdown and organization navigation tabs.
+
 ## [1.3.0] - 2026-08-23
 
 ### Added
