@@ -113,3 +113,50 @@ bun --hot ./index.ts
 ```
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.
+
+# Architecture invariants
+
+These are not style preferences. A change that violates one is wrong even if it
+passes tests and ships a smaller diff.
+
+## 1. Nothing in the extraction layer may write a judgment field.
+
+Deterministic code describes what happened and enforces policy. It must never
+turn a fact into a semantic conclusion.
+
+```text
+allowed:  automated = true            (a fact about delivery)
+          credential_expired = true   (a fact about a code's TTL)
+          list_unsubscribe = true     (a fact about a header)
+
+forbidden: automated       → unimportant
+           security        → verification code
+           newsletter      → noise
+           noreply@ sender → low priority
+```
+
+Every one of those shortcuts was in the classifier this rule replaced, and they
+are how it produced `actionRequired: 0` on an inbox containing a failed
+production payment. When something must be presented before a judgment exists,
+report the extraction (`has_material_facts`), never a conclusion.
+
+**Corollary:** anything deriving a judgment field must be *total*. Ordered
+branch lists with a fallthrough default are how `severe + this_week → P3`
+happens. Use exhaustive lookup tables over enumerable domains.
+
+## 2. MailScribe core must never require a MailScribe-funded LLM call to produce or maintain inbox state.
+
+All semantic judgment is executed by the external MCP client using the user's
+own ChatGPT, Claude, or other AI entitlement. MailScribe provides intelligence
+*infrastructure*; the connected AI provides intelligence *compute*.
+
+MailScribe may: persist judgments, validate them, validate their evidence
+against stored facts, apply deterministic policy clamps, derive priority bands,
+maintain context, and serve it over MCP.
+
+MailScribe may not: call a paid inference API as part of sync, ingestion,
+classification, briefing, or any path required to produce inbox state.
+
+Enforced by `tests/architecture_invariants.test.ts`. Do not add an inference
+SDK to any workspace `package.json` — an internal "just a small fast model for
+triage" tier is exactly the regression this prevents.
