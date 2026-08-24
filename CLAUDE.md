@@ -116,6 +116,10 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 
 # Architecture invariants
 
+The complete runtime and protocol are documented in
+`docs/architecture/INBOX_INTELLIGENCE.md` and
+`docs/architecture/MCP_TRIAGE_PROTOCOL.md`.
+
 These are not style preferences. A change that violates one is wrong even if it
 passes tests and ships a smaller diff.
 

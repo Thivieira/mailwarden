@@ -6,6 +6,11 @@
 
 MCP clients never receive provider credentials. Tool services query stored data and provider adapters on the server side. Mutation and send scopes are enforced in code; sending still requires a separate human approval flow.
 
+Inbox intelligence uses MCP as its semantic execution boundary; MailScribe core
+does not call a model. See [INBOX_INTELLIGENCE.md](./INBOX_INTELLIGENCE.md) and
+[MCP_TRIAGE_PROTOCOL.md](./MCP_TRIAGE_PROTOCOL.md) for the event context, external
+judgment, validation, persistence, priority, and correction workflow.
+
 ## Current workspace behavior
 
 The principal's single tenant is the effective workspace. Token verification rechecks membership, and the `get_active_workspace` and `list_workspaces` tools expose context without combining mail. Existing personal credentials remain scoped to their original Personal Workspace.

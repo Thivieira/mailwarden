@@ -1,10 +1,10 @@
-# Mailwarden
+# MailScribe
 
 > Your email, managed through normal conversation.
 
-Mailwarden connects Gmail, Microsoft 365, and Proton Mail to AI clients such as ChatGPT, Claude, Cursor, and custom MCP clients. It provides inbox status, attention queues, waiting states, search, drafting, and controlled actions while keeping tenant isolation, encrypted credentials, auditability, and human confirmation in code.
+MailScribe connects Gmail, Microsoft 365, and Proton Mail to AI clients such as ChatGPT, Claude, Cursor, and custom MCP clients. It provides event-based inbox intelligence, search, drafting, and controlled actions while keeping tenant isolation, encrypted credentials, auditability, and human confirmation in code. Stable internal identifiers still use `mailwarden` during the compatibility window.
 
-Mailwarden is live software, not a greenfield scaffold. Production runs on Cloudflare Workers and D1. Mailbox mutations remain disabled by default and currently in production:
+MailScribe is live software, not a greenfield scaffold. Production runs on Cloudflare Workers and D1. Mailbox mutations remain disabled by default and currently in production:
 
 ```text
 MAILBOX_MUTATIONS_ENABLED=false
@@ -27,6 +27,10 @@ packages/
 ├── organizations/   workspace membership/role foundation
 ├── proton/          Proton boundary types and validation
 ├── relay/           relay health and gateway authentication
+├── triage-features/ deterministic evidence-bearing facts
+├── triage-events/   deterministic event identity and clustering
+├── triage-contract/ provider-neutral external judgment contract
+├── triage-priority/ exhaustive priority derivation and L4 clamps
 └── ui/              shared product presentation primitives
 
 infra/           Cloudflare, AlmaLinux, systemd, packaging
@@ -63,6 +67,8 @@ Proton Bridge decrypts locally and exposes loopback IMAP/SMTP. Mailwarden's goal
 - Sends are idempotent.
 - No permanent-delete operation reaches a provider.
 - Dry-run keeps mailbox changes simulated until explicitly enabled.
+- MailScribe core performs no paid model inference; semantic judgment comes from the connected external MCP client.
+- Extraction cannot write judgment fields, and every deterministic judgment-state mapping is total.
 - Private-beta signup invites and Team Organization invitations are separate persisted flows.
 
 ## Development
@@ -120,6 +126,9 @@ Start with:
 - [Proton relay](docs/architecture/PROTON_RELAY.md)
 - [Security](docs/architecture/SECURITY.md)
 - [MCP workspace direction](docs/architecture/MCP.md)
+- [Inbox intelligence](docs/architecture/INBOX_INTELLIGENCE.md)
+- [MCP triage protocol](docs/architecture/MCP_TRIAGE_PROTOCOL.md)
+- [Inbox intelligence migration](docs/architecture/INBOX_INTELLIGENCE_MIGRATION.md)
 - [AlmaLinux operations](docs/operations/ALMALINUX.md)
 
 For parallel development:
