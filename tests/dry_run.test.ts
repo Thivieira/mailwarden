@@ -46,8 +46,8 @@ describe("Complete Dry Run Simulation Mode Across All Actions", () => {
   it("Executes the real policy pipeline and simulates archive (POLICY_WOULD_ARCHIVE)", async () => {
     await policyService.setPolicy(principal, {
       name: "Archive Promos",
-      scope: "classification",
-      targetValue: "junk",
+      scope: "sender",
+      targetValue: "promo@store.com",
       action: "archive",
       minimumConfidence: 80,
     });

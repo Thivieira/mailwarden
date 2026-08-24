@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-24
+
+### Added
+
+- Pure evidence-bearing feature extraction, deterministic event clustering, and
+  additive event/fact persistence.
+- Provider-neutral external MCP judgment contract, exhaustive priority lookup,
+  trusted-fact clamps, structured user operating context, append-only decisions,
+  freshness tracking, explainability, reversible event corrections, and
+  privacy-safe triage metrics.
+- A permanent 40-case evaluation corpus and model-free external-agent replay
+  harness.
+
+### Changed
+
+- `InboxStateService` is the canonical read path for MCP, HTTP, and compatibility
+  inbox views. Deprecated `importance`, `workflowState`, and `attentionScore`
+  fields are derived from event bands and lanes.
+- Semantic reasoning now runs exclusively in the connected external MCP client;
+  MailScribe core performs no paid model inference.
+- Explicit structural mailbox policies continue to run during ingestion, while
+  classification-scoped policies no longer trigger an inferred keyword class.
+
+### Fixed
+
+- Credential expiry applies only to an extracted credential and its TTL, using
+  `message.receivedAt`; aged security alerts are never treated as expired OTPs.
+- Inbox counters and attention compatibility views share one canonical event
+  state instead of independent candidate populations.
+
+### Removed
+
+- The per-message keyword classifier, `likelyClient`/`likelyRecruiter`/
+  `likelyFinancial` heuristics, semantic workflow ladder, magic attention-score
+  arithmetic, and the `correct_classification` MCP tool. Use the versioned event
+  triage and correction tools instead.
+
 ## [1.3.2] - 2026-08-24
 
 ### Changed
@@ -176,6 +213,7 @@ First public release of Mailwarden: an AI-native email operating layer and MCP b
 - Privacy controls: disconnect, credential wipe, memory deletion, data export
 - Dry-run mailbox mutations (`MAILBOX_MUTATIONS_ENABLED=false` by default)
 
+[2.0.0]: https://github.com/Thivieira/mailwarden/releases/tag/v2.0.0
 [1.3.0]: https://github.com/Thivieira/mailwarden/releases/tag/v1.3.0
 [1.2.0]: https://github.com/Thivieira/mailwarden/releases/tag/v1.2.0
 [1.1.1]: https://github.com/Thivieira/mailwarden/releases/tag/v1.1.1
