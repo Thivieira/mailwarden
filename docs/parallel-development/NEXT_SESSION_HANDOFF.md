@@ -1,140 +1,50 @@
 # Next session handoff
 
-Point in time: 2026-08-23, America/Sao_Paulo. The implementation described here is locally validated and **not deployed or migrated in production**.
+## Ownership
 
-## What Mailwarden is now
+The three-agent parallel phase is over. **Claude Opus 5 is the principal
+implementation owner and final integrator** for the whole monorepo.
 
-Mailwarden is one Bun monorepo with three runtime surfaces:
+| Agent | Role now |
+| --- | --- |
+| Claude Opus 5 | Principal owner: Platform, Bridge, Product, infrastructure, integration |
+| GPT-5.6 Sol | Optional specialist for Platform, security, and migration review |
+| Gemini 3.7 Flash | Optional specialist for UI and product refinement |
 
-- Cloudflare Worker + D1: portal, APIs, OAuth, MCP, mail intelligence, policy, audit, and human-approved actions;
-- Bridge: Core, daemon, CLI, local API, Proton Gateway, Proton discovery, device identity, health/diagnostics, secret storage, and Cloudflare Tunnel process management;
-- Desktop: a loopback Bun companion prototype consuming Bridge and shared UI contracts, not a packaged native application.
+Future work does not require three concurrent owners unless parallelism is
+deliberately reintroduced. The per-agent kickoff and handoff documents in this
+directory are kept as historical records; they describe the streams as they were
+before consolidation, not the current system.
 
-Only Cloud accesses D1. `apps/cloud/src/worker.ts` is the Wrangler entrypoint; the Cloud implementation remains incrementally under `/src`. Mailbox mutation remains disabled by default and in the current Wrangler configuration.
+**Start here instead:** [`docs/architecture/CONSOLIDATED_STATE.md`](../architecture/CONSOLIDATED_STATE.md).
 
-## What changed
+## State at consolidation
 
-### Platform
+- All three streams are merged on one linear history; there are no parallel branches.
+- `bun test`, `bun run typecheck`, `bun run build`, and the migration run all pass.
+- Cross-system integration tests cover Platform ↔ Bridge, Cloud ↔ Bridge control,
+  Bridge ↔ Desktop, and Platform ↔ Portal.
+- Bridge was verified against real Proton Mail Bridge 3.25.0 and real cloudflared
+  2026.7.3 on the reference host.
+- Production had not been migrated or deployed at the time of consolidation; see
+  the release notes and `CHANGELOG.md` for what shipped afterwards.
 
-- `users.id` is the global identity; `users.tenant_id` remains the unchanged Personal Workspace and encryption compatibility anchor.
-- Team Organizations are tenants with `kind=team`; the existing contact-intelligence `organizations` table is untouched.
-- Memberships are the live authorization source. JWT, OAuth, human-session, stream-ticket, provider callback, and MCP use revalidate the selected workspace membership.
-- Active-workspace selection issues a new workspace-scoped token; legacy login defaults to Personal.
-- Organization create/list, invitations, acceptance, member roles/removal, mailboxes, quotas, relay devices, and audit events are D1-backed.
-- Private-beta invites and Team invitations remain separate.
-- MCP exposes active/list workspace tools and never aggregates workspaces implicitly.
-- The versioned `/api/bridge/v1/*` API now matches Bridge's HTTP client for provisioning, polling, heartbeat, credential renewal, revocation response, and honest no-tunnel behavior.
+## Priorities from here
 
-### Bridge and Product
+1. Managed Cloudflare Tunnel allocation on the Cloud side (device side is done).
+2. Signed Cloud→gateway *mail* requests (the control plane already signs).
+3. Staging migration and integration verification for migrations 0006 and 0007.
+4. Team-wide attention/waiting/policy semantics for shared mailboxes.
+5. Invite email delivery and organization ownership transfer.
+6. Quota concurrency hardening.
+7. Bridge/Desktop packaging and signing; macOS and Windows adapters.
+8. Automatic updates — only after signing, rollback, and interrupted-upgrade recovery.
 
-- Bridge Core, daemon, CLI, local API, Proton discovery/gateway, device credential handling, diagnostics, repairs, tunnel lifecycle, systemd, and AlmaLinux installer are implemented.
-- The portal has Personal/Team workspace, member/invite, organization mailbox, relay/device, plan/security, and human-readable diagnostics surfaces.
-- `@mailwarden/ui` and a Desktop companion prototype exist.
-- Portal organization/device services now call canonical Platform persistence rather than process-local fake stores. Repair reports unavailable until a real Bridge control path exists.
+## Rules that still hold
 
-## Current repository structure
-
-```text
-apps/
-  cloud/src/{worker.ts,index.ts}
-  bridge/src/{cli.ts,daemon.ts,gateway.ts,core/}
-  desktop/src/
-packages/
-  auth/ contracts/ db/ organizations/ proton/ relay/ ui/
-infra/
-  almalinux/ cloudflare/ packaging/ systemd/
-migrations/
-  0000 ... 0007
-src/                 # transitional Cloud implementation
-tests/               # Cloud, Platform security, Product, Bridge, integration
-docs/
-  architecture/ operations/ parallel-development/
-```
-
-## Schema and migration state
-
-- `0006_platform_workspaces_and_relays.sql` adds tenant kind/status/plan, backfills Personal owner memberships, and creates organization invitation, relay device, provisioning session, and relay credential tables.
-- `0007_global_identity_email_claims.sql` adds and backfills one normalized-email claim per global identity. Claims are reserved before user creation and explicitly removed on rollback.
-- No existing tenant, user, mailbox, provider account, ciphertext, OAuth, session, message, or audit ID moves.
-- Provider credential AAD remains the original `tenantId + userId`.
-
-Before a remote migration, query for duplicate normalized existing emails and missing Personal owner memberships. The `INSERT OR IGNORE` backfill is non-destructive, but duplicate legacy identities require an explicit operator decision.
-
-## Validation status
-
-Current local validation:
-
-- `bun test`: 227 passing, 0 failing, 732 expectations, 30 files.
-- `bun run typecheck`: passing with 0 TypeScript errors.
-- `bun run build`: passing through UI/MCP App generation and Wrangler dry-run; D1 and current variables resolve.
-- `MAILBOX_MUTATIONS_ENABLED=false` is present in the dry-run binding output.
-- `bun run db:migrate`: migrations `0000` through `0007` applied to the local development database.
-- `tests/platform_security.test.ts` also applies the complete migration sequence to a new temporary SQLite database.
-
-`bun run test:live`, production deployment, and remote D1 migrations were not run. The last health snapshot recorded during the earlier kickoff was commit `669fc7f`; treat it as historical, not proof that this branch is live.
-
-## Important decisions
-
-- One repository, one lockfile, several deployable applications, one canonical contract package.
-- Only Cloud owns D1 and migrations.
-- Existing tenant and user IDs remain stable to preserve encrypted credentials and foreign keys.
-- Workspace IDs select context; only a live membership grants access.
-- Tokens resolve one workspace, never a union of all memberships.
-- Organization invite tokens, relay device codes, and device secrets are hashed at rest; gateway secrets are envelope-encrypted.
-- One-time device credential delivery is deliberate. If delivery is lost, reprovision instead of recovering plaintext.
-- The legacy Proton Gateway bearer remains a compatibility mode; registered devices have independent gateway secrets and the gateway supports a signed v1 request mode.
-- Desktop native technology remains open.
-
-## Remaining gaps and risks
-
-1. Run an actual Bridge `HttpCloudClient` against a local HTTP Cloud server and then a non-production Worker; current coverage verifies the exact Hono wire routes in-process.
-2. Add public device-start rate limiting and expired provisioning cleanup before exposing the flow broadly.
-3. Implement managed Cloudflare Tunnel allocation and persist only device-scoped tunnel credentials; the v1 tunnel endpoint currently returns authenticated `404`.
-4. Adopt `@mailwarden/relay` signed gateway requests in Cloud when registered-device mailbox routing lands.
-5. Complete shared-team semantics for attention, waiting, and policy intelligence; core mail/provider access is already workspace-scoped.
-6. Add organization invitation email delivery, explicit ownership transfer, and organization deletion policy.
-7. Replace static plan assignment with billing entitlements only when billing is implemented.
-8. Package/sign Bridge and Desktop, add non-Linux service and secret-store adapters, and prove update rollback.
-9. Review the broad `feat(product)` commit carefully: the agents shared one physical checkout, so it captured the P0 monorepo and early Platform files before later owner-specific commits.
-
-## Git and integration state
-
-The shared checkout is on `agent/product`. Existing integrated commits include:
-
-- `feat(product): implement organizations UX, portal dashboard, @mailwarden/ui & desktop companion` (also contains the P0 monorepo and early Platform foundation because the checkout was shared);
-- `feat(bridge): introduce Bridge Core, daemon, and CLI`;
-- `feat(infra): add managed systemd service and AlmaLinux Bridge installer`;
-- the subsequent Platform commit containing final authorization, identity claims, Bridge v1 integration, tests, and handoff.
-
-Do not rewrite those commits merely to improve ownership aesthetics. Use separate worktrees for the next parallel phase.
-
-## Exact commands to resume
-
-```bash
-cd /home/thivieira/dev/tavtech/mailwarden
-git status --short --branch
-bun install --frozen-lockfile
-bun run db:migrate
-bun test
-bun run typecheck
-bun run build
-git diff --check
-```
-
-Do not run `bun run ship`, `wrangler deploy`, remote migrations, or `bun run test:live` by default.
-
-## Recommended next actions
-
-### GPT-5.6 Sol — Platform
-
-Run duplicate-email/membership preflight against an exported production schema snapshot, add provisioning abuse controls/cleanup, then implement signed Cloud-to-gateway routing against registered relay devices. Preserve the legacy gateway path until a staged Bridge rollout succeeds.
-
-### Claude Opus 5 — Bridge
-
-Point `HttpCloudClient` at a local Cloud server and complete the browser device-authorization loop. Report any wire mismatch in `packages/contracts`, then test revoked credential erasure and renewal end to end. Do not depend on a tunnel credential until Platform allocation exists.
-
-### Gemini 3.7 Flash — Product
-
-Replace query-only workspace presentation with the workspace-selection endpoint wherever a persistent context change is intended, carry `organizationInviteToken` through the authenticated signup flow, and connect device authorization UI to the real user-code endpoint. Keep repair controls disabled until Bridge exposes an authenticated remote control path.
-
-Integration order: Platform migration/preflight → Cloud/Bridge v1 interoperability → portal authorization/onboarding → managed tunnel → staged non-production deployment. Sol performs the final schema/contract/security review; Claude reviews failure/secrets behavior; Gemini reviews the integrated customer path.
+- D1 migrations are append-only and must preserve existing tenant ids, encrypted
+  credential AAD, and Personal Workspace data.
+- A workspace id never authorizes by itself; only a live membership does.
+- Bridge never touches D1 and never holds an organization-wide secret.
+- Mailbox mutations stay disabled (`MAILBOX_MUTATIONS_ENABLED=false`) until
+  explicitly enabled, and sending stays human-confirmed.

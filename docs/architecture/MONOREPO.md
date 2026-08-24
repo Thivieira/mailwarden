@@ -70,7 +70,7 @@ The root config avoids working-directory tricks and keeps the existing Cloudflar
 - CLI: `bun run bridge -- help`.
 - Standalone gateway: `bun run proton:gateway`.
 - Bridge Core and gateway implementation: `/apps/bridge/src/core`.
-- Cloud device protocol: `/api/bridge/v1/*`; legacy `/api/relay/*` routes remain for portal compatibility.
+- Cloud device protocol: `/api/bridge/v1/*`. The only remaining `/api/relay/*` route is `provisioning/authorize`, which a human calls from the portal.
 
 No signed Bridge release artifact is packaged yet. The systemd unit and AlmaLinux installer are reference operations, not a published distribution.
 
