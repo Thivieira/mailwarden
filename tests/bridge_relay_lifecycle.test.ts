@@ -326,14 +326,16 @@ describe("cloudflare tunnel", () => {
   });
 });
 
-async function testCore(options: { cloud?: DevCloudClient } = {}) {
+async function testCore(options: { cloud?: DevCloudClient; realProbe?: boolean } = {}) {
   const paths = resolveBridgePaths({ MAILWARDEN_BRIDGE_CONFIG_DIR: dir, MAILWARDEN_BRIDGE_STATE_DIR: dir });
   return BridgeCore.create({
     paths,
     config: defaultBridgeConfig("relay-test"),
     secrets: new FileSecretStore(paths.secretsFile),
     cloud: options.cloud ?? new DevCloudClient(),
-    adapters: adapters(),
+    adapters: options.realProbe
+      ? adapters({ probeTcp: (await import("../apps/bridge/src/core/system")).probeTcp })
+      : adapters(),
     logger: () => {},
   });
 }
@@ -426,5 +428,31 @@ describe("local api", () => {
       body: JSON.stringify({ action: "rm -rf" }),
     });
     expect(response.status).toBe(400);
+  });
+});
+
+describe("gateway port conflicts", () => {
+  test("a port held by another process is reported as a conflict, not as a healthy gateway", async () => {
+    const core = await testCore({ realProbe: true });
+    const blocker = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: () => new Response("not mailwarden") });
+
+    try {
+      core.config = { ...core.config, gateway: { ...core.config.gateway, port: blocker.port! } };
+      // The daemon keeps running after this; the relay must stay diagnosable.
+      await expect(core.startGateway()).rejects.toThrow();
+
+      const observation = await core.observe();
+      expect(observation.gateway.listening).toBe(false);
+      expect(observation.gateway.portConflict).toBe(true);
+      expect(observation.gateway.detail).toContain("held by another process");
+
+      const report = await core.diagnostics();
+      const diagnostic = report.diagnostics.find((entry) => entry.id === "gateway.port_conflict");
+      expect(diagnostic?.severity).toBe("error");
+      expect(diagnostic?.remediation).toBe("administrator");
+    } finally {
+      await blocker.stop(true);
+      await core.shutdown();
+    }
   });
 });

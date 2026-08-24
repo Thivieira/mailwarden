@@ -57,6 +57,8 @@ export interface BridgeCoreOptions {
 export class BridgeCore {
   readonly accounts = new AccountActivityTracker();
   private gateway: RunningGateway | null = null;
+  /** Why this device's own gateway is not running, when a start attempt failed. */
+  private gatewayError: string | null = null;
 
   private constructor(
     readonly paths: BridgePaths,
@@ -135,6 +137,17 @@ export class BridgeCore {
 
   async startGateway(): Promise<RunningGateway> {
     if (this.gateway) return this.gateway;
+    try {
+      return this.startGatewayNow();
+    } catch (error) {
+      // Remembered so health can distinguish "our gateway is up" from "someone
+      // else's process answers on our port".
+      this.gatewayError = error instanceof Error ? error.message : "the gateway could not start";
+      throw error;
+    }
+  }
+
+  private startGatewayNow(): RunningGateway {
     this.gateway = startGateway({
       host: this.config.gateway.host,
       port: this.config.gateway.port,
@@ -162,6 +175,7 @@ export class BridgeCore {
         repair: (action) => this.repair(action),
       },
     });
+    this.gatewayError = null;
     this.log("info", "Proton gateway listening on loopback", { port: this.gateway.port });
     return this.gateway;
   }
@@ -203,7 +217,25 @@ export class BridgeCore {
     if (this.gateway) return { listening: true, portConflict: false, detail: `Gateway listening on ${host}:${port}` };
 
     const open = await this.adapters.probeTcp(host, port, 1_500);
-    if (!open) return { listening: false, portConflict: false, detail: `Nothing is listening on ${host}:${port}` };
+    if (!open) {
+      return {
+        listening: false,
+        portConflict: false,
+        detail: this.gatewayError
+          ? `The gateway is not running: ${this.gatewayError}`
+          : `Nothing is listening on ${host}:${port}`,
+      };
+    }
+
+    // Something answers, but this device's own gateway failed to start, so the
+    // port belongs to another process — including another Mailwarden gateway.
+    if (this.gatewayError) {
+      return {
+        listening: false,
+        portConflict: true,
+        detail: `Port ${port} is held by another process, so this relay's gateway could not start`,
+      };
+    }
 
     try {
       const response = await fetch(`http://${host}:${port}/v1/health`, { signal: AbortSignal.timeout(2_000) });
