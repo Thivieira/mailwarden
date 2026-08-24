@@ -4,6 +4,7 @@ import {
   TriageEvidenceError,
   externalTriageDecisionSchema,
   validateExternalTriageDecision,
+  type ExternalTriageDecision,
 } from "../packages/triage-contract/src";
 
 const supplied = {
@@ -14,7 +15,7 @@ const supplied = {
   contextIds: { service: ["service-1"] },
 };
 
-const decision = {
+const decision: ExternalTriageDecision = {
   protocolVersion: TRIAGE_PROTOCOL_VERSION,
   eventId: "event-1",
   domain: "financial",
@@ -30,7 +31,7 @@ const decision = {
   rationale: "The supplied facts show a failed payment for a production dependency.",
   evidence: [{ messageId: "message-1", factPath: "paymentEvents.0" }],
   contextReferences: [{ kind: "service", id: "service-1" }],
-} as const;
+};
 
 describe("external triage contract", () => {
   it("accepts one provider-neutral decision shape", () => {

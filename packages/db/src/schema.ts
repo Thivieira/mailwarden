@@ -653,6 +653,41 @@ export const triageEventMembers = sqliteTable(
   ]
 );
 
+export const triageDecisions = sqliteTable(
+  "triage_decisions",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    eventId: text("event_id").notNull().references(() => triageEvents.id, { onDelete: "cascade" }),
+    protocolVersion: text("protocol_version").notNull(),
+    factsVersion: text("facts_version").notNull(),
+    uocVersion: text("uoc_version").notNull().default("0"),
+    judgmentSource: text("judgment_source", { enum: ["external_agent", "user_correction"] }).notNull(),
+    externalJudgment: text("external_judgment", { mode: "json" }).notNull().$type<Record<string, unknown>>(),
+    validatedJudgment: text("validated_judgment", { mode: "json" }).notNull().$type<Record<string, unknown>>(),
+    clampsApplied: text("clamps_applied", { mode: "json" }).notNull().default("[]").$type<Array<Record<string, unknown>>>(),
+    derivedBand: text("derived_band", { enum: ["P0", "P1", "P2", "P3", "noise"] }).notNull(),
+    derivedUrgency: text("derived_urgency").notNull(),
+    lane: text("lane", { enum: ["action", "briefing", "record", "suppressed"] }).notNull(),
+    inconsistent: integer("inconsistent", { mode: "boolean" }).notNull().default(false),
+    safeActionTarget: integer("safe_action_target", { mode: "boolean" }).notNull().default(true),
+    reviewFlags: text("review_flags", { mode: "json" }).notNull().default("[]").$type<string[]>(),
+    needsReevaluation: integer("needs_reevaluation", { mode: "boolean" }).notNull().default(false),
+    previousDecisionId: text("previous_decision_id"),
+    correctionState: text("correction_state", { enum: ["none", "corrected"] }).notNull().default("none"),
+    correctionReason: text("correction_reason"),
+    clientMetadata: text("client_metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [
+    index("triage_decisions_event_idx").on(table.eventId, table.createdAt),
+    index("triage_decisions_tenant_user_idx").on(table.tenantId, table.userId),
+    index("triage_decisions_stale_idx").on(table.tenantId, table.userId, table.needsReevaluation),
+    index("triage_decisions_band_idx").on(table.tenantId, table.userId, table.derivedBand),
+  ]
+);
+
 // ==========================================
 // SIGNATURES & DRAFTS
 // ==========================================
