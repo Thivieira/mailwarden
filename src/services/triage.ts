@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { createHash } from "node:crypto";
 import {
   externalTriageDecisionSchema,
   validateExternalTriageDecision,
@@ -50,15 +51,17 @@ export class TriageService {
     authService.requirePrincipal(principal);
     authService.requireScope(principal, "mail.read");
     const owned = (table: any) => and(eq(table.tenantId, principal.tenantId), eq(table.userId, principal.userId));
-    const [organizations, projects, relationships, senderProfiles, accounts] = await Promise.all([
+    const [organizations, projects, relationships, senderProfiles, accounts, services, commitments, preferences] = await Promise.all([
       db.select().from(schema.organizations).where(owned(schema.organizations)),
       db.select().from(schema.projects).where(owned(schema.projects)),
       db.select().from(schema.relationships).where(owned(schema.relationships)),
       db.select().from(schema.senderProfiles).where(owned(schema.senderProfiles)),
       db.select().from(schema.emailAccounts).where(owned(schema.emailAccounts)),
+      db.select().from(schema.userServices).where(owned(schema.userServices)),
+      db.select().from(schema.userCommitments).where(owned(schema.userCommitments)),
+      db.select().from(schema.userPreferences).where(owned(schema.userPreferences)).limit(1),
     ]);
-    return {
-      version: "0",
+    const context = {
       organizations,
       projects,
       relationships,
@@ -77,7 +80,131 @@ export class TriageService {
         provider: account.provider,
         priorityRole: account.priorityRole,
       })),
+      services,
+      commitments,
+      preferences: preferences[0] ? {
+        id: preferences[0].id,
+        preferredLanguage: preferences[0].preferredLanguage,
+        selectedPreset: preferences[0].selectedPreset,
+        customSettings: preferences[0].customSettings,
+      } : null,
     };
+    const version = createHash("sha256").update(JSON.stringify(context)).digest("hex").slice(0, 16);
+    return { version, ...context };
+  }
+
+  private async markUocChanged(principal: AuthPrincipal) {
+    await db.update(schema.triageDecisions).set({ needsReevaluation: true }).where(and(
+      eq(schema.triageDecisions.tenantId, principal.tenantId),
+      eq(schema.triageDecisions.userId, principal.userId),
+      eq(schema.triageDecisions.needsReevaluation, false)
+    ));
+  }
+
+  async setUserService(principal: AuthPrincipal, input: {
+    id?: string;
+    name: string;
+    provider?: string;
+    environment: "production" | "staging" | "development" | "other";
+    status?: "active" | "inactive";
+    domains?: string[];
+    accountIds?: string[];
+    notes?: string;
+  }) {
+    authService.requireScope(principal, "profile.manage");
+    const accountIds = [...new Set(input.accountIds ?? [])];
+    if (accountIds.length) {
+      const ownedAccounts = await db.select({ id: schema.emailAccounts.id }).from(schema.emailAccounts).where(and(
+        eq(schema.emailAccounts.tenantId, principal.tenantId),
+        eq(schema.emailAccounts.userId, principal.userId),
+        inArray(schema.emailAccounts.id, accountIds)
+      ));
+      if (ownedAccounts.length !== accountIds.length) throw new Error("One or more account IDs are unknown or unauthorized");
+    }
+    const normalized = {
+      name: input.name.trim(),
+      provider: input.provider?.trim() || null,
+      environment: input.environment,
+      status: input.status ?? "active" as const,
+      domains: [...new Set((input.domains ?? []).map((domain) => domain.trim().toLowerCase()).filter(Boolean))],
+      accountIds,
+      notes: input.notes?.trim() || null,
+      updatedAt: new Date(),
+    };
+    const [existing] = await db.select().from(schema.userServices).where(and(
+      eq(schema.userServices.tenantId, principal.tenantId),
+      eq(schema.userServices.userId, principal.userId),
+      input.id ? eq(schema.userServices.id, input.id) : eq(schema.userServices.name, normalized.name)
+    )).limit(1);
+    const id = existing?.id ?? nanoid();
+    if (existing) await db.update(schema.userServices).set(normalized).where(eq(schema.userServices.id, id));
+    else await db.insert(schema.userServices).values({ id, tenantId: principal.tenantId, userId: principal.userId, ...normalized, createdAt: normalized.updatedAt });
+    await this.markUocChanged(principal);
+    await auditService.logEvent({
+      tenantId: principal.tenantId,
+      userId: principal.userId,
+      action: "UOC_SERVICE_UPDATE",
+      resourceType: "user_service",
+      resourceId: id,
+      details: { name: normalized.name, environment: normalized.environment, status: normalized.status },
+    });
+    return (await db.select().from(schema.userServices).where(eq(schema.userServices.id, id)).limit(1))[0];
+  }
+
+  async setUserCommitment(principal: AuthPrincipal, input: {
+    id?: string;
+    kind: "subscription" | "payment" | "deadline" | "contract" | "other";
+    name: string;
+    counterparty?: string;
+    amountMinor?: number;
+    currency?: string;
+    dueAt?: string;
+    status?: "active" | "fulfilled" | "cancelled";
+    relatedServiceId?: string;
+    notes?: string;
+  }) {
+    authService.requireScope(principal, "profile.manage");
+    if (input.relatedServiceId) {
+      const [service] = await db.select({ id: schema.userServices.id }).from(schema.userServices).where(and(
+        eq(schema.userServices.id, input.relatedServiceId),
+        eq(schema.userServices.tenantId, principal.tenantId),
+        eq(schema.userServices.userId, principal.userId)
+      )).limit(1);
+      if (!service) throw new Error("Related service is unknown or unauthorized");
+    }
+    const dueAt = input.dueAt ? new Date(input.dueAt) : null;
+    if (dueAt && !Number.isFinite(dueAt.getTime())) throw new Error("Invalid commitment dueAt");
+    const normalized = {
+      kind: input.kind,
+      name: input.name.trim(),
+      counterparty: input.counterparty?.trim() || null,
+      amountMinor: input.amountMinor ?? null,
+      currency: input.currency?.trim().toUpperCase() || null,
+      dueAt,
+      status: input.status ?? "active" as const,
+      relatedServiceId: input.relatedServiceId ?? null,
+      notes: input.notes?.trim() || null,
+      updatedAt: new Date(),
+    };
+    let existing: any;
+    if (input.id) [existing] = await db.select().from(schema.userCommitments).where(and(
+      eq(schema.userCommitments.id, input.id),
+      eq(schema.userCommitments.tenantId, principal.tenantId),
+      eq(schema.userCommitments.userId, principal.userId)
+    )).limit(1);
+    const id = existing?.id ?? nanoid();
+    if (existing) await db.update(schema.userCommitments).set(normalized).where(eq(schema.userCommitments.id, id));
+    else await db.insert(schema.userCommitments).values({ id, tenantId: principal.tenantId, userId: principal.userId, ...normalized, createdAt: normalized.updatedAt });
+    await this.markUocChanged(principal);
+    await auditService.logEvent({
+      tenantId: principal.tenantId,
+      userId: principal.userId,
+      action: "UOC_COMMITMENT_UPDATE",
+      resourceType: "user_commitment",
+      resourceId: id,
+      details: { kind: normalized.kind, name: normalized.name, status: normalized.status },
+    });
+    return (await db.select().from(schema.userCommitments).where(eq(schema.userCommitments.id, id)).limit(1))[0];
   }
 
   async getEventContext(principal: AuthPrincipal, eventId: string, includeBody = false) {
@@ -198,6 +325,9 @@ export class TriageService {
       relationship: uoc.relationships.map((row: any) => row.id),
       sender_profile: uoc.senderProfiles.map((row: any) => row.id),
       account: uoc.accounts.map((row: any) => row.id),
+      service: uoc.services.map((row: any) => row.id),
+      commitment: uoc.commitments.map((row: any) => row.id),
+      preference: uoc.preferences ? [uoc.preferences.id] : [],
     };
     const supplied: SuppliedTriageEvidence = { eventId: context.event.id, factPathsByMessage, contextIds };
     const decision = validateExternalTriageDecision(parsed, supplied);

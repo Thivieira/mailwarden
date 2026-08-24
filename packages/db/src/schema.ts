@@ -507,6 +507,53 @@ export const projects = sqliteTable(
   ]
 );
 
+export const userServices = sqliteTable(
+  "user_services",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    provider: text("provider"),
+    environment: text("environment", { enum: ["production", "staging", "development", "other"] }).notNull().default("other"),
+    status: text("status", { enum: ["active", "inactive"] }).notNull().default("active"),
+    domains: text("domains", { mode: "json" }).notNull().default("[]").$type<string[]>(),
+    accountIds: text("account_ids", { mode: "json" }).notNull().default("[]").$type<string[]>(),
+    notes: text("notes"),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("user_services_name_idx").on(table.tenantId, table.userId, table.name),
+    index("user_services_status_idx").on(table.tenantId, table.userId, table.status),
+  ]
+);
+
+export const userCommitments = sqliteTable(
+  "user_commitments",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["subscription", "payment", "deadline", "contract", "other"] }).notNull(),
+    name: text("name").notNull(),
+    counterparty: text("counterparty"),
+    amountMinor: integer("amount_minor"),
+    currency: text("currency"),
+    dueAt: integer("due_at", { mode: "timestamp" }),
+    status: text("status", { enum: ["active", "fulfilled", "cancelled"] }).notNull().default("active"),
+    relatedServiceId: text("related_service_id").references(() => userServices.id, { onDelete: "set null" }),
+    notes: text("notes"),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [
+    index("user_commitments_status_idx").on(table.tenantId, table.userId, table.status),
+    index("user_commitments_due_idx").on(table.tenantId, table.userId, table.dueAt),
+    index("user_commitments_service_idx").on(table.relatedServiceId),
+  ]
+);
+
 // ==========================================
 // CLASSIFICATIONS
 // ==========================================

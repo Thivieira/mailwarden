@@ -88,4 +88,38 @@ export const triageTools = [
     handler: (principal: AuthPrincipal, params: { decision: unknown; reason: string }) =>
       triageService.saveDecisions(principal, [params.decision], { source: "user_correction", correctionReason: params.reason }),
   },
+  {
+    name: "set_user_service",
+    description: "Creates or updates structured user operating context for a service or dependency. This is contextual evidence, not a global priority rule.",
+    parameters: z.object({
+      id: z.string().optional(),
+      name: z.string().trim().min(1).max(160),
+      provider: z.string().trim().min(1).max(160).optional(),
+      environment: z.enum(["production", "staging", "development", "other"]),
+      status: z.enum(["active", "inactive"]).default("active"),
+      domains: z.array(z.string().trim().min(1).max(253)).max(50).default([]),
+      accountIds: z.array(z.string().min(1).max(200)).max(50).default([]),
+      notes: z.string().trim().max(1_000).optional(),
+    }).strict(),
+    requiredScopes: WRITE_SCOPES,
+    handler: (principal: AuthPrincipal, params: any) => triageService.setUserService(principal, params),
+  },
+  {
+    name: "set_user_commitment",
+    description: "Creates or updates a structured subscription, payment, deadline, contract, or other user commitment for triage context.",
+    parameters: z.object({
+      id: z.string().optional(),
+      kind: z.enum(["subscription", "payment", "deadline", "contract", "other"]),
+      name: z.string().trim().min(1).max(160),
+      counterparty: z.string().trim().max(160).optional(),
+      amountMinor: z.number().int().nonnegative().optional(),
+      currency: z.string().trim().length(3).optional(),
+      dueAt: z.iso.datetime().optional(),
+      status: z.enum(["active", "fulfilled", "cancelled"]).default("active"),
+      relatedServiceId: z.string().optional(),
+      notes: z.string().trim().max(1_000).optional(),
+    }).strict(),
+    requiredScopes: WRITE_SCOPES,
+    handler: (principal: AuthPrincipal, params: any) => triageService.setUserCommitment(principal, params),
+  },
 ];
