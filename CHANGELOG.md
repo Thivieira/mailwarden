@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-23
+
+### Added
+
+- Cloud signs Proton Gateway requests with the selected workspace relay device's
+  per-device secret. Older relays retain the deprecated bearer compatibility path.
+- Failed Cloudflare Tunnel and DNS revocations are recorded in
+  `relay_tunnel_cleanup` and retried by the 15-minute reconciliation loop, while
+  local device revocation remains immediate and authoritative.
+- Migration `0010` adds the durable tunnel-cleanup queue.
+
+### Fixed
+
+- D1 commands now run through `scripts/d1.sh`, which exports the account selected
+  by `wrangler.jsonc` because Wrangler's migration subcommands do not honor that
+  file's `account_id` when credentials expose multiple accounts.
+
 ## [1.2.0] - 2026-08-24
 
 ### Added
@@ -136,6 +153,7 @@ First public release of Mailwarden: an AI-native email operating layer and MCP b
 - Privacy controls: disconnect, credential wipe, memory deletion, data export
 - Dry-run mailbox mutations (`MAILBOX_MUTATIONS_ENABLED=false` by default)
 
+[1.3.0]: https://github.com/Thivieira/mailwarden/releases/tag/v1.3.0
 [1.2.0]: https://github.com/Thivieira/mailwarden/releases/tag/v1.2.0
 [1.1.1]: https://github.com/Thivieira/mailwarden/releases/tag/v1.1.1
 [1.1.0]: https://github.com/Thivieira/mailwarden/releases/tag/v1.1.0
