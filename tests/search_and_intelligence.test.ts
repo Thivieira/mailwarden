@@ -154,6 +154,76 @@ describe("Search, Deterministic Signals, and Intelligence Ranking", () => {
     expect(classification.timeSensitivity).toBe("none");
   });
 
+  it("Keeps aged security alerts important instead of decaying them as verification codes", async () => {
+    // Regression: the expired-OTP workaround matched on `category === "security"`,
+    // so every genuine security alert was downgraded to importance `low` fifteen
+    // minutes after arrival. That is what drove `important: 0` on a real inbox.
+    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    const alert = await emailService.ingestEmail(principal, {
+      accountId,
+      provider: "mock",
+      providerMessageId: `msg_sec_${nanoid()}`,
+      from: { address: "noreply@cloudflare.com" },
+      to: [{ address: "analyst@company.com" }],
+      cc: [],
+      bcc: [],
+      subject: "Security alert: unusual certificate activity for your domain",
+      textBody:
+        "We detected a certificate issued for a domain in your account from an unrecognized device.",
+      receivedAt: sixHoursAgo,
+      headers: {},
+      flags: { unread: true, bulk: false, automated: true, hasListUnsubscribe: false },
+      attachments: [],
+    });
+
+    const signals = await intelligenceService.extractSignals(principal, alert);
+    expect(signals.likelySecurityRelated).toBe(true);
+    expect(signals.isExpiredOtp).toBe(false);
+
+    const classification = await intelligenceService.classifyEmail(principal, alert, signals);
+    expect(classification.category).toBe("security");
+    expect(classification.importance).toBe("high");
+
+    // The alert carries no verification code, so age must not downgrade it.
+    const status = await attentionService.getInboxStatus(principal);
+    expect(status.totals.important).toBeGreaterThan(0);
+
+    const queue = await attentionService.getAttentionQueue(principal, { limit: 50, minScore: 0 });
+    const queued = queue.find((item) => item.messageId === alert.id);
+    expect(queued).toBeDefined();
+    expect(queued!.importance).toBe("high");
+  });
+
+  it("Reports inbox totals and needsAttention over the same candidate set", async () => {
+    // Regression: totals scanned every classification ever written while
+    // needsAttention counted a separate 50-message window, so the two numbers
+    // could never be reconciled (`needsAttention: 10` with `actionRequired: 0`).
+    for (const subject of ["Contract renewal proposal", "Weekly digest", "Invoice #4410 available"]) {
+      await emailService.ingestEmail(principal, {
+        accountId,
+        provider: "mock",
+        providerMessageId: `msg_mix_${nanoid()}`,
+        from: { address: "ops@vendor.com" },
+        to: [{ address: "analyst@company.com" }],
+        cc: [],
+        bcc: [],
+        subject,
+        textBody: `${subject} body text.`,
+        receivedAt: new Date(),
+        headers: {},
+        flags: { unread: true, bulk: false, automated: false, hasListUnsubscribe: false },
+        attachments: [],
+      });
+    }
+
+    const status = await attentionService.getInboxStatus(principal);
+    const queue = await attentionService.getAttentionQueue(principal, { limit: 100, minScore: 0 });
+
+    // needsAttention is a subset of the scored candidates, never a larger population.
+    expect(status.totals.needsAttention).toBeLessThanOrEqual(queue.length);
+    expect(status.totals.actionRequired + status.totals.routine).toBeLessThanOrEqual(queue.length);
+  });
+
   it("Computes accurate unread counts in getInboxStatus", async () => {
     // Insert 1 unread and 1 read email
     await emailService.ingestEmail(principal, {

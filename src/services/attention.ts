@@ -15,7 +15,101 @@ import { policyService } from "./policy";
 import { userPreferencesService } from "./user-preferences";
 import { localizationService } from "./localization";
 
+/**
+ * Inbox status totals and the attention queue MUST derive from the same candidate
+ * set. When they had different denominators the two numbers could not be reconciled
+ * (`needsAttention: 10` alongside `actionRequired: 0`).
+ * ponytail: fixed window; replaced by event state in the clustering step.
+ */
+const TRIAGE_CANDIDATE_LIMIT = 100;
+
+/**
+ * A verification code stops being usable once it expires. That is a fact about the
+ * credential, NOT a statement about the message's importance, so it may only ever be
+ * applied to messages that actually carry a code. Widening this to
+ * `category === "security"` suppressed every genuine security alert after 15 minutes.
+ * ponytail: fixed TTL; replaced by the TTL stated in the message during feature extraction.
+ */
+const CREDENTIAL_TTL_MS = 15 * 60 * 1000;
+const CREDENTIAL_PATTERN =
+  /verification code|one-time password|one time password|login code|confirmation code|security code|passcode/i;
+
+interface TriageCandidate {
+  email: any;
+  classification: any | undefined;
+  importance: ImportanceLevel;
+  workflowState: WorkflowState;
+  timeSensitivity: TimeSensitivity;
+  credentialExpired: boolean;
+}
+
 export class AttentionService {
+  /** True only when the message itself carries a verification code. */
+  private carriesCredential(email: { subject?: string | null; snippet?: string | null }): boolean {
+    return CREDENTIAL_PATTERN.test(email.subject || "") || CREDENTIAL_PATTERN.test(email.snippet || "");
+  }
+
+  /**
+   * Single source of truth for "which messages are we currently reasoning about".
+   * Both getInboxStatus totals and getAttentionQueue derive from this so their
+   * counts always share a denominator.
+   */
+  private async loadTriageCandidates(
+    principal: AuthPrincipal,
+    limit: number = TRIAGE_CANDIDATE_LIMIT
+  ): Promise<TriageCandidate[]> {
+    const emails = await db
+      .select()
+      .from(schema.emails)
+      .where(
+        and(
+          eq(schema.emails.tenantId, principal.tenantId),
+          eq(schema.emails.userId, principal.userId)
+        )
+      )
+      .orderBy(desc(schema.emails.receivedAt))
+      .limit(limit);
+
+    if (emails.length === 0) return [];
+
+    const rows = await db
+      .select()
+      .from(schema.classifications)
+      .where(
+        and(
+          eq(schema.classifications.tenantId, principal.tenantId),
+          eq(schema.classifications.userId, principal.userId),
+          inArray(
+            schema.classifications.emailId,
+            emails.map((e: any) => e.id)
+          )
+        )
+      );
+    const byEmailId = new Map<string, any>(rows.map((r: any) => [r.emailId, r]));
+
+    const nowMs = Date.now();
+    return emails.map((email: any) => {
+      const cls = byEmailId.get(email.id);
+      const credentialExpired =
+        this.carriesCredential(email) &&
+        nowMs - new Date(email.receivedAt).getTime() > CREDENTIAL_TTL_MS;
+
+      const workflowState: WorkflowState =
+        credentialExpired && cls?.workflowState === "action_required"
+          ? "automated"
+          : (cls?.workflowState as WorkflowState) || "fyi";
+      const importance: ImportanceLevel =
+        credentialExpired && (cls?.importance === "critical" || cls?.importance === "high")
+          ? "low"
+          : (cls?.importance as ImportanceLevel) || "normal";
+      const timeSensitivity: TimeSensitivity = credentialExpired
+        ? "none"
+        : (cls?.timeSensitivity as TimeSensitivity) || "none";
+
+      return { email, classification: cls, importance, workflowState, timeSensitivity, credentialExpired };
+    });
+  }
+
   /**
    * Generates cross-account inbox status overview including provider health and connector status
    */
@@ -102,44 +196,22 @@ export class AttentionService {
       }
     }
 
-    // 2. Compute attention items
-    const attentionQueue = await this.getAttentionQueue(principal, { limit: 10 });
+    // 2. Load the shared candidate set, then derive both the queue and the totals
+    // from it so the reported numbers are mutually consistent.
+    const candidates = await this.loadTriageCandidates(principal);
+    const attentionQueue = await this.getAttentionQueue(principal, { limit: 10, candidates });
 
-    // 3. Compute totals
-    const classifications = await db
-      .select({
-        workflowState: schema.classifications.workflowState,
-        importance: schema.classifications.importance,
-        summary: schema.classifications.summary,
-        category: schema.classifications.category,
-        createdAt: schema.classifications.createdAt,
-      })
-      .from(schema.classifications)
-      .where(
-        and(
-          eq(schema.classifications.tenantId, principal.tenantId),
-          eq(schema.classifications.userId, principal.userId)
-        )
-      );
-
-    const now = new Date();
+    // 3. Compute totals over the same candidates
     let actionRequired = 0;
     let waitingForReply = 0;
     let important = 0;
     let routine = 0;
 
-    for (const c of classifications) {
-      // Dynamic expiration check for OTP / verification codes
-      const isOtp = /verification code|one-time password|login code|confirmation code|security code/i.test(c.summary || "") || c.category === "security";
-      const isExpired = isOtp && (now.getTime() - new Date(c.createdAt).getTime() > 15 * 60 * 1000);
-
-      const effectiveWorkflowState = isExpired && c.workflowState === "action_required" ? "automated" : c.workflowState;
-      const effectiveImportance = isExpired && (c.importance === "critical" || c.importance === "high") ? "low" : c.importance;
-
-      if (effectiveWorkflowState === "action_required") actionRequired++;
-      if (effectiveWorkflowState === "waiting_for_reply") waitingForReply++;
-      if (effectiveImportance === "critical" || effectiveImportance === "high") important++;
-      if (effectiveImportance === "normal" || effectiveImportance === "low") routine++;
+    for (const c of candidates) {
+      if (c.workflowState === "action_required") actionRequired++;
+      if (c.workflowState === "waiting_for_reply") waitingForReply++;
+      if (c.importance === "critical" || c.importance === "high") important++;
+      if (c.importance === "normal" || c.importance === "low") routine++;
     }
 
     const totalUnread = accountSummaries.reduce((sum, a) => sum + a.unreadCount, 0);
@@ -168,7 +240,7 @@ export class AttentionService {
    */
   async getAttentionQueue(
     principal: AuthPrincipal,
-    options: { limit?: number; minScore?: number } = {}
+    options: { limit?: number; minScore?: number; candidates?: TriageCandidate[] } = {}
   ): Promise<AttentionItem[]> {
     authService.requirePrincipal(principal);
     authService.requireScope(principal, "mail.read");
@@ -180,18 +252,9 @@ export class AttentionService {
     const policies = await policyService.getUserPolicies(principal);
     const activePolicies = policies.filter((p) => p.enabled);
 
-    // Fetch recent emails
-    const emails = await db
-      .select()
-      .from(schema.emails)
-      .where(
-        and(
-          eq(schema.emails.tenantId, principal.tenantId),
-          eq(schema.emails.userId, principal.userId)
-        )
-      )
-      .orderBy(desc(schema.emails.receivedAt))
-      .limit(50);
+    // Reuse the caller's candidate set when given one so totals and the queue
+    // are always computed over identical messages.
+    const candidates = options.candidates ?? (await this.loadTriageCandidates(principal));
 
     // Fetch accounts map
     const accounts = await db
@@ -206,27 +269,21 @@ export class AttentionService {
     const accountMap = new Map<string, any>(accounts.map((a: any) => [a.id, a]));
 
     const attentionItems: AttentionItem[] = [];
+    // Senders repeat heavily in a mailbox; look each one up once.
+    const relationshipCache = new Map<string, any>();
 
-    for (const email of emails) {
+    for (const candidate of candidates) {
+      const { email, classification: cls } = candidate;
       const acc = accountMap.get(email.accountId);
       const accName = acc?.displayName || "Unknown Account";
       const fromAddr = email.fromAddress.toLowerCase().trim();
 
-      // Fetch classification
-      const [cls] = await db
-        .select()
-        .from(schema.classifications)
-        .where(
-          and(
-            eq(schema.classifications.tenantId, principal.tenantId),
-            eq(schema.classifications.userId, principal.userId),
-            eq(schema.classifications.emailId, email.id)
-          )
-        )
-        .limit(1);
-
       // Fetch relationship
-      const relContext = await relationshipService.getRelationshipContext(principal, email.fromAddress);
+      let relContext = relationshipCache.get(fromAddr);
+      if (!relContext) {
+        relContext = await relationshipService.getRelationshipContext(principal, email.fromAddress);
+        relationshipCache.set(fromAddr, relContext);
+      }
 
       // Calculate attention score (0 - 100)
       let score = 50;
@@ -261,14 +318,11 @@ export class AttentionService {
         }
       }
 
-      // Dynamic expiration check for OTP / verification codes
-      const isOtp = /verification code|one-time password|login code|confirmation code|security code/i.test(email.subject || "") || cls?.category === "security";
-      const messageAgeMs = Math.max(0, new Date().getTime() - new Date(email.receivedAt).getTime());
-      const isExpiredOtp = isOtp && messageAgeMs > 15 * 60 * 1000;
-
-      const effectiveWorkflowState = isExpiredOtp && cls?.workflowState === "action_required" ? "automated" : (cls?.workflowState || "fyi");
-      const effectiveImportance = isExpiredOtp && (cls?.importance === "critical" || cls?.importance === "high") ? "low" : (cls?.importance || "normal");
-      const effectiveTimeSensitivity = isExpiredOtp ? "none" : (cls?.timeSensitivity || "none");
+      // Credential expiry is already resolved on the shared candidate.
+      const isExpiredOtp = candidate.credentialExpired;
+      const effectiveWorkflowState = candidate.workflowState;
+      const effectiveImportance = candidate.importance;
+      const effectiveTimeSensitivity = candidate.timeSensitivity;
 
       // Classification importance
       if (effectiveImportance === "critical") {
