@@ -21,9 +21,11 @@ import { config } from "../../config";
 import { readBody, type Env } from "../context";
 import { renderPage } from "../../ui/render";
 import { PortalLandingPage, PortalDashboardPage } from "../../ui/portal.gen.js";
-import { ALL_SCOPES, type AuthPrincipal } from "../../types/auth";
 import { organizationService } from "../../services/organizations";
+import { auditService } from "../../services/audit";
+import { logger } from "../../utils/logger";
 import { AuthorizationError } from "../../utils/errors";
+import { ALL_SCOPES, type AuthPrincipal } from "../../types/auth";
 import { BRIDGE_REPAIR_ACTIONS, type BridgeRepairAction } from "@mailwarden/contracts";
 
 function hostOf(url: string) {
@@ -547,6 +549,170 @@ export const portalRoutes = new Hono<Env>()
       return c.redirect(`/portal?ws=${encodeURIComponent(workspaceId)}&connected=Proton%20Mail&email=${encodeURIComponent(emailAddress)}`);
     } catch (err: any) {
       return c.redirect(`/portal?error=${encodeURIComponent(err.message || "Failed to link Proton account")}`);
+    }
+  })
+
+  .post("/portal/accounts/connect-imap", async (c) => {
+    const session = await getSessionUser(c);
+    if (!session) return c.redirect("/portal/login");
+
+    try {
+      const body = await readBody(c);
+      const emailAddress = String(body.emailAddress || body.email || "").trim().toLowerCase();
+      if (!emailAddress || !emailAddress.includes("@")) {
+        return c.redirect("/portal?error=Invalid%20email%20address");
+      }
+      const imapHost = String(body.imapHost || "").trim();
+      const imapUsername = String(body.imapUsername || emailAddress).trim();
+      const imapPassword = body.imapPassword ? String(body.imapPassword) : undefined;
+      const imapPort = Number(body.imapPort) || 993;
+      const imapSecure = body.imapSecure !== "false" && (body.imapSecure === "true" || imapPort === 993);
+
+      if (!imapHost || !imapUsername) {
+        return c.redirect("/portal?error=IMAP%20server%20host%20and%20username%20are%20required");
+      }
+
+      const workspaceId = String(body.workspaceId || session.principal.tenantId).trim();
+      await organizationService.requireWorkspaceMembership(session.principal, workspaceId);
+      const workspacePrincipal = { ...session.principal, workspaceId, tenantId: workspaceId };
+
+      const smtpHost = body.smtpHost ? String(body.smtpHost).trim() : undefined;
+      const smtpPort = body.smtpPort ? Number(body.smtpPort) : 587;
+      const smtpSecure = body.smtpSecure === "true" || smtpPort === 465;
+      const smtpUsername = body.smtpUsername ? String(body.smtpUsername).trim() : imapUsername;
+      const smtpPassword = body.smtpPassword ? String(body.smtpPassword) : imapPassword;
+
+      const creds = {
+        emailAddress,
+        imap: {
+          host: imapHost,
+          port: imapPort,
+          secure: imapSecure,
+          username: imapUsername,
+          password: imapPassword,
+        },
+        smtp: smtpHost
+          ? {
+              host: smtpHost,
+              port: smtpPort,
+              secure: smtpSecure,
+              username: smtpUsername,
+              password: smtpPassword,
+            }
+          : undefined,
+      };
+
+      const now = new Date();
+      const [existingAcc] = await db
+        .select()
+        .from(schema.emailAccounts)
+        .where(
+          and(
+            eq(schema.emailAccounts.tenantId, workspaceId),
+            eq(schema.emailAccounts.emailAddress, emailAddress)
+          )
+        )
+        .limit(1);
+
+      const targetAccountId = existingAcc ? existingAcc.id : nanoid();
+      if (existingAcc && existingAcc.userId !== session.principal.userId) {
+        throw new AuthorizationError("This workspace mailbox is already connected by another member");
+      }
+
+      const displayName = body.displayName ? String(body.displayName).trim() : emailAddress.split("@")[0] || emailAddress;
+
+      if (existingAcc) {
+        await db
+          .update(schema.emailAccounts)
+          .set({
+            provider: "imap",
+            displayName,
+            status: "connected",
+            errorMessage: null,
+            updatedAt: now,
+          })
+          .where(eq(schema.emailAccounts.id, existingAcc.id));
+      } else {
+        await organizationService.requireMailboxCapacity(workspacePrincipal, workspaceId);
+        await db.insert(schema.emailAccounts).values({
+          id: targetAccountId,
+          tenantId: workspaceId,
+          userId: session.principal.userId,
+          provider: "imap",
+          displayName,
+          emailAddress,
+          status: "connected",
+          priorityRole: body.priorityRole || "primary_work",
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        await db.insert(schema.emailIdentities).values({
+          id: nanoid(),
+          tenantId: workspaceId,
+          userId: session.principal.userId,
+          accountId: targetAccountId,
+          email: emailAddress,
+          displayName,
+          canSend: Boolean(smtpHost),
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
+      const encryptedCreds = encryptionService.encryptJson(creds, {
+        tenantId: workspaceId,
+        userId: session.principal.userId,
+      });
+
+      const [existingConn] = await db
+        .select()
+        .from(schema.providerConnections)
+        .where(eq(schema.providerConnections.accountId, targetAccountId))
+        .limit(1);
+
+      if (existingConn) {
+        await db
+          .update(schema.providerConnections)
+          .set({
+            provider: "imap",
+            encryptedCredentials: encryptedCreds,
+            keyVersion: config.KEY_VERSION,
+            updatedAt: now,
+          })
+          .where(eq(schema.providerConnections.id, existingConn.id));
+      } else {
+        await db.insert(schema.providerConnections).values({
+          id: nanoid(),
+          tenantId: workspaceId,
+          userId: session.principal.userId,
+          accountId: targetAccountId,
+          provider: "imap",
+          encryptedCredentials: encryptedCreds,
+          keyVersion: config.KEY_VERSION,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
+      await auditService.logEvent({
+        tenantId: workspaceId,
+        userId: session.principal.userId,
+        action: "PROVIDER_CONNECT",
+        resourceType: "account",
+        resourceId: targetAccountId,
+        details: { provider: "imap", emailAddress, imapHost },
+      });
+
+      try {
+        await syncService.syncAccount(workspacePrincipal, targetAccountId, 25);
+      } catch (err: any) {
+        logger.warn("Initial sync for IMAP account failed in portal flow", { error: err.message });
+      }
+
+      return c.redirect(`/portal?ws=${encodeURIComponent(workspaceId)}&connected=Company%20Email&email=${encodeURIComponent(emailAddress)}`);
+    } catch (err: any) {
+      return c.redirect(`/portal?error=${encodeURIComponent(err.message || "Failed to connect IMAP account")}`);
     }
   })
 

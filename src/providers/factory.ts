@@ -6,6 +6,7 @@ import { MockMailProvider } from "./mock";
 import { GmailProvider, type GmailCredentials } from "./gmail";
 import { OutlookProvider, type OutlookCredentials } from "./outlook";
 import { ProtonBridgeProvider, type ProtonBridgeCredentials } from "./proton";
+import { ImapProvider, type ImapCredentials } from "./imap";
 import { encryptionService } from "../services/encryption";
 import { AccountOwnershipError, NotFoundError } from "../utils/errors";
 import { organizationService } from "../services/organizations";
@@ -49,6 +50,23 @@ export class ProviderFactory {
         return new GmailProvider(decryptedCreds as GmailCredentials);
       case "outlook":
         return new OutlookProvider(decryptedCreds as OutlookCredentials);
+      case "imap": {
+        const creds = decryptedCreds as ImapCredentials;
+        if (creds.mode === "gateway") {
+          const { relayDeviceService } = await import("../services/relay-devices");
+          const relay = await relayDeviceService.resolveWorkspaceRelay(principal.tenantId).catch(() => null);
+          if (relay) {
+            return new ImapProvider({
+              ...creds,
+              mode: "gateway",
+              gatewayUrl: creds.gatewayUrl || `${relay.endpoint.replace(/\/+$/, "")}/v1`,
+              deviceGatewaySecret: relay.gatewaySecret,
+              relayDeviceId: relay.deviceId,
+            });
+          }
+        }
+        return new ImapProvider(creds);
+      }
       case "proton": {
         const creds = decryptedCreds as ProtonBridgeCredentials;
         // A registered relay supersedes whatever the mailbox was configured with:

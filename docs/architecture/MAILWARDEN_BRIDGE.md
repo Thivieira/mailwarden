@@ -1,12 +1,13 @@
 # Mailwarden Bridge
 
-Mailwarden Bridge is the customer-controlled runtime between Mailwarden Cloud and Proton Mail. Its product principle is simple:
+Mailwarden Bridge is the customer-controlled secure connectivity agent between Mailwarden Cloud and private or local email infrastructure (Proton Mail Bridge, on-premise IMAP/SMTP servers, and firewalled corporate mailboxes). Its product principle is simple:
 
 ```text
-Install Mailwarden Bridge → Sign in → Choose organization → Connect Proton → Done
+Public Mail (Google, Microsoft 365, Public IMAP) → Connect Directly via Cloud
+Private Mail (Proton, On-Premise IMAP/SMTP, LAN) → Connect Securely via Mailwarden Bridge
 ```
 
-IMAP, SMTP, STARTTLS, gateway credentials, cloudflared, ports, systemd, and keyrings belong in diagnostics and operations—not the normal onboarding path.
+A customer using standard cloud email (Google Workspace, Microsoft 365, or public IMAP) never needs Bridge. Bridge appears only when network topology or provider architecture requires a secure, outbound-only tunnel.
 
 ## Current implementation
 
@@ -14,11 +15,14 @@ IMAP, SMTP, STARTTLS, gateway credentials, cloudflared, ports, systemd, and keyr
 
 - Bridge Core lives in `apps/bridge/src/core/` and is shared by the daemon (`daemon.ts`)
   and the CLI (`cli.ts`); a desktop shell consumes the same core over the local API.
-- The Proton Gateway was extracted out of Cloud into `apps/bridge/src/core/gateway.ts`.
-  Behaviour is unchanged — same `/v1` surface, same normalized message shape, same
-  per-request Proton account selection — with per-device authentication, replay
+- The Gateway was generalized in `apps/bridge/src/core/gateway.ts` to support both
+  loopback Proton Bridge and private TLS-authenticated IMAP/SMTP infrastructure.
+  Behaviour is consistent — same `/v1` surface, same normalized message shape, same
+  per-request account selection — with per-device authentication, replay
   protection, rate and size limits, validated caller context, honest health, generic
-  error bodies, and a STARTTLS fix for loopback hosts.
+  error bodies, and TLS validation for both loopback and private hosts.
+- Generalized capability model in `@mailwarden/contracts` (`BridgeConnectorCapability`:
+  `proton`, `private_imap`, `private_smtp`).
 - Device identity: browser device-authorization flow, organization-scoped renewable
   credential, rotation, and revocation that erases the local credential.
 - Proton Bridge discovery reports install location, version, and endpoint reachability

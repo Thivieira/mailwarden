@@ -1,6 +1,6 @@
 {
   "name": "mailwarden",
-  "version": "1.3.2",
+  "version": "1.4.0",
   "description": "Email managed through conversation, with human-approved sending",
   "module": "apps/cloud/src/index.ts",
   "main": "apps/cloud/src/index.ts",

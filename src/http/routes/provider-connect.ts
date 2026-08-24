@@ -13,6 +13,7 @@ import { renderPage } from "../../ui/render";
 import { CallbackPage } from "../../ui/pages.gen.js";
 import { AuthenticationError, AuthorizationError, ConfigurationError } from "../../utils/errors";
 import { organizationService } from "../../services/organizations";
+import { logger } from "../../utils/logger";
 
 function hostOf(url: string) {
   try {
@@ -139,6 +140,209 @@ export const providerConnectRoutes = new Hono<Env>()
     authService.requireScope(principal, "accounts.manage");
     const body = await readBody(c);
     return c.json(await syncService.syncAll(principal, Number(body?.limitPerAccount || 50)));
+  })
+
+  .get("/api/connect/discover", async (c) => {
+    const principal = c.get("principal");
+    if (!principal) throw new AuthenticationError("Unauthorized");
+    authService.requireScope(principal, "accounts.manage");
+
+    const email = c.req.query("email") || "";
+    const domain = c.req.query("domain") || "";
+    if (!email && !domain) {
+      throw new ConfigurationError("An email or domain parameter is required for discovery");
+    }
+
+    const { providerDiscoveryService } = await import("../../services/provider-discovery");
+    if (email) {
+      return c.json(await providerDiscoveryService.discoverForEmail(email));
+    }
+    return c.json(await providerDiscoveryService.discoverForDomain(domain));
+  })
+
+  .post("/api/connect/test", async (c) => {
+    const principal = c.get("principal");
+    if (!principal) throw new AuthenticationError("Unauthorized");
+    authService.requireScope(principal, "accounts.manage");
+
+    const input = await readBody(c);
+    const emailAddress = String(input.email || input.emailAddress || input.username || "").toLowerCase().trim();
+    if (!input.imapHost || !input.imapUsername) {
+      throw new ConfigurationError("imapHost and imapUsername are required to test connection");
+    }
+
+    const credentials = {
+      emailAddress,
+      imap: {
+        host: String(input.imapHost).trim(),
+        port: Number(input.imapPort) || 993,
+        secure: input.imapSecure !== undefined ? Boolean(input.imapSecure) : Number(input.imapPort) === 993,
+        username: String(input.imapUsername).trim(),
+        password: input.imapPassword ? String(input.imapPassword) : undefined,
+      },
+      smtp: input.smtpHost
+        ? {
+            host: String(input.smtpHost).trim(),
+            port: Number(input.smtpPort) || 587,
+            secure: input.smtpSecure !== undefined ? Boolean(input.smtpSecure) : Number(input.smtpPort) === 465,
+            username: input.smtpUsername ? String(input.smtpUsername).trim() : String(input.imapUsername).trim(),
+            password: input.smtpPassword ? String(input.smtpPassword) : input.imapPassword ? String(input.imapPassword) : undefined,
+          }
+        : undefined,
+    };
+
+    const { providerDiscoveryService } = await import("../../services/provider-discovery");
+    return c.json(await providerDiscoveryService.testConnection(credentials));
+  })
+
+  .post("/api/connect/imap", async (c) => {
+    const principal = c.get("principal");
+    if (!principal) throw new AuthenticationError("Unauthorized");
+    authService.requireScope(principal, "accounts.manage");
+
+    const input = await readBody(c);
+    const email = String(input.email || input.emailAddress || "").toLowerCase().trim();
+    if (!email || !email.includes("@")) {
+      throw new ConfigurationError("A valid email address is required");
+    }
+    if (!input.imapHost || !input.imapUsername) {
+      throw new ConfigurationError("imapHost and imapUsername are required to connect IMAP");
+    }
+
+    const now = new Date();
+    let [account] = await db.select().from(schema.emailAccounts).where(and(
+      eq(schema.emailAccounts.tenantId, principal.tenantId),
+      eq(schema.emailAccounts.emailAddress, email)
+    )).limit(1);
+
+    if (account && account.userId !== principal.userId) {
+      throw new AuthorizationError("This workspace mailbox is already connected by another member");
+    }
+
+    const imapPort = Number(input.imapPort) || 993;
+    const imapSecure = input.imapSecure !== undefined ? Boolean(input.imapSecure) : imapPort === 993;
+    const smtpPort = input.smtpPort ? Number(input.smtpPort) : 587;
+    const smtpSecure = input.smtpSecure !== undefined ? Boolean(input.smtpSecure) : smtpPort === 465;
+
+    const creds = {
+      emailAddress: email,
+      imap: {
+        host: String(input.imapHost).trim(),
+        port: imapPort,
+        secure: imapSecure,
+        username: String(input.imapUsername).trim(),
+        password: input.imapPassword ? String(input.imapPassword) : undefined,
+      },
+      smtp: input.smtpHost
+        ? {
+            host: String(input.smtpHost).trim(),
+            port: smtpPort,
+            secure: smtpSecure,
+            username: input.smtpUsername ? String(input.smtpUsername).trim() : String(input.imapUsername).trim(),
+            password: input.smtpPassword ? String(input.smtpPassword) : input.imapPassword ? String(input.imapPassword) : undefined,
+          }
+        : undefined,
+    };
+
+    if (!account) {
+      await organizationService.requireMailboxCapacity(principal, principal.tenantId);
+      const id = nanoid();
+      await db.insert(schema.emailAccounts).values({
+        id,
+        tenantId: principal.tenantId,
+        userId: principal.userId,
+        provider: "imap",
+        displayName: input.displayName || email.split("@")[0] || email,
+        emailAddress: email,
+        status: "connected",
+        priorityRole: input.priorityRole || "primary_work",
+        createdAt: now,
+        updatedAt: now,
+      });
+      [account] = await db.select().from(schema.emailAccounts).where(eq(schema.emailAccounts.id, id)).limit(1);
+    } else {
+      await db.update(schema.emailAccounts).set({
+        provider: "imap",
+        displayName: input.displayName || email.split("@")[0] || email,
+        status: "connected",
+        errorMessage: null,
+        updatedAt: now,
+      }).where(eq(schema.emailAccounts.id, account.id));
+    }
+
+    const encryptedCredentials = encryptionService.encryptJson(creds, {
+      tenantId: principal.tenantId,
+      userId: principal.userId,
+    });
+
+    const [connection] = await db.select().from(schema.providerConnections)
+      .where(eq(schema.providerConnections.accountId, account!.id)).limit(1);
+
+    if (connection) {
+      await db.update(schema.providerConnections).set({
+        provider: "imap",
+        encryptedCredentials,
+        keyVersion: encryptedCredentials.keyVersion,
+        updatedAt: now,
+      }).where(eq(schema.providerConnections.id, connection.id));
+    } else {
+      await db.insert(schema.providerConnections).values({
+        id: nanoid(),
+        tenantId: principal.tenantId,
+        userId: principal.userId,
+        accountId: account!.id,
+        provider: "imap",
+        encryptedCredentials,
+        keyVersion: encryptedCredentials.keyVersion,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    const [identity] = await db.select().from(schema.emailIdentities).where(and(
+      eq(schema.emailIdentities.accountId, account!.id),
+      eq(schema.emailIdentities.email, email)
+    )).limit(1);
+
+    if (!identity) {
+      await db.insert(schema.emailIdentities).values({
+        id: nanoid(),
+        tenantId: principal.tenantId,
+        userId: principal.userId,
+        accountId: account!.id,
+        email,
+        displayName: input.displayName || email.split("@")[0] || email,
+        canSend: Boolean(input.smtpHost),
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    await auditService.logEvent({
+      tenantId: principal.tenantId,
+      userId: principal.userId,
+      action: "PROVIDER_CONNECT",
+      resourceType: "account",
+      resourceId: account!.id,
+      details: { provider: "imap", emailAddress: email, imapHost: input.imapHost },
+    });
+
+    let syncResult = null;
+    if (input.syncNow !== false) {
+      try {
+        syncResult = await syncService.syncAccount(principal, account!.id, input.limit || 25);
+      } catch (err: any) {
+        logger.warn("Initial sync for IMAP account failed", { error: err.message });
+      }
+    }
+
+    return c.json({
+      accountId: account!.id,
+      provider: "imap",
+      emailAddress: email,
+      status: "connected",
+      sync: syncResult,
+    });
   })
 
   .post("/api/connect/proton", async (c) => {

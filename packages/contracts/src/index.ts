@@ -52,10 +52,45 @@ export interface PlanCapabilities {
   sso: boolean;
 }
 
-export type ProviderType = "gmail" | "outlook" | "proton" | "mock";
+export type ProviderType = "gmail" | "outlook" | "proton" | "imap" | "mock";
 export type MailboxProvider = ProviderType;
 export type AccountStatus = "connected" | "disconnected" | "error" | "reauth_required";
 export type MailboxStatus = AccountStatus;
+
+/** Provider-neutral capabilities declaring what a specific mail system supports. */
+export interface MailProviderCapabilities {
+  read: boolean;
+  search: boolean;
+  folders: boolean;
+  labels: boolean;
+  threads: boolean;
+  attachments: boolean;
+  send: boolean;
+  drafts: boolean;
+  archive: boolean;
+  flags: boolean;
+  incrementalSync: boolean;
+  nativeOAuth: boolean;
+}
+
+export type MailFolderKind =
+  | "inbox"
+  | "sent"
+  | "drafts"
+  | "trash"
+  | "spam"
+  | "archive"
+  | "custom";
+
+export interface NormalizedFolder {
+  id: string;
+  name: string;
+  path: string;
+  kind: MailFolderKind;
+  unreadCount?: number;
+  totalCount?: number;
+  specialUse?: string;
+}
 
 export interface Mailbox {
   id: string;
@@ -68,10 +103,58 @@ export interface Mailbox {
 
 export type RelayStatus = "provisioning" | "online" | "degraded" | "offline" | "needs_attention";
 
+export type BridgeConnectorCapability = "proton" | "private_imap" | "private_smtp";
+
 export interface RelayCapabilities {
   protonImap: boolean;
   protonSmtp: boolean;
+  genericImap?: boolean;
+  genericSmtp?: boolean;
   cloudflareTunnel: boolean;
+  connectors?: BridgeConnectorCapability[];
+}
+
+// --- Provider Discovery & Connection Testing --------------------------------
+
+export type ProviderDiscoveryConfidence = "high" | "candidate" | "medium" | "low" | "none";
+
+export type DiscoveredProviderType = "google" | "microsoft" | "proton" | "imap_smtp" | "unknown";
+
+export interface ServerEndpointConfig {
+  host: string;
+  port: number;
+  socketType: "SSL" | "STARTTLS" | "PLAIN";
+  usernameFormat?: "full_email" | "user_part";
+}
+
+export interface DiscoveredProviderConfig {
+  confidence: ProviderDiscoveryConfidence;
+  providerType: DiscoveredProviderType;
+  displayName: string;
+  domain: string;
+  nativeOAuthSupported: boolean;
+  incoming?: ServerEndpointConfig;
+  outgoing?: ServerEndpointConfig;
+  notes?: string;
+}
+
+export type ConnectionTestResultCode =
+  | "success"
+  | "auth_rejected"
+  | "server_unreachable"
+  | "tls_failure"
+  | "wrong_port"
+  | "unsupported_security"
+  | "timeout"
+  | "unknown_error";
+
+export interface ConnectionTestResult {
+  ok: boolean;
+  code: ConnectionTestResultCode;
+  humanMessage: string;
+  technicalDetail?: string;
+  latencyMs?: number;
+  foldersFound?: string[];
 }
 
 export interface RelayDevice {

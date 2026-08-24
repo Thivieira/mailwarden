@@ -112,26 +112,38 @@ const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
  * reachable over the network is not a Proton Bridge we can authenticate, so the
  * gateway refuses instead of silently accepting any certificate.
  */
-export function tlsOptionsFor(host: string): { rejectUnauthorized: boolean; servername: string } {
-  if (!LOOPBACK_HOSTS.has(host)) {
-    throw new Error(`Proton Bridge host must be loopback, got ${host}`);
+export function tlsOptionsFor(
+  host: string,
+  allowNonLoopback: boolean = false,
+  rejectUnauthorized?: boolean
+): { rejectUnauthorized: boolean; servername: string } {
+  if (LOOPBACK_HOSTS.has(host)) {
+    // `servername` must be present and must not be an IP: Node rejects an IP as
+    // SNI, and without it the STARTTLS handshake fails with "servername argument
+    // must be an string". Verification is off regardless — Proton Bridge presents
+    // a self-signed certificate on loopback — so the name is only there to satisfy
+    // the TLS layer.
+    return { rejectUnauthorized: false, servername: "localhost" };
   }
-  // `servername` must be present and must not be an IP: Node rejects an IP as
-  // SNI, and without it the STARTTLS handshake fails with "servername argument
-  // must be an string". Verification is off regardless — Proton Bridge presents
-  // a self-signed certificate on loopback — so the name is only there to satisfy
-  // the TLS layer.
-  return { rejectUnauthorized: false, servername: "localhost" };
+
+  if (allowNonLoopback) {
+    return {
+      rejectUnauthorized: rejectUnauthorized !== false,
+      servername: host,
+    };
+  }
+
+  throw new Error(`Proton Bridge host must be loopback, got ${host}`);
 }
 
 function defaultImapFactory(settings: ImapClientSettings): ImapClientLike {
   return new ImapFlow({
     host: settings.host,
     port: settings.port,
-    secure: false,
-    doSTARTTLS: true,
+    secure: settings.port === 993,
+    doSTARTTLS: settings.port !== 993,
     auth: { user: settings.user, pass: settings.pass },
-    tls: tlsOptionsFor(settings.host),
+    tls: tlsOptionsFor(settings.host, true),
     connectionTimeout: 15_000,
     greetingTimeout: 10_000,
     socketTimeout: 60_000,
@@ -143,9 +155,9 @@ function defaultSmtpFactory(settings: SmtpSettings): SmtpTransportLike {
   return nodemailer.createTransport({
     host: settings.host,
     port: settings.port,
-    secure: false,
+    secure: settings.port === 465,
     auth: { user: settings.user, pass: settings.pass },
-    tls: tlsOptionsFor(settings.host),
+    tls: tlsOptionsFor(settings.host, true),
     connectionTimeout: 15_000,
     greetingTimeout: 10_000,
     socketTimeout: 60_000,

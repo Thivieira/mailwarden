@@ -33,6 +33,7 @@ import {
   GoogleBrandIcon,
   MicrosoftBrandIcon,
   ProtonBrandIcon,
+  ImapBrandIcon,
 } from "./parts";
 import {
   UI_THEME,
@@ -556,6 +557,11 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                                 <ProtonBrandIcon size={14} />
                                 <span>PROTON</span>
                               </span>
+                            ) : acc.provider === "imap" ? (
+                              <span class="badge-pill" style="background: rgba(100, 116, 139, 0.12); border-color: rgba(100, 116, 139, 0.25); color: #475569; font-weight: 700;">
+                                <ImapBrandIcon size={14} />
+                                <span>COMPANY / IMAP</span>
+                              </span>
                             ) : (
                               <span class="badge-pill" style="background: rgba(0, 164, 239, 0.1); border-color: rgba(0, 164, 239, 0.25); color: #00a4ef; font-weight: 700;">
                                 <MicrosoftBrandIcon size={14} />
@@ -647,6 +653,15 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                   >
                     <ProtonBrandIcon size={16} />
                     <span>Connect Proton Mail</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-action="open-imap-modal"
+                    class="provider-btn"
+                  >
+                    <ImapBrandIcon size={16} />
+                    <span>Connect Other Email (IMAP)</span>
                   </button>
                 </div>
               </div>
@@ -1000,14 +1015,24 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                     <h2 class="card-title">Organization Mailboxes ({props.accounts.length})</h2>
                     <p class="card-desc">Mailboxes connected under {props.activeWorkspace.name}.</p>
                   </div>
-                  <button
-                    type="button"
-                    data-action="open-proton-modal"
-                    class="btn btn-primary btn-sm"
-                  >
-                    <PlusIcon size={13} />
-                    <span>Connect Proton Mailbox</span>
-                  </button>
+                  <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button
+                      type="button"
+                      data-action="open-imap-modal"
+                      class="btn btn-primary btn-sm"
+                    >
+                      <PlusIcon size={13} />
+                      <span>Connect Company / IMAP Mailbox</span>
+                    </button>
+                    <button
+                      type="button"
+                      data-action="open-proton-modal"
+                      class="btn btn-secondary btn-sm"
+                    >
+                      <ProtonBrandIcon size={13} />
+                      <span>Connect Proton Mailbox</span>
+                    </button>
+                  </div>
                 </div>
                 <div class="card-content">
                   <div style="display: flex; flex-direction: column; gap: 0.75rem;">
@@ -1027,6 +1052,11 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                               <span class="badge-pill" style="background: rgba(109, 74, 255, 0.1); border-color: rgba(109, 74, 255, 0.25); color: #6d4aff; font-weight: 700;">
                                 <ProtonBrandIcon size={14} />
                                 <span>PROTON</span>
+                              </span>
+                            ) : acc.provider === "imap" ? (
+                              <span class="badge-pill" style="background: rgba(100, 116, 139, 0.12); border-color: rgba(100, 116, 139, 0.25); color: #475569; font-weight: 700;">
+                                <ImapBrandIcon size={14} />
+                                <span>COMPANY / IMAP</span>
                               </span>
                             ) : (
                               <span class="badge-pill" style="background: rgba(0, 164, 239, 0.1); border-color: rgba(0, 164, 239, 0.25); color: #00a4ef; font-weight: 700;">
@@ -1674,6 +1704,238 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
           </div>
         </div>
 
+        {/* MODAL 5B: Universal IMAP / Other Email Connection Modal */}
+        <div
+          id="imapModal"
+          class="modal-backdrop"
+          style="display: none;"
+        >
+          <div class="modal-box" style="max-width: 36rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0; color: var(--foreground); display: flex; align-items: center; gap: 0.5rem;">
+                <ImapBrandIcon size={18} />
+                <span>Connect Other Email (IMAP / SMTP)</span>
+              </h3>
+              <button
+                type="button"
+                data-action="close-imap-modal"
+                style="background: none; border: none; color: var(--muted-foreground); font-size: 1.25rem; cursor: pointer;"
+              >
+                &times;
+              </button>
+            </div>
+
+            <p style="font-size: 0.8125rem; color: var(--muted-foreground); margin: 0 0 1rem 0;">
+              Connect your company email, custom domain, cPanel, Dovecot, or any standard IMAP mailbox to {props.activeWorkspace.name}.
+            </p>
+
+            <form method="post" action="/portal/accounts/connect-imap" id="imapConnectForm">
+              <input type="hidden" name="workspaceId" value={props.activeWorkspace.id} />
+
+              {/* Email Address & Auto-Discovery Helper */}
+              <div style="margin-bottom: 1rem;">
+                <label for="imapEmailInput" style="display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.35rem; color: var(--foreground);">
+                  Email Address
+                </label>
+                <div style="display: flex; gap: 0.5rem;">
+                  <input
+                    type="email"
+                    name="emailAddress"
+                    id="imapEmailInput"
+                    placeholder="alice@company.com"
+                    required
+                    style="flex: 1; box-sizing: border-box; background: var(--input); color: var(--foreground); border: 1px solid var(--border); padding: 0.55rem 0.75rem; border-radius: var(--radius-md); font-size: 0.875rem;"
+                  />
+                  <button
+                    type="button"
+                    id="btnDiscoverProvider"
+                    class="btn btn-secondary btn-sm"
+                    style="white-space: nowrap;"
+                  >
+                    <SparklesIcon size={13} />
+                    <span>Detect Settings</span>
+                  </button>
+                </div>
+                <div id="discoveryNotice" style="display: none; margin-top: 0.5rem; font-size: 0.8125rem; padding: 0.65rem 0.85rem; border-radius: var(--radius-md);"></div>
+              </div>
+
+              {/* Display Name */}
+              <div style="margin-bottom: 1rem;">
+                <label for="imapDisplayName" style="display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.35rem; color: var(--foreground);">
+                  Display Name / Mailbox Label (Optional)
+                </label>
+                <input
+                  type="text"
+                  name="displayName"
+                  id="imapDisplayName"
+                  placeholder="e.g. Work Email, Support Mailbox"
+                  style="width: 100%; box-sizing: border-box; background: var(--input); color: var(--foreground); border: 1px solid var(--border); padding: 0.55rem 0.75rem; border-radius: var(--radius-md); font-size: 0.875rem;"
+                />
+              </div>
+
+              {/* Incoming Server Settings (IMAP) */}
+              <div style="background: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 0.85rem 1rem; margin-bottom: 1rem;">
+                <div style="font-size: 0.8125rem; font-weight: 700; color: var(--foreground); margin-bottom: 0.65rem; display: flex; align-items: center; gap: 0.4rem;">
+                  <ServerIcon size={14} />
+                  <span>Incoming Mail Server (IMAP)</span>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 0.5rem; margin-bottom: 0.65rem;">
+                  <div>
+                    <label for="imapHost" style="display: block; font-size: 0.75rem; color: var(--muted-foreground); margin-bottom: 0.2rem;">
+                      IMAP Host
+                    </label>
+                    <input
+                      type="text"
+                      name="imapHost"
+                      id="imapHost"
+                      placeholder="imap.company.com"
+                      required
+                      style="width: 100%; box-sizing: border-box; background: var(--card); color: var(--foreground); border: 1px solid var(--border); padding: 0.45rem 0.65rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-family: var(--font-mono);"
+                    />
+                  </div>
+                  <div>
+                    <label for="imapPort" style="display: block; font-size: 0.75rem; color: var(--muted-foreground); margin-bottom: 0.2rem;">
+                      Port
+                    </label>
+                    <input
+                      type="number"
+                      name="imapPort"
+                      id="imapPort"
+                      value="993"
+                      required
+                      style="width: 100%; box-sizing: border-box; background: var(--card); color: var(--foreground); border: 1px solid var(--border); padding: 0.45rem 0.65rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-family: var(--font-mono);"
+                    />
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                  <div>
+                    <label for="imapUsername" style="display: block; font-size: 0.75rem; color: var(--muted-foreground); margin-bottom: 0.2rem;">
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      name="imapUsername"
+                      id="imapUsername"
+                      placeholder="alice@company.com"
+                      required
+                      style="width: 100%; box-sizing: border-box; background: var(--card); color: var(--foreground); border: 1px solid var(--border); padding: 0.45rem 0.65rem; border-radius: var(--radius-md); font-size: 0.8125rem;"
+                    />
+                  </div>
+                  <div>
+                    <label for="imapPassword" style="display: block; font-size: 0.75rem; color: var(--muted-foreground); margin-bottom: 0.2rem;">
+                      Password / App Password
+                    </label>
+                    <input
+                      type="password"
+                      name="imapPassword"
+                      id="imapPassword"
+                      placeholder="••••••••"
+                      required
+                      style="width: 100%; box-sizing: border-box; background: var(--card); color: var(--foreground); border: 1px solid var(--border); padding: 0.45rem 0.65rem; border-radius: var(--radius-md); font-size: 0.8125rem;"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Outgoing Server Settings (SMTP) - Optional */}
+              <details style="background: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 0.85rem 1rem; margin-bottom: 1.25rem;">
+                <summary style="font-size: 0.8125rem; font-weight: 700; color: var(--foreground); cursor: pointer; display: flex; align-items: center; gap: 0.4rem; list-style: none;">
+                  <MailIcon size={14} />
+                  <span>Outgoing Mail Server (SMTP) &mdash; Optional</span>
+                  <span style="font-size: 0.6875rem; font-weight: normal; color: var(--muted-foreground); margin-left: auto;">Leave empty for read-only sync</span>
+                </summary>
+
+                <div style="margin-top: 0.75rem;">
+                  <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 0.5rem; margin-bottom: 0.65rem;">
+                    <div>
+                      <label for="smtpHost" style="display: block; font-size: 0.75rem; color: var(--muted-foreground); margin-bottom: 0.2rem;">
+                        SMTP Host
+                      </label>
+                      <input
+                        type="text"
+                        name="smtpHost"
+                        id="smtpHost"
+                        placeholder="smtp.company.com"
+                        style="width: 100%; box-sizing: border-box; background: var(--card); color: var(--foreground); border: 1px solid var(--border); padding: 0.45rem 0.65rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-family: var(--font-mono);"
+                      />
+                    </div>
+                    <div>
+                      <label for="smtpPort" style="display: block; font-size: 0.75rem; color: var(--muted-foreground); margin-bottom: 0.2rem;">
+                        Port
+                      </label>
+                      <input
+                        type="number"
+                        name="smtpPort"
+                        id="smtpPort"
+                        value="587"
+                        style="width: 100%; box-sizing: border-box; background: var(--card); color: var(--foreground); border: 1px solid var(--border); padding: 0.45rem 0.65rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-family: var(--font-mono);"
+                      />
+                    </div>
+                  </div>
+
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                    <div>
+                      <label for="smtpUsername" style="display: block; font-size: 0.75rem; color: var(--muted-foreground); margin-bottom: 0.2rem;">
+                        SMTP Username (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        name="smtpUsername"
+                        id="smtpUsername"
+                        placeholder="Same as IMAP username"
+                        style="width: 100%; box-sizing: border-box; background: var(--card); color: var(--foreground); border: 1px solid var(--border); padding: 0.45rem 0.65rem; border-radius: var(--radius-md); font-size: 0.8125rem;"
+                      />
+                    </div>
+                    <div>
+                      <label for="smtpPassword" style="display: block; font-size: 0.75rem; color: var(--muted-foreground); margin-bottom: 0.2rem;">
+                        SMTP Password (Optional)
+                      </label>
+                      <input
+                        type="password"
+                        name="smtpPassword"
+                        id="smtpPassword"
+                        placeholder="Same as IMAP password"
+                        style="width: 100%; box-sizing: border-box; background: var(--card); color: var(--foreground); border: 1px solid var(--border); padding: 0.45rem 0.65rem; border-radius: var(--radius-md); font-size: 0.8125rem;"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </details>
+
+              <div id="connectionTestStatus" style="display: none; margin-bottom: 1rem; font-size: 0.8125rem; padding: 0.65rem 0.85rem; border-radius: var(--radius-md);"></div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <button
+                  type="button"
+                  id="btnTestImapConnection"
+                  class="btn btn-outline btn-sm"
+                >
+                  <ShieldCheckIcon size={13} />
+                  <span>Test Connection</span>
+                </button>
+
+                <div style="display: flex; gap: 0.5rem;">
+                  <button
+                    type="button"
+                    data-action="close-imap-modal"
+                    class="btn btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    class="btn btn-primary"
+                  >
+                    Connect Mailbox &rarr;
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+
         {/* MODAL 6: Connect ChatGPT Modal */}
         <div
           id="chatGptModal"
@@ -1838,6 +2100,10 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
               setModal('protonModal', true);
             } else if (action === 'close-proton-modal') {
               setModal('protonModal', false);
+            } else if (action === 'open-imap-modal') {
+              setModal('imapModal', true);
+            } else if (action === 'close-imap-modal') {
+              setModal('imapModal', false);
             } else if (action === 'open-chatgpt-modal') {
               setModal('chatGptModal', true);
             } else if (action === 'close-chatgpt-modal') {
@@ -1885,6 +2151,175 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
               wsMenu.style.display = 'none';
             }
           });
+
+          // Auto-Discovery button handler
+          var btnDiscover = document.getElementById('btnDiscoverProvider');
+          if (btnDiscover) {
+            btnDiscover.addEventListener('click', async function() {
+              var emailInput = document.getElementById('imapEmailInput');
+              var email = emailInput ? emailInput.value.trim() : '';
+              var notice = document.getElementById('discoveryNotice');
+              if (!email || !email.includes('@')) {
+                if (notice) {
+                  notice.style.display = 'block';
+                  notice.style.background = 'rgba(239, 68, 68, 0.1)';
+                  notice.style.color = '#ef4444';
+                  notice.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+                  notice.innerHTML = 'Please enter a valid email address first.';
+                }
+                return;
+              }
+
+              btnDiscover.disabled = true;
+              btnDiscover.innerHTML = '<span>Checking...</span>';
+              if (notice) notice.style.display = 'none';
+
+              try {
+                var res = await fetch('/api/connect/discover?email=' + encodeURIComponent(email));
+                if (!res.ok) throw new Error('Discovery failed');
+                var data = await res.json();
+
+                if (notice) {
+                  notice.style.display = 'block';
+                  if (data.providerType === 'google') {
+                    notice.style.background = 'rgba(66, 133, 244, 0.1)';
+                    notice.style.color = '#1d4ed8';
+                    notice.style.border = '1px solid rgba(66, 133, 244, 0.25)';
+                    notice.innerHTML = '<strong>✓ We identified Google Workspace.</strong> We recommend connecting directly using the <strong>Connect Google / Gmail</strong> button on the dashboard for seamless OAuth.';
+                  } else if (data.providerType === 'microsoft') {
+                    notice.style.background = 'rgba(0, 164, 239, 0.1)';
+                    notice.style.color = '#0284c7';
+                    notice.style.border = '1px solid rgba(0, 164, 239, 0.25)';
+                    notice.innerHTML = '<strong>✓ We identified Microsoft 365.</strong> We recommend connecting directly using the <strong>Connect Microsoft 365</strong> button on the dashboard for seamless OAuth.';
+                  } else if (data.providerType === 'proton') {
+                    notice.style.background = 'rgba(109, 74, 255, 0.1)';
+                    notice.style.color = '#6d4aff';
+                    notice.style.border = '1px solid rgba(109, 74, 255, 0.25)';
+                    notice.innerHTML = '<strong>✓ We identified Proton Mail.</strong> Please use the <strong>Connect Proton Mail</strong> button to connect via Mailwarden Bridge.';
+                  } else if (data.confidence === 'high') {
+                    notice.style.background = 'rgba(16, 185, 129, 0.1)';
+                    notice.style.color = '#047857';
+                    notice.style.border = '1px solid rgba(16, 185, 129, 0.25)';
+                    notice.innerHTML = '<strong>✓ Verified mail server configuration found.</strong> Discovered IMAP/SMTP settings from provider database.';
+                  } else {
+                    notice.style.background = 'rgba(59, 130, 246, 0.1)';
+                    notice.style.color = '#1d4ed8';
+                    notice.style.border = '1px solid rgba(59, 130, 246, 0.25)';
+                    notice.innerHTML = '<strong>We found likely mail settings.</strong> Click <strong>Test Connection</strong> below to verify them before saving.';
+                  }
+                }
+
+                if (data.incoming) {
+                  var hostInp = document.getElementById('imapHost');
+                  var portInp = document.getElementById('imapPort');
+                  var userInp = document.getElementById('imapUsername');
+                  if (hostInp) hostInp.value = data.incoming.host;
+                  if (portInp) portInp.value = data.incoming.port;
+                  if (userInp && !userInp.value) userInp.value = email;
+                }
+                if (data.outgoing) {
+                  var smtpHostInp = document.getElementById('smtpHost');
+                  var smtpPortInp = document.getElementById('smtpPort');
+                  var smtpUserInp = document.getElementById('smtpUsername');
+                  if (smtpHostInp) smtpHostInp.value = data.outgoing.host;
+                  if (smtpPortInp) smtpPortInp.value = data.outgoing.port;
+                  if (smtpUserInp && !smtpUserInp.value) smtpUserInp.value = email;
+                }
+              } catch (err) {
+                if (notice) {
+                  notice.style.display = 'block';
+                  notice.style.background = 'rgba(234, 179, 8, 0.1)';
+                  notice.style.color = '#b45309';
+                  notice.style.border = '1px solid rgba(234, 179, 8, 0.25)';
+                  notice.innerHTML = 'Could not auto-detect settings. Please enter your mail server host and credentials manually.';
+                }
+              } finally {
+                btnDiscover.disabled = false;
+                btnDiscover.innerHTML = '<span>Detect Settings</span>';
+              }
+            });
+          }
+
+          // Test Connection button handler
+          var btnTest = document.getElementById('btnTestImapConnection');
+          if (btnTest) {
+            btnTest.addEventListener('click', async function() {
+              var host = (document.getElementById('imapHost') || {}).value || '';
+              var port = (document.getElementById('imapPort') || {}).value || '';
+              var user = (document.getElementById('imapUsername') || {}).value || '';
+              var pass = (document.getElementById('imapPassword') || {}).value || '';
+              var smtpHost = (document.getElementById('smtpHost') || {}).value || '';
+              var smtpPort = (document.getElementById('smtpPort') || {}).value || '';
+              var smtpUser = (document.getElementById('smtpUsername') || {}).value || '';
+              var smtpPass = (document.getElementById('smtpPassword') || {}).value || '';
+              var statusBox = document.getElementById('connectionTestStatus');
+
+              if (!host || !user || !pass) {
+                if (statusBox) {
+                  statusBox.style.display = 'block';
+                  statusBox.style.background = 'rgba(239, 68, 68, 0.1)';
+                  statusBox.style.color = '#ef4444';
+                  statusBox.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+                  statusBox.innerHTML = 'Please fill in IMAP host, username, and password to test connection.';
+                }
+                return;
+              }
+
+              btnTest.disabled = true;
+              btnTest.innerHTML = '<span>Testing...</span>';
+              if (statusBox) {
+                statusBox.style.display = 'block';
+                statusBox.style.background = 'var(--muted)';
+                statusBox.style.color = 'var(--muted-foreground)';
+                statusBox.style.border = '1px solid var(--border)';
+                statusBox.innerHTML = 'Connecting to ' + host + ':' + port + '...';
+              }
+
+              try {
+                var res = await fetch('/api/connect/test', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    imapHost: host,
+                    imapPort: Number(port) || 993,
+                    imapUsername: user,
+                    imapPassword: pass,
+                    smtpHost: smtpHost || undefined,
+                    smtpPort: smtpPort ? Number(smtpPort) : undefined,
+                    smtpUsername: smtpUser || undefined,
+                    smtpPassword: smtpPass || undefined,
+                  })
+                });
+
+                var data = await res.json();
+                if (statusBox) {
+                  statusBox.style.display = 'block';
+                  if (data.ok) {
+                    statusBox.style.background = 'rgba(16, 185, 129, 0.1)';
+                    statusBox.style.color = '#047857';
+                    statusBox.style.border = '1px solid rgba(16, 185, 129, 0.25)';
+                    statusBox.innerHTML = '✓ ' + (data.humanMessage || 'Connection verified successfully!');
+                  } else {
+                    statusBox.style.background = 'rgba(239, 68, 68, 0.1)';
+                    statusBox.style.color = '#b91c1c';
+                    statusBox.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+                    statusBox.innerHTML = '✕ <strong>' + (data.code || 'Failed') + ':</strong> ' + (data.humanMessage || 'Connection failed.');
+                  }
+                }
+              } catch (err) {
+                if (statusBox) {
+                  statusBox.style.display = 'block';
+                  statusBox.style.background = 'rgba(239, 68, 68, 0.1)';
+                  statusBox.style.color = '#b91c1c';
+                  statusBox.style.border = '1px solid rgba(239, 68, 68, 0.25)';
+                  statusBox.innerHTML = '✕ Connection test request failed: ' + (err.message || String(err));
+                }
+              } finally {
+                btnTest.disabled = false;
+                btnTest.innerHTML = '<span>Test Connection</span>';
+              }
+            });
+          }
 
           // Close modal and menus on Escape key
           document.addEventListener('keydown', function(e) {

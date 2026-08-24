@@ -191,7 +191,7 @@ export const emailAccounts = sqliteTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    provider: text("provider", { enum: ["gmail", "outlook", "proton", "mock"] }).notNull(),
+    provider: text("provider", { enum: ["gmail", "outlook", "proton", "imap", "mock"] }).notNull(),
     displayName: text("display_name").notNull(),
     emailAddress: text("email_address").notNull(),
     status: text("status", { enum: ["connected", "disconnected", "error", "reauth_required"] })
@@ -253,7 +253,7 @@ export const providerConnections = sqliteTable(
     accountId: text("account_id")
       .notNull()
       .references(() => emailAccounts.id, { onDelete: "cascade" }),
-    provider: text("provider", { enum: ["gmail", "outlook", "proton", "mock"] }).notNull(),
+    provider: text("provider", { enum: ["gmail", "outlook", "proton", "imap", "mock"] }).notNull(),
     encryptedCredentials: text("encrypted_credentials", { mode: "json" }).notNull(),
     keyVersion: text("key_version").notNull(),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),

@@ -5,11 +5,23 @@ import type {
   MailboxActionType,
 } from "../types/domain";
 import type { StoredDraft, SendResult } from "../types/drafts";
+import type {
+  MailProviderCapabilities,
+  NormalizedFolder,
+  ConnectionTestResult,
+} from "@mailwarden/contracts";
+
+export type {
+  MailProviderCapabilities,
+  NormalizedFolder,
+  ConnectionTestResult,
+};
 
 export interface MailSearchQuery {
   query?: string;
   limit?: number;
   pageToken?: string;
+  folder?: string;
 }
 
 export interface MailSearchResult {
@@ -20,6 +32,8 @@ export interface MailSearchResult {
 
 export interface MailProvider {
   readonly provider: ProviderType;
+
+  getCapabilities?(): MailProviderCapabilities;
 
   getMessage(
     principal: AuthPrincipal,
@@ -38,6 +52,16 @@ export interface MailProvider {
     accountId: string,
     query: MailSearchQuery
   ): Promise<MailSearchResult>;
+
+  listFolders?(
+    principal: AuthPrincipal,
+    accountId: string
+  ): Promise<NormalizedFolder[]>;
+
+  testConnection?(
+    principal: AuthPrincipal,
+    accountId: string
+  ): Promise<ConnectionTestResult>;
 
   markRead(
     principal: AuthPrincipal,
@@ -75,3 +99,4 @@ export interface MailProvider {
     draft: StoredDraft
   ): Promise<SendResult>;
 }
+
