@@ -295,9 +295,10 @@ describe("device lifecycle with managed tunnels", () => {
 
 describe("cleanup ledger", () => {
   test("a failed release is recorded and later reconciled", async () => {
+    const orphanId = nanoid(8);
     const created = await service().provision({
-      deviceId: "dev-orphan",
-      organizationId: "org-orphan",
+      deviceId: `dev-orphan-${orphanId}`,
+      organizationId: `org-orphan-${orphanId}`,
       localService: "http://127.0.0.1:8080",
     });
 
@@ -319,8 +320,8 @@ describe("cleanup ledger", () => {
     );
 
     const released = await flaky.release(created!.tunnelId, created!.hostname, {
-      tenantId: "org-orphan",
-      deviceId: "dev-orphan",
+      tenantId: `org-orphan-${orphanId}`,
+      deviceId: `dev-orphan-${orphanId}`,
     });
     // Revocation is not blocked by the outage, but the orphan is recorded.
     expect(released).toBe(false);
