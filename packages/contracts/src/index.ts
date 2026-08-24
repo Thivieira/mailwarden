@@ -88,6 +88,8 @@ export interface RelayDevice {
   revokedAt?: string;
   capabilities: RelayCapabilities;
   health?: BridgeHealth;
+  /** Managed relay hostname, when Mailwarden allocated a tunnel for this device. */
+  tunnelHostname?: string;
 }
 
 export interface RelayHeartbeat {

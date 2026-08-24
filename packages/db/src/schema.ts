@@ -1019,6 +1019,13 @@ export const relayDevices = sqliteTable(
       .references(() => users.id, { onDelete: "restrict" }),
     lastSeenAt: integer("last_seen_at", { mode: "timestamp" }),
     revokedAt: integer("revoked_at", { mode: "timestamp" }),
+    /**
+     * Managed Cloudflare Tunnel for this device. The run token is never stored:
+     * it is fetched from Cloudflare when the device asks for it.
+     */
+    tunnelId: text("tunnel_id"),
+    tunnelHostname: text("tunnel_hostname"),
+    tunnelProvisionedAt: integer("tunnel_provisioned_at", { mode: "timestamp" }),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
   },

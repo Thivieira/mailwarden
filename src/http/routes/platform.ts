@@ -52,7 +52,11 @@ const bridgeHeartbeatInput = z.object({
   generation: z.number().int().positive(),
 });
 const deviceCredentialInput = z.object({ deviceId: z.string().min(1), generation: z.number().int().positive() });
-const deviceIdentityInput = z.object({ deviceId: z.string().min(1) });
+const deviceIdentityInput = z.object({
+  deviceId: z.string().min(1),
+  /** Loopback URL of the device's own gateway; validated before it reaches Cloudflare. */
+  localService: z.string().max(200).optional(),
+});
 
 async function parsed<T extends z.ZodType>(c: any, validator: T): Promise<z.infer<T>> {
   const result = validator.safeParse(await readBody(c));
@@ -172,8 +176,12 @@ export const platformRoutes = new Hono<Env>()
   .post("/api/bridge/v1/devices/tunnel", async (c) => {
     requireBridgeV1(c);
     const input = await parsed(c, deviceIdentityInput);
-    await relayDeviceService.getTunnelCredential(bearer(c), input.deviceId);
-    return c.json({ error: "NotFound", message: "No managed tunnel is provisioned for this relay device" }, 404);
+    const credential = await relayDeviceService.getTunnelCredential(bearer(c), input.deviceId, input.localService);
+    // A 404 means Mailwarden does not manage tunnels on this deployment; the
+    // relay then keeps using whatever tunnel its operator runs.
+    return credential
+      ? c.json(credential)
+      : c.json({ error: "NotFound", message: "Mailwarden does not manage a tunnel for this relay device" }, 404);
   })
   .get("/api/organizations/:workspaceId/relay-devices", async (c) => c.json({ devices: await relayDeviceService.listDevices(principal(c), c.req.param("workspaceId")) }))
   .delete("/api/organizations/:workspaceId/relay-devices/:deviceId", async (c) => c.json(

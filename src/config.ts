@@ -48,6 +48,15 @@ const configSchema = z.object({
   PROTON_BRIDGE_PASSWORD: z.string().optional(),
   PROTON_BRIDGE_TLS_MODE: z.enum(["STARTTLS", "TLS", "NONE"]).default("STARTTLS"),
 
+  // Managed Cloudflare Tunnel allocation. All four must be set for Mailwarden to
+  // provision relay tunnels; otherwise the feature reports itself unconfigured
+  // and devices keep using an operator-run tunnel.
+  CLOUDFLARE_TUNNEL_API_TOKEN: z.string().min(20).optional(),
+  CLOUDFLARE_TUNNEL_ACCOUNT_ID: z.string().optional(),
+  CLOUDFLARE_TUNNEL_ZONE_ID: z.string().optional(),
+  /** Relay hostnames are allocated under this Mailwarden-controlled zone. */
+  RELAY_HOSTNAME_SUFFIX: z.string().optional(),
+
   // Logging
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   LOG_FORMAT: z.enum(["pretty", "json"]).default("pretty"),

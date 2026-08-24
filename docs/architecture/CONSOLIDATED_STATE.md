@@ -29,10 +29,16 @@ Two protocols cross the Cloud/Bridge boundary, in opposite directions:
 | Bridge → Cloud | `/api/bridge/v1/*` | `Authorization: Bearer <deviceSecret>` + `X-Mailwarden-Bridge-Protocol: 1` |
 | Cloud → Bridge (mail) | `<endpoint>/v1/*` | per-device `gatewaySecret`, bearer or signed |
 | Cloud → Bridge (control) | `<endpoint>/v1/control/*` | signed request required for repair |
+| Cloud → Cloudflare | tunnel allocation | Mailwarden's account token, never sent to a device |
 
 `<endpoint>` is what the device reports in its heartbeat (`BridgeHealth.endpoint`)
 — its managed tunnel hostname, or an operator-configured URL. No endpoint means
 Cloud-initiated diagnostics and repair are unavailable and say so.
+
+Managed tunnels are allocated per device: Cloud creates the tunnel, points its
+ingress at that device's loopback gateway, publishes a hostname under
+`RELAY_HOSTNAME_SUFFIX`, and returns only the run token. Allocation stays off
+until the Cloudflare settings exist, and the endpoint answers `404` until then.
 
 ## Repository
 
@@ -126,8 +132,6 @@ other layers report; neither re-derives status nor parses command output.
 
 ## Known gaps
 
-- Managed Cloudflare Tunnel allocation: the device side is complete; Cloud returns
-  an authenticated `404` until it provisions tunnels.
 - Cloud→gateway *mail* requests still use bearer auth; the signed mode is
   implemented and used by the control plane.
 - Some attention/waiting/policy intelligence remains creator-scoped rather than

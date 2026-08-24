@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-24
+
+### Added
+
+- **Managed Cloudflare Tunnel allocation.** Mailwarden Cloud now provisions a
+  dedicated tunnel per relay device: it creates a remotely-managed tunnel, points
+  the ingress at that device's loopback gateway, publishes a hostname under
+  `RELAY_HOSTNAME_SUFFIX`, and returns only that tunnel's run token. Mailwarden's
+  Cloudflare account token never leaves Cloud and the run token is never stored in
+  D1 — it is fetched from Cloudflare when the device asks. A customer host
+  connects outbound with no inbound port, no static IP, and no certificate of its
+  own, and revoking a device deletes its tunnel and DNS record.
+- Devices tell Cloud which loopback service to publish, and Cloud refuses anything
+  that is not loopback: a managed tunnel cannot be turned into a route into the
+  customer's private network.
+- Relay devices carry their allocated hostname (`RelayDevice.tunnelHostname`), so
+  the portal can show where a relay is published.
+- Migration `0009` adds the per-device tunnel columns.
+
+### Changed
+
+- `POST /api/bridge/v1/devices/tunnel` returns a `RelayTunnelCredential` when
+  managed tunnels are configured. It still answers an authenticated `404`
+  otherwise, so a deployment without Cloudflare credentials keeps using an
+  operator-run tunnel rather than pretending to have provisioned one.
+
 ## [1.1.1] - 2026-08-24
 
 ### Fixed
@@ -110,6 +136,7 @@ First public release of Mailwarden: an AI-native email operating layer and MCP b
 - Privacy controls: disconnect, credential wipe, memory deletion, data export
 - Dry-run mailbox mutations (`MAILBOX_MUTATIONS_ENABLED=false` by default)
 
+[1.2.0]: https://github.com/Thivieira/mailwarden/releases/tag/v1.2.0
 [1.1.1]: https://github.com/Thivieira/mailwarden/releases/tag/v1.1.1
 [1.1.0]: https://github.com/Thivieira/mailwarden/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Thivieira/mailwarden/releases/tag/v1.0.0

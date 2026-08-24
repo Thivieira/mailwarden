@@ -11,6 +11,7 @@ import type {
   RelayProvisioningPollResponse,
   RelayProvisioningStartRequest,
   RelayProvisioningStartResponse,
+  RelayTunnelCredential,
 } from "@mailwarden/contracts";
 import { config } from "../config";
 import { db, schema } from "../db";
@@ -19,6 +20,7 @@ import { AuthenticationError, AuthorizationError, NotFoundError, RateLimitError,
 import { auditService } from "./audit";
 import { encryptionService, type EnvelopeEncryptedPayload } from "./encryption";
 import { organizationService } from "./organizations";
+import { cloudflareTunnelService, validateLocalService } from "./cloudflare-tunnels";
 
 const userCode = customAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 8);
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
@@ -53,6 +55,7 @@ function mapDevice(row: typeof schema.relayDevices.$inferSelect): RelayDevice {
     revokedAt: row.revokedAt?.toISOString(),
     capabilities: row.capabilities as unknown as RelayDevice["capabilities"],
     health: row.lastHealth as unknown as RelayDevice["health"],
+    tunnelHostname: row.tunnelHostname || undefined,
   };
 }
 
@@ -261,7 +264,29 @@ export class RelayDeviceService {
     await db.update(schema.relayDeviceCredentials).set({ revokedAt: now }).where(and(
       eq(schema.relayDeviceCredentials.deviceId, deviceId), isNull(schema.relayDeviceCredentials.revokedAt)
     ));
-    await auditService.logEvent({ tenantId: organizationId, userId: principal.userId, action: "RELAY_REVOKED", resourceType: "relay_device", resourceId: deviceId });
+
+    // A revoked device must lose its published hostname too, not just its
+    // credential. Best effort: Cloudflare being unreachable cannot block a
+    // revocation, so the failure is recorded rather than raised.
+    let tunnelReleased = false;
+    if (device.tunnelId) {
+      tunnelReleased = await cloudflareTunnelService.release(device.tunnelId, device.tunnelHostname);
+      if (tunnelReleased) {
+        await db
+          .update(schema.relayDevices)
+          .set({ tunnelId: null, tunnelHostname: null, tunnelProvisionedAt: null, updatedAt: now })
+          .where(eq(schema.relayDevices.id, deviceId));
+      }
+    }
+
+    await auditService.logEvent({
+      tenantId: organizationId,
+      userId: principal.userId,
+      action: "RELAY_REVOKED",
+      resourceType: "relay_device",
+      resourceId: deviceId,
+      details: device.tunnelId ? { tunnelReleased } : undefined,
+    });
     return mapDevice(device);
   }
 
@@ -289,9 +314,59 @@ export class RelayDeviceService {
     return credential;
   }
 
-  async getTunnelCredential(deviceSecret: string, deviceId: string) {
-    await this.requireActiveCredential(deviceSecret, deviceId);
-    return null;
+  /**
+   * Allocates this device's managed Cloudflare Tunnel and returns its run token.
+   *
+   * Cloud holds the Cloudflare account token; the device receives only a token
+   * that can connect this one tunnel. Returns null when managed tunnels are not
+   * configured, so a deployment without Cloudflare credentials keeps using an
+   * operator-run tunnel instead of pretending to have provisioned one.
+   */
+  async getTunnelCredential(
+    deviceSecret: string,
+    deviceId: string,
+    localService?: string
+  ): Promise<RelayTunnelCredential | null> {
+    const auth = await this.requireActiveCredential(deviceSecret, deviceId);
+    const service = validateLocalService(localService);
+
+    const allocated = await cloudflareTunnelService.provision({
+      deviceId: auth.device.id,
+      organizationId: auth.device.tenantId,
+      localService: service,
+      existing:
+        auth.device.tunnelId && auth.device.tunnelHostname
+          ? { tunnelId: auth.device.tunnelId, hostname: auth.device.tunnelHostname }
+          : null,
+    });
+    if (!allocated) return null;
+
+    const now = new Date();
+    if (auth.device.tunnelId !== allocated.tunnelId) {
+      await db
+        .update(schema.relayDevices)
+        .set({
+          tunnelId: allocated.tunnelId,
+          tunnelHostname: allocated.hostname,
+          tunnelProvisionedAt: now,
+          updatedAt: now,
+        })
+        .where(eq(schema.relayDevices.id, auth.device.id));
+      await auditService.logEvent({
+        tenantId: auth.device.tenantId,
+        action: "RELAY_TUNNEL_PROVISIONED",
+        resourceType: "relay_device",
+        resourceId: auth.device.id,
+        details: { hostname: allocated.hostname },
+      });
+    }
+
+    return {
+      tunnelId: allocated.tunnelId,
+      hostname: allocated.hostname,
+      token: allocated.token,
+      issuedAt: now.toISOString(),
+    };
   }
 
   async getGatewaySecret(organizationId: string, deviceId: string): Promise<string> {

@@ -71,7 +71,17 @@ The shared contract permits multiple devices per organization even if an initial
 
 ## Mailwarden-controlled namespace
 
-**PLANNED:** managed tunnel provisioning allocates a hostname under a Mailwarden-controlled relay namespace. Customer DNS and custom domains are not first-release requirements. Custom domains can remain an Enterprise concern.
+**SHIPPED:** Cloud allocates a dedicated Cloudflare Tunnel per relay device and
+publishes it under a Mailwarden-controlled hostname (`RELAY_HOSTNAME_SUFFIX`). The
+device receives only that tunnel's run token; Mailwarden's Cloudflare account
+token never leaves Cloud, and the run token is never persisted in D1. Ingress is
+restricted to the device's own loopback gateway, so a managed tunnel cannot be
+turned into a route into the customer's network. Revoking a device deletes its
+tunnel and DNS record.
+
+Customer DNS and custom domains are still not required. Custom domains remain an
+Enterprise concern. See [`infra/cloudflare/README.md`](../../infra/cloudflare/README.md)
+for the API surface, token permissions, and configuration.
 
 ## Current security debt to close
 

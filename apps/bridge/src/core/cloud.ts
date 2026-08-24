@@ -42,8 +42,15 @@ export interface MailwardenCloudClient {
     health: BridgeHealth
   ): Promise<RelayHeartbeatResponse>;
   renewCredential(credential: RelayDeviceCredential): Promise<RelayDeviceCredential>;
-  /** Returns null when the organization has no managed tunnel for this device. */
-  fetchTunnelCredential(credential: RelayDeviceCredential): Promise<RelayTunnelCredential | null>;
+  /**
+   * Asks Cloud for this device's managed tunnel, telling it which loopback
+   * service to publish. Returns null when Mailwarden does not manage tunnels on
+   * this deployment.
+   */
+  fetchTunnelCredential(
+    credential: RelayDeviceCredential,
+    localService?: string
+  ): Promise<RelayTunnelCredential | null>;
 }
 
 /**
@@ -146,12 +153,15 @@ export class HttpCloudClient implements MailwardenCloudClient {
     });
   }
 
-  async fetchTunnelCredential(credential: RelayDeviceCredential): Promise<RelayTunnelCredential | null> {
+  async fetchTunnelCredential(
+    credential: RelayDeviceCredential,
+    localService?: string
+  ): Promise<RelayTunnelCredential | null> {
     try {
       return await this.request<RelayTunnelCredential>(CLOUD_ROUTES.tunnel, {
         method: "POST",
         deviceSecret: credential.deviceSecret,
-        body: JSON.stringify({ deviceId: credential.deviceId }),
+        body: JSON.stringify({ deviceId: credential.deviceId, localService }),
       });
     } catch (error) {
       if (error instanceof CloudError && error.status === 404) return null;
@@ -315,7 +325,10 @@ export class DevCloudClient implements MailwardenCloudClient {
     return renewed;
   }
 
-  async fetchTunnelCredential(credential: RelayDeviceCredential): Promise<RelayTunnelCredential | null> {
+  async fetchTunnelCredential(
+    credential: RelayDeviceCredential,
+    _localService?: string
+  ): Promise<RelayTunnelCredential | null> {
     await this.hydrate();
     if (this.revoked.has(credential.deviceId)) return null;
     return {

@@ -184,7 +184,7 @@ describe("Platform ↔ Bridge over HTTP", () => {
     expect(report.diagnostics.some((entry) => entry.id === "device.identity.revoked")).toBe(true);
   });
 
-  test("the managed tunnel endpoint authenticates the device and reports no tunnel yet", async () => {
+  test("the managed tunnel endpoint authenticates the device and reports no tunnel when unconfigured", async () => {
     const team = await teamOrganization("Tunnel");
     const core = await bridgeFor("tunnel");
     const identity = await provision(core, team.principal, team.organizationId);
@@ -192,6 +192,62 @@ describe("Platform ↔ Bridge over HTTP", () => {
     const cloud = new HttpCloudClient(baseUrl);
     expect(await cloud.fetchTunnelCredential(identity.credential)).toBeNull();
     expect(core.config.tunnel.managed).toBe(false);
+  });
+
+  test("with managed tunnels configured, a device is allocated one and adopts its hostname", async () => {
+    const { updateConfig } = await import("../src/config");
+    const { cloudflareTunnelService } = await import("../src/services/cloudflare-tunnels");
+
+    // A stand-in for Cloudflare's API: the point of this test is the round trip
+    // from device to Cloud and back, not Cloudflare's own behaviour.
+    const issued: Array<{ hostname: string; service: string }> = [];
+    const realFactory = (cloudflareTunnelService as any).apiFactory;
+    (cloudflareTunnelService as any).apiFactory = () => ({
+      createTunnel: async () => ({ id: "tun_integration" }),
+      configureIngress: async (_id: string, hostname: string, service: string) => {
+        issued.push({ hostname, service });
+      },
+      getRunToken: async () => "eyJ-integration-run-token",
+      deleteTunnel: async () => undefined,
+      upsertDnsRecord: async () => undefined,
+      deleteDnsRecord: async () => undefined,
+    });
+    process.env.CLOUDFLARE_TUNNEL_API_TOKEN = "cf-account-token-not-for-devices";
+    process.env.CLOUDFLARE_TUNNEL_ACCOUNT_ID = "acct_it";
+    process.env.CLOUDFLARE_TUNNEL_ZONE_ID = "zone_it";
+    process.env.RELAY_HOSTNAME_SUFFIX = "relay.mailwarden.app";
+    updateConfig({});
+
+    try {
+      const team = await teamOrganization("Managed");
+      const core = await bridgeFor("managed");
+      const identity = await provision(core, team.principal, team.organizationId);
+
+      // setup() already asked for a tunnel, so the device should be managed now.
+      expect(core.config.tunnel.managed).toBe(true);
+      expect(core.config.tunnel.hostname).toContain(".relay.mailwarden.app");
+      expect(core.publicEndpoint()).toBe(`https://${core.config.tunnel.hostname}`);
+
+      // The tunnel publishes the device's own loopback gateway, nothing else.
+      expect(issued[0]!.service).toBe(`http://127.0.0.1:${core.config.gateway.port}`);
+
+      const stored = await core.tunnelCredential();
+      expect(stored?.token).toBe("eyJ-integration-run-token");
+      // The run token belongs in the secret store, never in the config file.
+      expect(await Bun.file(core.paths.configFile).text()).not.toContain("eyJ-integration-run-token");
+
+      // Cloud persisted the allocation and exposes the hostname to the portal.
+      const devices = await relayDeviceService.listDevices(team.principal, team.organizationId);
+      const device = devices.find((candidate) => candidate.id === identity.credential.deviceId);
+      expect(device?.tunnelHostname).toBe(core.config.tunnel.hostname);
+    } finally {
+      (cloudflareTunnelService as any).apiFactory = realFactory;
+      delete process.env.CLOUDFLARE_TUNNEL_API_TOKEN;
+      delete process.env.CLOUDFLARE_TUNNEL_ACCOUNT_ID;
+      delete process.env.CLOUDFLARE_TUNNEL_ZONE_ID;
+      delete process.env.RELAY_HOSTNAME_SUFFIX;
+      updateConfig({});
+    }
   });
 });
 

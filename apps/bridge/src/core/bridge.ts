@@ -109,7 +109,9 @@ export class BridgeCore {
       onPrompt: options.onPrompt,
     });
 
-    const tunnelCredential = await this.cloud.fetchTunnelCredential(stored.credential).catch(() => null);
+    const tunnelCredential = await this.cloud
+      .fetchTunnelCredential(stored.credential, this.localGatewayService())
+      .catch(() => null);
     if (tunnelCredential) await this.storeTunnelCredential(tunnelCredential);
 
     await saveBridgeConfig(this.paths, this.config);
@@ -306,6 +308,11 @@ export class BridgeCore {
    * hostname; a relay behind an operator-run tunnel configures it explicitly.
    * Absent means Cloud-initiated diagnostics and repair are simply unavailable.
    */
+  /** The loopback address a managed tunnel should publish. */
+  localGatewayService(): string {
+    return `http://${this.config.gateway.host}:${this.config.gateway.port}`;
+  }
+
   publicEndpoint(): string | undefined {
     if (this.config.gateway.publicEndpoint) return this.config.gateway.publicEndpoint;
     const hostname = this.config.tunnel.managed ? this.config.tunnel.hostname : undefined;
@@ -375,7 +382,9 @@ export class BridgeCore {
         const stored = await this.identity.load();
         if (!stored) return { action, applied: false, detail: "This device is not registered yet" };
         const refreshed = await this.identity.renewIfNeeded(stored, Date.now());
-        const tunnelCredential = await this.cloud.fetchTunnelCredential(refreshed.credential).catch(() => null);
+        const tunnelCredential = await this.cloud
+          .fetchTunnelCredential(refreshed.credential, this.localGatewayService())
+          .catch(() => null);
         if (tunnelCredential) await this.storeTunnelCredential(tunnelCredential);
         return {
           action,
