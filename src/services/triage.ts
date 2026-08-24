@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { createHash } from "node:crypto";
 import {
@@ -13,6 +13,7 @@ import { db, schema } from "../db";
 import type { AuthPrincipal } from "../types/auth";
 import { authService } from "./auth";
 import { auditService } from "./audit";
+import { ValidationError } from "../utils/errors";
 
 interface SaveMetadata {
   name?: string;
@@ -25,6 +26,7 @@ interface PreparedDecision {
   factsVersion: string;
   uocVersion: string;
   previousDecisionId?: string;
+  previousDecisionAt?: Date;
   presentation: ReturnType<typeof applyPolicyClamps>["presentation"];
 }
 
@@ -210,15 +212,28 @@ export class TriageService {
   async getEventContext(principal: AuthPrincipal, eventId: string, includeBody = false) {
     authService.requirePrincipal(principal);
     authService.requireScope(principal, "mail.read");
-    const [event] = await db.select().from(schema.triageEvents).where(and(
+    const [requestedEvent] = await db.select().from(schema.triageEvents).where(and(
       eq(schema.triageEvents.id, eventId),
       eq(schema.triageEvents.tenantId, principal.tenantId),
       eq(schema.triageEvents.userId, principal.userId)
     )).limit(1);
-    if (!event) throw new Error(`Triage event '${eventId}' not found`);
+    if (!requestedEvent) throw new Error(`Triage event '${eventId}' not found`);
+    const canonicalId = requestedEvent.mergedIntoEventId ?? requestedEvent.id;
+    const [canonicalEvent] = canonicalId === requestedEvent.id ? [requestedEvent] : await db.select().from(schema.triageEvents).where(and(
+      eq(schema.triageEvents.id, canonicalId),
+      eq(schema.triageEvents.tenantId, principal.tenantId),
+      eq(schema.triageEvents.userId, principal.userId)
+    )).limit(1);
+    if (!canonicalEvent) throw new Error(`Canonical triage event '${canonicalId}' not found`);
+    const aliases = await db.select({ id: schema.triageEvents.id }).from(schema.triageEvents).where(and(
+      eq(schema.triageEvents.tenantId, principal.tenantId),
+      eq(schema.triageEvents.userId, principal.userId),
+      eq(schema.triageEvents.mergedIntoEventId, canonicalId)
+    ));
+    const eventIds = [canonicalId, ...aliases.map((row: any) => row.id)];
 
     const members = await db.select().from(schema.triageEventMembers).where(and(
-      eq(schema.triageEventMembers.eventId, eventId),
+      inArray(schema.triageEventMembers.eventId, eventIds),
       eq(schema.triageEventMembers.tenantId, principal.tenantId),
       eq(schema.triageEventMembers.userId, principal.userId)
     )).orderBy(asc(schema.triageEventMembers.observedAt));
@@ -227,7 +242,7 @@ export class TriageService {
       ids.length ? db.select().from(schema.emails).where(inArray(schema.emails.id, ids)) : [],
       ids.length ? db.select().from(schema.messageFacts).where(inArray(schema.messageFacts.emailId, ids)) : [],
       db.select().from(schema.triageDecisions).where(and(
-        eq(schema.triageDecisions.eventId, eventId),
+        eq(schema.triageDecisions.eventId, canonicalId),
         eq(schema.triageDecisions.tenantId, principal.tenantId),
         eq(schema.triageDecisions.userId, principal.userId)
       )).orderBy(desc(schema.triageDecisions.createdAt)).limit(1),
@@ -236,7 +251,14 @@ export class TriageService {
     const factsById = new Map(factsRows.map((row: any) => [row.emailId, row]));
 
     return {
-      event,
+      requestedEventId: eventId,
+      event: {
+        ...canonicalEvent,
+        messageCount: members.length,
+        firstObservedAt: members[0]?.observedAt ?? canonicalEvent.firstObservedAt,
+        lastObservedAt: members.at(-1)?.observedAt ?? canonicalEvent.lastObservedAt,
+        mergedEventIds: aliases.map((row: any) => row.id),
+      },
       members: members.map((member: any) => {
         const message: any = messageById.get(member.emailId);
         const factRow: any = factsById.get(member.emailId);
@@ -275,7 +297,8 @@ export class TriageService {
     const limit = Math.min(Math.max(options.limit ?? 10, 1), 50);
     const events = await db.select().from(schema.triageEvents).where(and(
       eq(schema.triageEvents.tenantId, principal.tenantId),
-      eq(schema.triageEvents.userId, principal.userId)
+      eq(schema.triageEvents.userId, principal.userId),
+      isNull(schema.triageEvents.mergedIntoEventId)
     )).orderBy(desc(schema.triageEvents.lastObservedAt)).limit(limit * 3);
     const decisions = await db.select().from(schema.triageDecisions).where(and(
       eq(schema.triageDecisions.tenantId, principal.tenantId),
@@ -298,8 +321,8 @@ export class TriageService {
         ...context,
         userContext: uoc,
         changesSinceJudgment: context.previousDecision
-          ? { messageCount: event.messageCount, needsReevaluation: Boolean(context.previousDecision.needsReevaluation) }
-          : { firstJudgment: true, messageCount: event.messageCount },
+          ? { messageCount: context.event.messageCount, needsReevaluation: Boolean(context.previousDecision.needsReevaluation) }
+          : { firstJudgment: true, messageCount: context.event.messageCount },
         policyHints: this.policyHints(facts),
       });
     }
@@ -353,6 +376,7 @@ export class TriageService {
       factsVersion,
       uocVersion: uoc.version,
       previousDecisionId: context.previousDecision?.id,
+      previousDecisionAt: context.previousDecision?.createdAt,
       presentation,
     };
   }
@@ -384,6 +408,7 @@ export class TriageService {
     for (const item of prepared) {
       const id = nanoid();
       const source = options.source ?? "external_agent";
+      const createdAt = new Date(Math.max(Date.now(), (item.previousDecisionAt?.getTime() ?? 0) + 1));
       await db.insert(schema.triageDecisions).values({
         id,
         tenantId: principal.tenantId,
@@ -407,7 +432,7 @@ export class TriageService {
         correctionState: source === "user_correction" ? "corrected" : "none",
         correctionReason: options.correctionReason ?? null,
         clientMetadata: options.clientMetadata ?? null,
-        createdAt: new Date(),
+        createdAt,
       });
       await auditService.logEvent({
         tenantId: principal.tenantId,
@@ -436,11 +461,47 @@ export class TriageService {
   async explain(principal: AuthPrincipal, eventId: string) {
     const context = await this.getEventContext(principal, eventId);
     const decision: any = context.previousDecision;
+    const [previous, uoc, eventChanges] = await Promise.all([
+      decision?.previousDecisionId
+        ? db.select().from(schema.triageDecisions).where(and(
+          eq(schema.triageDecisions.id, decision.previousDecisionId),
+          eq(schema.triageDecisions.tenantId, principal.tenantId),
+          eq(schema.triageDecisions.userId, principal.userId)
+        )).limit(1).then((rows: any[]) => rows[0] ?? null)
+        : null,
+      this.getUserOperatingContext(principal),
+      db.select().from(schema.triageEventChanges).where(and(
+        eq(schema.triageEventChanges.tenantId, principal.tenantId),
+        eq(schema.triageEventChanges.userId, principal.userId),
+        or(
+          eq(schema.triageEventChanges.sourceEventId, context.event.id),
+          eq(schema.triageEventChanges.targetEventId, context.event.id)
+        )
+      )).orderBy(desc(schema.triageEventChanges.createdAt)),
+    ]);
+    const currentJudgment: any = decision?.validatedJudgment;
+    const previousJudgment: any = previous?.validatedJudgment;
+    const paths = ["domain", "status", "consequence.severity", "timeCriticality", "harmAccrual", "actionRequired", "actor", "waitingOn", "action.kind", "briefing.include"];
+    const get = (value: any, path: string) => path.split(".").reduce((item, part) => item?.[part], value);
+    const whatChanged = previous ? [
+      ...paths.flatMap((path) => get(previousJudgment, path) === get(currentJudgment, path) ? [] : [{ field: path, from: get(previousJudgment, path), to: get(currentJudgment, path) }]),
+      ...(["derivedBand", "derivedUrgency", "lane"] as const).flatMap((field) => previous[field] === decision[field] ? [] : [{ field: `presentation.${field}`, from: previous[field], to: decision[field] }]),
+    ] : [];
+    const contextRows = new Map<string, any>();
+    for (const [kind, rows] of [
+      ["organization", uoc.organizations], ["project", uoc.projects], ["relationship", uoc.relationships],
+      ["sender_profile", uoc.senderProfiles], ["account", uoc.accounts], ["service", uoc.services],
+      ["commitment", uoc.commitments], ["preference", uoc.preferences ? [uoc.preferences] : []],
+    ] as const) for (const row of rows as any[]) contextRows.set(`${kind}:${row.id}`, row);
     return {
       event: context.event,
       factsUsed: context.members.map((member: any) => ({ messageId: member.messageId, facts: member.facts })),
       externalRationale: decision?.validatedJudgment?.rationale ?? null,
       evidence: decision?.validatedJudgment?.evidence ?? [],
+      userContextUsed: (currentJudgment?.contextReferences ?? []).map((reference: any) => ({
+        ...reference,
+        record: contextRows.get(`${reference.kind}:${reference.id}`) ?? null,
+      })),
       clampsApplied: decision?.clampsApplied ?? [],
       priorityDerivation: decision ? {
         severity: decision.validatedJudgment.consequence.severity,
@@ -451,7 +512,75 @@ export class TriageService {
         lane: decision.lane,
       } : null,
       previousDecisionId: decision?.previousDecisionId ?? null,
+      previousJudgment: previousJudgment ?? null,
+      whatChanged,
+      eventChanges,
     };
+  }
+
+  private correctionReason(reason: string) {
+    const value = reason.trim();
+    if (!value || value.length > 500) throw new ValidationError("reason must contain 1 to 500 characters");
+    return value;
+  }
+
+  async mergeEvents(principal: AuthPrincipal, sourceEventId: string, targetEventId: string, reason: string) {
+    authService.requirePrincipal(principal);
+    authService.requireScope(principal, "profile.manage");
+    if (sourceEventId === targetEventId) throw new ValidationError("source and target events must differ");
+    const events = await db.select().from(schema.triageEvents).where(and(
+      eq(schema.triageEvents.tenantId, principal.tenantId),
+      eq(schema.triageEvents.userId, principal.userId),
+      inArray(schema.triageEvents.id, [sourceEventId, targetEventId])
+    ));
+    const source = events.find((row: any) => row.id === sourceEventId);
+    const target = events.find((row: any) => row.id === targetEventId);
+    if (!source || !target) throw new ValidationError("One or more event IDs are unknown or unauthorized");
+    if (source.mergedIntoEventId || target.mergedIntoEventId) throw new ValidationError("Merge only canonical events");
+    // ponytail: one-level merge graph; unmerge child events before merging their parent if nested correction is ever needed.
+    const [child] = await db.select({ id: schema.triageEvents.id }).from(schema.triageEvents).where(and(
+      eq(schema.triageEvents.tenantId, principal.tenantId),
+      eq(schema.triageEvents.userId, principal.userId),
+      eq(schema.triageEvents.mergedIntoEventId, sourceEventId)
+    )).limit(1);
+    if (child) throw new ValidationError("Source event already contains merged events; unmerge them first");
+    const normalizedReason = this.correctionReason(reason);
+    const now = new Date();
+    await db.update(schema.triageEvents).set({ mergedIntoEventId: targetEventId, updatedAt: now }).where(eq(schema.triageEvents.id, sourceEventId));
+    await db.update(schema.triageDecisions).set({ needsReevaluation: true }).where(and(
+      eq(schema.triageDecisions.tenantId, principal.tenantId),
+      eq(schema.triageDecisions.userId, principal.userId),
+      inArray(schema.triageDecisions.eventId, [sourceEventId, targetEventId])
+    ));
+    const id = nanoid();
+    await db.insert(schema.triageEventChanges).values({ id, tenantId: principal.tenantId, userId: principal.userId, action: "merge", sourceEventId, targetEventId, reason: normalizedReason, createdAt: now });
+    await auditService.logEvent({ tenantId: principal.tenantId, userId: principal.userId, action: "TRIAGE_EVENTS_MERGED", resourceType: "triage_event", resourceId: targetEventId, details: { sourceEventId, changeId: id } });
+    return { changeId: id, sourceEventId, targetEventId, canonicalEventId: targetEventId };
+  }
+
+  async unmergeEvent(principal: AuthPrincipal, sourceEventId: string, reason: string) {
+    authService.requirePrincipal(principal);
+    authService.requireScope(principal, "profile.manage");
+    const [source] = await db.select().from(schema.triageEvents).where(and(
+      eq(schema.triageEvents.id, sourceEventId),
+      eq(schema.triageEvents.tenantId, principal.tenantId),
+      eq(schema.triageEvents.userId, principal.userId)
+    )).limit(1);
+    if (!source) throw new ValidationError("Event ID is unknown or unauthorized");
+    if (!source.mergedIntoEventId) throw new ValidationError("Event is not merged");
+    const targetEventId = source.mergedIntoEventId;
+    const normalizedReason = this.correctionReason(reason);
+    const now = new Date();
+    await db.update(schema.triageEvents).set({ mergedIntoEventId: null, updatedAt: now }).where(eq(schema.triageEvents.id, sourceEventId));
+    await db.update(schema.triageDecisions).set({ needsReevaluation: true }).where(and(
+      eq(schema.triageDecisions.tenantId, principal.tenantId),
+      eq(schema.triageDecisions.userId, principal.userId),
+      inArray(schema.triageDecisions.eventId, [sourceEventId, targetEventId])
+    ));
+    const id = nanoid();
+    await db.insert(schema.triageEventChanges).values({ id, tenantId: principal.tenantId, userId: principal.userId, action: "unmerge", sourceEventId, targetEventId, reason: normalizedReason, createdAt: now });
+    await auditService.logEvent({ tenantId: principal.tenantId, userId: principal.userId, action: "TRIAGE_EVENTS_UNMERGED", resourceType: "triage_event", resourceId: sourceEventId, details: { targetEventId, changeId: id } });
+    return { changeId: id, sourceEventId, previousTargetEventId: targetEventId, canonicalEventId: sourceEventId };
   }
 }
 

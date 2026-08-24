@@ -650,6 +650,7 @@ export const triageEvents = sqliteTable(
     eventKey: text("event_key").notNull(),
     normalizedSubject: text("normalized_subject").notNull().default(""),
     observedState: text("observed_state", { enum: ["active", "resolved"] }).notNull().default("active"),
+    mergedIntoEventId: text("merged_into_event_id"),
     messageCount: integer("message_count").notNull().default(1),
     firstObservedAt: integer("first_observed_at", { mode: "timestamp" }).notNull(),
     lastObservedAt: integer("last_observed_at", { mode: "timestamp" }).notNull(),
@@ -659,6 +660,7 @@ export const triageEvents = sqliteTable(
   (table) => [
     index("triage_events_tenant_user_idx").on(table.tenantId, table.userId),
     index("triage_events_status_idx").on(table.tenantId, table.userId, table.observedState),
+    index("triage_events_merged_idx").on(table.tenantId, table.userId, table.mergedIntoEventId),
     index("triage_events_last_observed_idx").on(table.lastObservedAt),
   ]
 );
@@ -732,6 +734,25 @@ export const triageDecisions = sqliteTable(
     index("triage_decisions_tenant_user_idx").on(table.tenantId, table.userId),
     index("triage_decisions_stale_idx").on(table.tenantId, table.userId, table.needsReevaluation),
     index("triage_decisions_band_idx").on(table.tenantId, table.userId, table.derivedBand),
+  ]
+);
+
+export const triageEventChanges = sqliteTable(
+  "triage_event_changes",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    action: text("action", { enum: ["merge", "unmerge"] }).notNull(),
+    sourceEventId: text("source_event_id").notNull().references(() => triageEvents.id, { onDelete: "cascade" }),
+    targetEventId: text("target_event_id").notNull().references(() => triageEvents.id, { onDelete: "cascade" }),
+    reason: text("reason").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [
+    index("triage_event_changes_source_idx").on(table.sourceEventId, table.createdAt),
+    index("triage_event_changes_target_idx").on(table.targetEventId, table.createdAt),
+    index("triage_event_changes_tenant_user_idx").on(table.tenantId, table.userId),
   ]
 );
 

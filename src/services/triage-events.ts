@@ -39,6 +39,17 @@ export class TriageEventService {
 
     let eventId = matching[0]?.eventId as string | undefined;
     let isNew = false;
+    if (eventId) {
+      const [matchedEvent] = await db.select({ mergedIntoEventId: schema.triageEvents.mergedIntoEventId })
+        .from(schema.triageEvents)
+        .where(and(
+          eq(schema.triageEvents.id, eventId),
+          eq(schema.triageEvents.tenantId, principal.tenantId),
+          eq(schema.triageEvents.userId, principal.userId)
+        ))
+        .limit(1);
+      eventId = matchedEvent?.mergedIntoEventId ?? eventId;
+    }
     if (!eventId) {
       eventId = nanoid();
       isNew = true;

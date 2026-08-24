@@ -97,6 +97,22 @@ export const triageTools = [
       triageService.saveDecisions(principal, [params.decision], { source: "user_correction", correctionReason: params.reason }),
   },
   {
+    name: "merge_events",
+    description: "Reversibly merges two events after explicit user confirmation that they describe the same occurrence. Message identities and memberships remain intact.",
+    parameters: z.object({ sourceEventId: eventId, targetEventId: eventId, reason: z.string().trim().min(1).max(500) }).strict(),
+    requiredScopes: WRITE_SCOPES,
+    handler: (principal: AuthPrincipal, params: { sourceEventId: string; targetEventId: string; reason: string }) =>
+      triageService.mergeEvents(principal, params.sourceEventId, params.targetEventId, params.reason),
+  },
+  {
+    name: "unmerge_events",
+    description: "Reverses an explicit event merge after clear user correction. It does not delete messages, facts, decisions, or correction history.",
+    parameters: z.object({ sourceEventId: eventId, reason: z.string().trim().min(1).max(500) }).strict(),
+    requiredScopes: WRITE_SCOPES,
+    handler: (principal: AuthPrincipal, params: { sourceEventId: string; reason: string }) =>
+      triageService.unmergeEvent(principal, params.sourceEventId, params.reason),
+  },
+  {
     name: "set_user_service",
     description: "Creates or updates structured user operating context for a service or dependency. This is contextual evidence, not a global priority rule.",
     parameters: z.object({

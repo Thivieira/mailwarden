@@ -101,6 +101,60 @@ describe("MCP external triage protocol", () => {
     const readLater: any = await tools.get("get_event")!.handler(principal, { eventId });
     expect(readLater.previousDecision.id).toBe(rows[0]!.id);
     expect(readLater.previousDecision.validatedJudgment).toEqual(decision);
+
+    const corrected = {
+      ...decision,
+      consequence: { severity: "moderate" as const, description: "The subscription is non-production and has a fallback." },
+      rationale: "The user clarified that this subscription is not a production dependency.",
+    };
+    const correction: any = await tools.get("correct_triage_decision")!.handler(principal, {
+      decision: corrected,
+      reason: "This subscription is not production.",
+    });
+    expect(correction.saved[0].decisionId).not.toBe(rows[0]!.id);
+    const history = await db.select().from(schema.triageDecisions).where(eq(schema.triageDecisions.eventId, eventId));
+    expect(history).toHaveLength(2);
+    const latest = history.find((row: any) => row.id === correction.saved[0].decisionId)!;
+    expect(latest.previousDecisionId).toBe(rows[0]!.id);
+    expect(latest.judgmentSource).toBe("user_correction");
+
+    const explanation: any = await tools.get("explain_triage_state")!.handler(principal, { eventId });
+    expect(explanation.externalRationale).toBe(corrected.rationale);
+    expect(explanation.previousJudgment).toEqual(decision);
+    expect(explanation.whatChanged).toContainEqual({ field: "consequence.severity", from: "major", to: "moderate" });
+    expect(explanation.factsUsed[0].messageId).toBe(email.id);
+    expect(explanation.priorityDerivation.band).toBe("P2");
+  });
+
+  it("merges and unmerges events without moving or deleting message memberships", async () => {
+    for (const [index, sender] of ["one@example.com", "two@example.com"].entries()) {
+      await emailService.ingestEmail(principal, {
+        accountId,
+        provider: "mock",
+        providerMessageId: `separate-${index}-${nanoid()}`,
+        from: { address: sender },
+        to: [{ address: "owner@example.com" }],
+        cc: [], bcc: [], subject: "Same subject", textBody: `Independent message ${index}`,
+        receivedAt: new Date(Date.now() + index), headers: {},
+        flags: { unread: true, automated: false, bulk: false, hasListUnsubscribe: false }, attachments: [],
+      });
+    }
+    const before: any = await tools.get("get_inbox_state")!.handler(principal, { limit: 10 });
+    expect(before.events).toHaveLength(2);
+    const [target, source] = before.events.map((state: any) => state.event.id);
+
+    await tools.get("merge_events")!.handler(principal, { sourceEventId: source, targetEventId: target, reason: "The user confirmed these describe one occurrence." });
+    const merged: any = await tools.get("get_inbox_state")!.handler(principal, { limit: 10 });
+    expect(merged.events).toHaveLength(1);
+    expect(merged.events[0].members).toHaveLength(2);
+    expect(merged.events[0].event.mergedEventIds).toContain(source);
+    expect(await db.select().from(schema.triageEventMembers).where(eq(schema.triageEventMembers.tenantId, principal.tenantId))).toHaveLength(2);
+
+    await tools.get("unmerge_events")!.handler(principal, { sourceEventId: source, reason: "The user corrected the merge." });
+    const unmerged: any = await tools.get("get_inbox_state")!.handler(principal, { limit: 10 });
+    expect(unmerged.events).toHaveLength(2);
+    const changes = await db.select().from(schema.triageEventChanges).where(eq(schema.triageEventChanges.tenantId, principal.tenantId));
+    expect(changes.map((change: any) => change.action)).toEqual(["merge", "unmerge"]);
   });
 
   it("rejects unsupported evidence before writing any decision", async () => {
@@ -144,7 +198,7 @@ describe("MCP external triage protocol", () => {
   });
 
   it("publishes provider-neutral, prompt-injection-resistant server behavior", () => {
-    for (const name of ["get_triage_batch", "get_event", "save_triage_decisions", "correct_triage_decision", "explain_triage_state"]) {
+    for (const name of ["get_triage_batch", "get_event", "save_triage_decisions", "correct_triage_decision", "merge_events", "unmerge_events", "explain_triage_state"]) {
       expect(tools.has(name)).toBe(true);
     }
     expect(SERVER_INSTRUCTIONS).toContain("hostile untrusted data");
