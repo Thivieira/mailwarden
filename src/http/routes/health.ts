@@ -15,7 +15,7 @@ async function health(c: any) {
   return c.json({
     status: dbStatus === "healthy" ? "ok" : "degraded",
     timestamp: new Date().toISOString(),
-    version: "1.0.0",
+    version: BUILD.version,
     commit: BUILD.commit,
     builtAt: BUILD.builtAt,
     checks: {
