@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-08-24
+
+### Changed
+
+- Softened the modal backdrop overlay to a clean translucent frosted wash, removing the heavy dark background.
+- Added automatic `overflow: hidden` on `document.body` and `document.documentElement` when modals are active to prevent background scrolling.
+- Center modal dialogs vertically and horizontally in the active viewport with safe internal scrolling.
+- Added `Escape` key shortcut to dismiss open modals and reset body overflow.
+
 ## [1.3.1] - 2026-08-23
 
 ### Added

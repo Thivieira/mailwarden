@@ -608,18 +608,38 @@ code {
 }
 
 /* Modal Dialog System */
+html.modal-open,
+body.modal-open {
+  overflow: hidden !important;
+  touch-action: none;
+}
+
 .modal-backdrop {
   position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background: rgba(15, 23, 42, 0.22);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 100;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  padding: 1.5rem 1rem;
+  overflow-y: auto;
+  box-sizing: border-box;
   animation: modal-fade-in 160ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-color-scheme: dark) {
+  .modal-backdrop {
+    background: rgba(0, 0, 0, 0.4);
+  }
 }
 
 @keyframes modal-fade-in {
@@ -633,13 +653,17 @@ code {
   border-radius: var(--radius-xl);
   width: 100%;
   max-width: 30rem;
+  max-height: calc(100dvh - 3rem);
   padding: 1.5rem;
-  box-shadow: 0 20px 35px -8px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border);
+  margin: auto;
+  overflow-y: auto;
+  box-sizing: border-box;
+  box-shadow: 0 20px 35px -8px rgba(0, 0, 0, 0.25), 0 0 0 1px var(--border);
   animation: modal-zoom-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes modal-zoom-in {
-  from { opacity: 0; transform: scale(0.96) translateY(6px); }
+  from { opacity: 0; transform: scale(0.97) translateY(8px); }
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 

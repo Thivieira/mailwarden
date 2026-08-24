@@ -1778,9 +1778,35 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
         {/* JAVASCRIPT LOGIC VIA EVENT DELEGATION */}
         <script
           innerHTML={`
+          function updateModalState() {
+            var openModals = document.querySelectorAll('.modal-backdrop.is-open, .modal-backdrop[style*="display: flex"]');
+            var anyOpen = false;
+            for (var i = 0; i < openModals.length; i++) {
+              if (openModals[i].style.display !== 'none') {
+                anyOpen = true;
+                break;
+              }
+            }
+            if (anyOpen) {
+              document.body.classList.add('modal-open');
+              document.documentElement.classList.add('modal-open');
+            } else {
+              document.body.classList.remove('modal-open');
+              document.documentElement.classList.remove('modal-open');
+            }
+          }
+
           function setModal(id, show) {
             var m = document.getElementById(id);
-            if (m) m.style.display = show ? 'flex' : 'none';
+            if (m) {
+              m.style.display = show ? 'flex' : 'none';
+              if (show) {
+                m.classList.add('is-open');
+              } else {
+                m.classList.remove('is-open');
+              }
+            }
+            updateModalState();
           }
 
           document.addEventListener('click', function(e) {
@@ -1848,6 +1874,8 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
             // Close modal on backdrop click
             if (e.target.classList && e.target.classList.contains('modal-backdrop')) {
               e.target.style.display = 'none';
+              e.target.classList.remove('is-open');
+              updateModalState();
             }
 
             // Close workspace dropdown when clicking outside
@@ -1855,6 +1883,20 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
             var wsMenu = document.getElementById('workspaceDropdownMenu');
             if (btn && wsMenu && !btn.contains(e.target) && !wsMenu.contains(e.target)) {
               wsMenu.style.display = 'none';
+            }
+          });
+
+          // Close modal and menus on Escape key
+          document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' || e.keyCode === 27) {
+              var openModals = document.querySelectorAll('.modal-backdrop.is-open, .modal-backdrop[style*="display: flex"]');
+              for (var i = 0; i < openModals.length; i++) {
+                openModals[i].style.display = 'none';
+                openModals[i].classList.remove('is-open');
+              }
+              updateModalState();
+              var wsMenu = document.getElementById('workspaceDropdownMenu');
+              if (wsMenu) wsMenu.style.display = 'none';
             }
           });
 
