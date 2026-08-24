@@ -1,0 +1,10 @@
+{
+  "name": "@mailwarden/triage-priority",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@mailwarden/triage-contract": "workspace:*",
+    "@mailwarden/triage-features": "workspace:*"
+  }
+}

@@ -2,6 +2,13 @@ import { describe, it, expect } from "bun:test";
 import { readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { extractFeatures } from "../packages/triage-features/src";
+import {
+  CONSEQUENCE_SEVERITIES,
+  HARM_ACCRUAL_STATES,
+  TIME_CRITICALITIES,
+  TRIAGE_STATUSES,
+} from "../packages/triage-contract/src";
+import { PRIORITY_TABLE } from "../packages/triage-priority/src";
 
 /**
  * Invariant 2 (see CLAUDE.md): MailScribe core must never require a
@@ -99,5 +106,14 @@ describe("architecture invariants", () => {
       expect(text).not.toContain("Date.now(");
       expect(text).not.toMatch(/from ["'](?:.*db|.*classif|.*priority|.*relationship|.*policy)/);
     });
+  });
+
+  it("makes deterministic priority total over every judgment state", () => {
+    expect(Object.keys(PRIORITY_TABLE)).toHaveLength(
+      TRIAGE_STATUSES.length *
+      CONSEQUENCE_SEVERITIES.length *
+      TIME_CRITICALITIES.length *
+      HARM_ACCRUAL_STATES.length
+    );
   });
 });

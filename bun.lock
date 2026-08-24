@@ -108,6 +108,13 @@
     "packages/triage-features": {
       "name": "@mailwarden/triage-features",
     },
+    "packages/triage-priority": {
+      "name": "@mailwarden/triage-priority",
+      "dependencies": {
+        "@mailwarden/triage-contract": "workspace:*",
+        "@mailwarden/triage-features": "workspace:*",
+      },
+    },
     "packages/ui": {
       "name": "@mailwarden/ui",
       "version": "0.1.0",
@@ -342,6 +349,8 @@
     "@mailwarden/triage-events": ["@mailwarden/triage-events@workspace:packages/triage-events"],
 
     "@mailwarden/triage-features": ["@mailwarden/triage-features@workspace:packages/triage-features"],
+
+    "@mailwarden/triage-priority": ["@mailwarden/triage-priority@workspace:packages/triage-priority"],
 
     "@mailwarden/ui": ["@mailwarden/ui@workspace:packages/ui"],
 
