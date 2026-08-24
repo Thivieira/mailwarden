@@ -18,7 +18,7 @@ export interface ExtractedFact<T> {
 
 export interface TriageFeatureMessage {
   providerMessageId?: string;
-  providerThreadId?: string;
+  providerThreadId?: string | null;
   from: { address: string };
   subject?: string | null;
   textBody?: string | null;
@@ -37,7 +37,7 @@ export type ExtractedAmount = ExtractedFact<{
 }>;
 
 export type ExtractedEntityId = ExtractedFact<{
-  kind: "jira_issue" | "github_pr" | "stripe_invoice" | "stripe_subscription" | "domain";
+  kind: "jira_issue" | "github_pr" | "github_repository" | "stripe_invoice" | "stripe_subscription" | "domain";
   id: string;
 }>;
 
@@ -228,6 +228,13 @@ function parseEntities(surfaces: SearchSurface[]): ExtractedEntityId[] {
   add("domain", /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}\b/gi);
   for (const surface of surfaces) {
     if (!/github|pull request|\bPR\b/i.test(surface.text)) continue;
+    for (const { match } of matches([surface], /\b([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\b/g)) {
+      facts.push({
+        value: { kind: "github_repository", id: match[1]! },
+        method: "regex",
+        evidence: [evidence(surface, match)],
+      });
+    }
     for (const { match } of matches([surface], /(?:pull request|\bPR)\s*#(\d+)\b/gi)) {
       facts.push({
         value: { kind: "github_pr", id: match[1]! },

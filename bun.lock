@@ -11,6 +11,8 @@
         "@mailwarden/organizations": "workspace:*",
         "@mailwarden/proton": "workspace:*",
         "@mailwarden/relay": "workspace:*",
+        "@mailwarden/triage-events": "workspace:*",
+        "@mailwarden/triage-features": "workspace:*",
         "@mailwarden/ui": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.30.0",
         "drizzle-orm": "^0.45.2",
@@ -90,6 +92,15 @@
         "@mailwarden/contracts": "workspace:*",
         "@mailwarden/proton": "workspace:*",
       },
+    },
+    "packages/triage-events": {
+      "name": "@mailwarden/triage-events",
+      "dependencies": {
+        "@mailwarden/triage-features": "workspace:*",
+      },
+    },
+    "packages/triage-features": {
+      "name": "@mailwarden/triage-features",
     },
     "packages/ui": {
       "name": "@mailwarden/ui",
@@ -319,6 +330,10 @@
     "@mailwarden/proton": ["@mailwarden/proton@workspace:packages/proton"],
 
     "@mailwarden/relay": ["@mailwarden/relay@workspace:packages/relay"],
+
+    "@mailwarden/triage-events": ["@mailwarden/triage-events@workspace:packages/triage-events"],
+
+    "@mailwarden/triage-features": ["@mailwarden/triage-features@workspace:packages/triage-features"],
 
     "@mailwarden/ui": ["@mailwarden/ui@workspace:packages/ui"],
 

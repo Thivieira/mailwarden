@@ -569,6 +569,91 @@ export const classifications = sqliteTable(
 );
 
 // ==========================================
+// INBOX INTELLIGENCE EVENTS
+// ==========================================
+
+export const messageFacts = sqliteTable(
+  "message_facts",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    emailId: text("email_id").notNull().references(() => emails.id, { onDelete: "cascade" }),
+    featureVersion: text("feature_version").notNull(),
+    facts: text("facts", { mode: "json" }).notNull().$type<Record<string, unknown>>(),
+    contentHash: text("content_hash").notNull(),
+    rfcMessageId: text("rfc_message_id"),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("message_facts_email_idx").on(table.emailId),
+    index("message_facts_tenant_user_idx").on(table.tenantId, table.userId),
+    index("message_facts_content_hash_idx").on(table.tenantId, table.userId, table.contentHash),
+  ]
+);
+
+export const triageEvents = sqliteTable(
+  "triage_events",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(),
+    eventKey: text("event_key").notNull(),
+    normalizedSubject: text("normalized_subject").notNull().default(""),
+    observedState: text("observed_state", { enum: ["active", "resolved"] }).notNull().default("active"),
+    messageCount: integer("message_count").notNull().default(1),
+    firstObservedAt: integer("first_observed_at", { mode: "timestamp" }).notNull(),
+    lastObservedAt: integer("last_observed_at", { mode: "timestamp" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [
+    index("triage_events_tenant_user_idx").on(table.tenantId, table.userId),
+    index("triage_events_status_idx").on(table.tenantId, table.userId, table.observedState),
+    index("triage_events_last_observed_idx").on(table.lastObservedAt),
+  ]
+);
+
+export const triageEventKeys = sqliteTable(
+  "triage_event_keys",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    eventId: text("event_id").notNull().references(() => triageEvents.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["exact", "thread", "typed", "fallback"] }).notNull(),
+    value: text("value").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("triage_event_keys_identity_idx").on(table.tenantId, table.userId, table.value),
+    index("triage_event_keys_event_idx").on(table.eventId),
+  ]
+);
+
+export const triageEventMembers = sqliteTable(
+  "triage_event_members",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    eventId: text("event_id").notNull().references(() => triageEvents.id, { onDelete: "cascade" }),
+    emailId: text("email_id").notNull().references(() => emails.id, { onDelete: "cascade" }),
+    membershipReason: text("membership_reason", { enum: ["exact", "thread", "typed", "fallback"] }).notNull(),
+    supersededByEmailId: text("superseded_by_email_id").references(() => emails.id, { onDelete: "set null" }),
+    observedAt: integer("observed_at", { mode: "timestamp" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("triage_event_members_email_idx").on(table.emailId),
+    index("triage_event_members_event_idx").on(table.eventId, table.observedAt),
+    index("triage_event_members_tenant_user_idx").on(table.tenantId, table.userId),
+  ]
+);
+
+// ==========================================
 // SIGNATURES & DRAFTS
 // ==========================================
 

@@ -19,6 +19,7 @@ import { config } from "../config";
 import { nanoid } from "nanoid";
 import { logger } from "../utils/logger";
 import { organizationService } from "./organizations";
+import { triageEventService } from "./triage-events";
 
 export interface MailSearchParams {
   query?: string;
@@ -138,6 +139,10 @@ export class EmailService {
     }
 
     const savedEmail = await this.getEmail(principal, emailId);
+
+    // Build replayable L2 facts and indexed event membership before any legacy
+    // compatibility classification runs. Neither step writes semantic judgment.
+    await triageEventService.recordMessage(principal, savedEmail, now);
 
     // Extract deterministic signals & persist initial classification
     const signals = await intelligenceService.extractSignals(principal, savedEmail);

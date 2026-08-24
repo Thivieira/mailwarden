@@ -1,0 +1,9 @@
+{
+  "name": "@mailwarden/triage-events",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@mailwarden/triage-features": "workspace:*"
+  }
+}
