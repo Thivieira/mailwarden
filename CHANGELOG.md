@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-08-24
+
+### Fixed
+
+- `beta_invites` timestamps were written in two different units. The operator
+  script `scripts/create-invite.ts` built raw SQL with `Date.getTime()`
+  (milliseconds) while the schema declares `mode: "timestamp"` (seconds), so
+  invites created that way read back as dates thousands of years in the future
+  and their expiry check could never fail. The script now shares one builder with
+  the service, writes seconds, escapes the email it interpolates, and prints the
+  code it actually stored — previously the local path printed a code it had not
+  written. Migration `0008` normalizes existing rows.
+- `validateInvite` refuses an invite whose expiry is beyond any real lifetime,
+  so a mis-encoded row fails closed instead of never expiring.
+- `/api/workspaces` returned authorization contexts rather than workspaces, so
+  clients read `kind` as `undefined`.
+- The Bridge daemon waited out its 30-second interval floor before the first
+  heartbeat, and died outright when its gateway port was in use. It now reports
+  immediately, survives a port conflict, and reports the conflict instead of
+  mistaking another process's gateway for its own.
+
 ## [1.1.0] - 2026-08-23
 
 Team Organizations, Mailwarden Bridge, and the product surfaces that use them.
@@ -89,5 +110,6 @@ First public release of Mailwarden: an AI-native email operating layer and MCP b
 - Privacy controls: disconnect, credential wipe, memory deletion, data export
 - Dry-run mailbox mutations (`MAILBOX_MUTATIONS_ENABLED=false` by default)
 
+[1.1.1]: https://github.com/Thivieira/mailwarden/releases/tag/v1.1.1
 [1.1.0]: https://github.com/Thivieira/mailwarden/releases/tag/v1.1.0
 [1.0.0]: https://github.com/Thivieira/mailwarden/releases/tag/v1.0.0

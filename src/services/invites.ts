@@ -20,10 +20,42 @@ export type BetaInvite = {
   inviteUrl: string;
 };
 
+/** Invites are short-lived by design; anything beyond this is corrupt data. */
+const MAX_INVITE_LIFETIME_MS = 400 * 24 * 60 * 60 * 1000;
+
 export class InviteService {
   async hasAnyUsers(): Promise<boolean> {
     const users = await db.select({ id: schema.users.id }).from(schema.users).limit(1);
     return users.length > 0;
+  }
+
+  /**
+   * Builds an invite record without writing it.
+   *
+   * Exists so the operator script and the service cannot disagree about ids,
+   * codes, or timestamp units: whoever writes the row starts from this.
+   */
+  buildInvite(input: { createdByUserId?: string; email?: string; expiresInDays?: number }): {
+    id: string;
+    code: string;
+    email: string | null;
+    createdByUserId: string | null;
+    createdAt: Date;
+    expiresAt: Date;
+    inviteUrl: string;
+  } {
+    const now = new Date();
+    const days = input.expiresInDays && input.expiresInDays > 0 ? input.expiresInDays : 7;
+    const code = `mw_inv_${nanoid(16)}`;
+    return {
+      id: nanoid(),
+      code,
+      email: input.email ? input.email.trim().toLowerCase() : null,
+      createdByUserId: input.createdByUserId || null,
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + days * 24 * 60 * 60 * 1000),
+      inviteUrl: `${config.APP_BASE_URL}/portal/signup?invite=${code}`,
+    };
   }
 
   async createInvite(input: {
@@ -31,12 +63,10 @@ export class InviteService {
     email?: string;
     expiresInDays?: number;
   }): Promise<BetaInvite> {
-    const id = nanoid();
-    const code = `mw_inv_${nanoid(16)}`;
-    const now = new Date();
+    const built = this.buildInvite(input);
+    const { id, code, expiresAt, createdAt: now } = built;
+    const normalizedEmail = built.email;
     const days = input.expiresInDays && input.expiresInDays > 0 ? input.expiresInDays : 7;
-    const expiresAt = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
-    const normalizedEmail = input.email ? input.email.trim().toLowerCase() : null;
 
     await db.insert(schema.betaInvites).values({
       id,
@@ -92,8 +122,15 @@ export class InviteService {
       throw new AuthenticationError("This invite code has already been used.");
     }
 
-    if (new Date(invite.expiresAt) < new Date()) {
+    const expiresAt = new Date(invite.expiresAt);
+    if (expiresAt < new Date()) {
       throw new AuthenticationError("This invite link has expired. Please ask for a new invite.");
+    }
+    // A date far beyond any real invite means the row was written with the wrong
+    // timestamp unit, which would silently disable expiry. Refuse it rather than
+    // honour an invite that can never expire.
+    if (expiresAt.getTime() > Date.now() + MAX_INVITE_LIFETIME_MS) {
+      throw new AuthenticationError("This invite code is not valid. Please request a new invite link.");
     }
 
     if (invite.email && email) {
