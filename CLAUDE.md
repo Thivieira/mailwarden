@@ -140,10 +140,6 @@ are how it produced `actionRequired: 0` on an inbox containing a failed
 production payment. When something must be presented before a judgment exists,
 report the extraction (`has_material_facts`), never a conclusion.
 
-**Corollary:** anything deriving a judgment field must be *total*. Ordered
-branch lists with a fallthrough default are how `severe + this_week → P3`
-happens. Use exhaustive lookup tables over enumerable domains.
-
 ## 2. MailScribe core must never require a MailScribe-funded LLM call to produce or maintain inbox state.
 
 All semantic judgment is executed by the external MCP client using the user's
@@ -160,3 +156,16 @@ classification, briefing, or any path required to produce inbox state.
 Enforced by `tests/architecture_invariants.test.ts`. Do not add an inference
 SDK to any workspace `package.json` — an internal "just a small fast model for
 triage" tier is exactly the regression this prevents.
+
+## 3. Extracted semantic facts must be locally supportable.
+
+Every L2 fact beyond raw provider truth carries provider, header, subject, body,
+or thread evidence. Extraction must not depend on user circumstances or
+consequence. If two users can receive the same message and reasonably disagree
+about a field, that field is L3 judgment, not L2 extraction.
+
+## 4. Every deterministic mapping over judgment states must be total.
+
+No semantic priority behavior may depend on an ordered fallthrough ladder. Use
+exhaustive lookup tables over the complete enumerable input domain so every
+combination has one explicit result.

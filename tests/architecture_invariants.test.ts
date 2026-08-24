@@ -1,6 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import { readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { extractFeatures } from "../packages/triage-features/src";
 
 /**
  * Invariant 2 (see CLAUDE.md): MailScribe core must never require a
@@ -80,5 +81,23 @@ describe("architecture invariants", () => {
     const stripped = wrangler.replace(/\/\/.*$/gm, "");
     expect(stripped).not.toMatch(/"ai"\s*:/);
     expect(stripped).not.toMatch(/@cf\//);
+  });
+
+  it("keeps L2 extraction replayable, locally evidenced, and free of judgment fields", () => {
+    const source = Bun.file(join(import.meta.dir, "../packages/triage-features/src/index.ts"));
+    const facts = extractFeatures({
+      from: { address: "billing@example.com" },
+      subject: "Payment failed",
+      textBody: "Payment failed for 297 BRL.",
+      receivedAt: "2026-08-24T12:00:00.000Z",
+    }, "2026-08-24T12:08:00.000Z");
+    const keys = JSON.stringify(facts);
+
+    expect(keys).not.toMatch(/"(?:important|urgent|critical|needsAttention|actionRequired|priority)"\s*:/);
+    expect(facts.paymentEvents[0]?.evidence[0]?.source).toBe("subject");
+    return source.text().then((text) => {
+      expect(text).not.toContain("Date.now(");
+      expect(text).not.toMatch(/from ["'](?:.*db|.*classif|.*priority|.*relationship|.*policy)/);
+    });
   });
 });

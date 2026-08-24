@@ -1,0 +1,6 @@
+{
+  "name": "@mailwarden/triage-features",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts"
+}
