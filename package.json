@@ -36,6 +36,7 @@
     "beta:provision": "bun run src/scripts/invite-user.ts",
     "invite:create": "bun run scripts/create-invite.ts",
     "replay": "bun run src/scripts/replay.ts",
+    "triage:eval": "bun run scripts/triage-eval.ts",
     "test:live": "bun run scripts/test-mailwarden.ts"
   },
   "dependencies": {
