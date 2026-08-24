@@ -20,6 +20,9 @@
  * The API token needs `Cloudflare Tunnel Write` on the account and `DNS Write`
  * on the zone.
  */
+import { and, asc, eq, isNull, lt, or, sql } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { db, schema } from "../db";
 import { config } from "../config";
 import { logger } from "../utils/logger";
 import { ConfigurationError, ValidationError } from "../utils/errors";
@@ -255,22 +258,122 @@ export class CloudflareTunnelService {
     return { tunnelId: created.id, hostname, token: await api.getRunToken(created.id) };
   }
 
-  /** Removes a device's tunnel and hostname. Best effort: revocation must not depend on it. */
-  async release(tunnelId: string, hostname: string | null): Promise<boolean> {
+  /**
+   * Removes a device's tunnel and hostname.
+   *
+   * Best effort by design: revocation is authoritative locally and must not wait
+   * on Cloudflare. What Cloudflare would not delete is recorded in the cleanup
+   * ledger so the reconciliation pass can finish the job.
+   */
+  async release(
+    tunnelId: string,
+    hostname: string | null,
+    owner?: { tenantId: string; deviceId: string }
+  ): Promise<boolean> {
     const credentials = tunnelCredentials();
-    if (!credentials) return false;
+    if (!credentials) {
+      // Nothing to call. Still record it: credentials may be restored later.
+      if (owner) await this.recordPending(tunnelId, hostname, owner, "managed tunnels are not configured");
+      return false;
+    }
+
     const api = this.apiFactory(credentials);
     try {
       if (hostname) await api.deleteDnsRecord(hostname);
       await api.deleteTunnel(tunnelId);
       return true;
     } catch (error) {
-      logger.warn("Could not release the managed relay tunnel", {
-        tunnelId,
-        message: error instanceof Error ? error.message : "unknown error",
-      });
+      const message = error instanceof Error ? error.message : "unknown error";
+      logger.warn("Could not release the managed relay tunnel; queued for reconciliation", { tunnelId, message });
+      if (owner) await this.recordPending(tunnelId, hostname, owner, message);
       return false;
     }
+  }
+
+  private async recordPending(
+    tunnelId: string,
+    hostname: string | null,
+    owner: { tenantId: string; deviceId: string },
+    error: string
+  ): Promise<void> {
+    const now = new Date();
+    await db
+      .insert(schema.relayTunnelCleanup)
+      .values({
+        id: nanoid(),
+        tenantId: owner.tenantId,
+        deviceId: owner.deviceId,
+        tunnelId,
+        hostname,
+        attempts: 1,
+        lastAttemptAt: now,
+        lastError: error.slice(0, 500),
+        createdAt: now,
+      })
+      .onConflictDoUpdate({
+        target: schema.relayTunnelCleanup.tunnelId,
+        set: { attempts: sql`attempts + 1`, lastAttemptAt: now, lastError: error.slice(0, 500) },
+      });
+  }
+
+  /**
+   * Retries queued releases. Runs from the scheduled worker, so an outage during
+   * revocation resolves itself once Cloudflare is reachable again.
+   */
+  async reconcile(limit = 20, now = new Date()): Promise<{ attempted: number; released: number }> {
+    if (!this.isConfigured()) return { attempted: 0, released: 0 };
+
+    // Back off: retry a given tunnel at most once every fifteen minutes.
+    const retryBefore = new Date(now.getTime() - 15 * 60_000);
+    const pending = await db
+      .select()
+      .from(schema.relayTunnelCleanup)
+      .where(
+        and(
+          isNull(schema.relayTunnelCleanup.releasedAt),
+          or(
+            isNull(schema.relayTunnelCleanup.lastAttemptAt),
+            lt(schema.relayTunnelCleanup.lastAttemptAt, retryBefore)
+          )
+        )
+      )
+      .orderBy(asc(schema.relayTunnelCleanup.createdAt))
+      .limit(limit);
+
+    let released = 0;
+    for (const row of pending) {
+      const credentials = tunnelCredentials()!;
+      const api = this.apiFactory(credentials);
+      try {
+        if (row.hostname) await api.deleteDnsRecord(row.hostname);
+        await api.deleteTunnel(row.tunnelId);
+        await db
+          .update(schema.relayTunnelCleanup)
+          .set({ releasedAt: now, lastAttemptAt: now, attempts: row.attempts + 1, lastError: null })
+          .where(eq(schema.relayTunnelCleanup.id, row.id));
+        released += 1;
+        logger.info("Released an orphaned relay tunnel", { tunnelId: row.tunnelId });
+      } catch (error) {
+        await db
+          .update(schema.relayTunnelCleanup)
+          .set({
+            lastAttemptAt: now,
+            attempts: row.attempts + 1,
+            lastError: (error instanceof Error ? error.message : "unknown error").slice(0, 500),
+          })
+          .where(eq(schema.relayTunnelCleanup.id, row.id));
+      }
+    }
+    return { attempted: pending.length, released };
+  }
+
+  /** Outstanding orphans, for operations and for the health surface. */
+  async pendingCleanupCount(): Promise<number> {
+    const rows = await db
+      .select({ id: schema.relayTunnelCleanup.id })
+      .from(schema.relayTunnelCleanup)
+      .where(isNull(schema.relayTunnelCleanup.releasedAt));
+    return rows.length;
   }
 }
 

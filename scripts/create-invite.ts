@@ -3,7 +3,9 @@ import { inviteService } from "../src/services/invites";
 import { db, schema } from "../src/db";
 
 const PROD_BASE_URL = "https://mailwarden.corenet.workers.dev";
-const CF_ACCOUNT_ID = "e807ef39b360b2fa610967e74892c610";
+/** Same source of truth as wrangler.jsonc; see scripts/d1.sh. */
+const CF_ACCOUNT_ID =
+  /"account_id"\s*:\s*"([^"]+)"/.exec(await Bun.file(new URL("../wrangler.jsonc", import.meta.url)).text())?.[1] || "";
 
 /** SQLite string literal: the only user-supplied value here is an email address. */
 function quote(value: string | null): string {

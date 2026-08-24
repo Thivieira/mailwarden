@@ -1088,6 +1088,32 @@ export const relayDeviceCredentials = sqliteTable(
 // PRIVATE BETA INVITES
 // ==========================================
 
+/**
+ * Managed tunnel resources awaiting release.
+ *
+ * Local revocation is authoritative even when Cloudflare cannot be reached, so
+ * the orphaned tunnel is recorded here and retried rather than leaked.
+ */
+export const relayTunnelCleanup = sqliteTable(
+  "relay_tunnel_cleanup",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    deviceId: text("device_id").notNull(),
+    tunnelId: text("tunnel_id").notNull(),
+    hostname: text("hostname"),
+    attempts: integer("attempts").notNull().default(0),
+    lastAttemptAt: integer("last_attempt_at", { mode: "timestamp" }),
+    lastError: text("last_error"),
+    releasedAt: integer("released_at", { mode: "timestamp" }),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("relay_tunnel_cleanup_tunnel_idx").on(table.tunnelId),
+    index("relay_tunnel_cleanup_pending_idx").on(table.releasedAt, table.lastAttemptAt),
+  ]
+);
+
 export const betaInvites = sqliteTable(
   "beta_invites",
   {

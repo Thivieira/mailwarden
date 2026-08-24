@@ -8,6 +8,14 @@ export interface ProtonBridgeCredentials {
   smtpPort?: number;
   bridgeUsername?: string;
   bridgePassword?: string;
+  /**
+   * Per-device gateway secret for a registered relay. When present, Cloud signs
+   * each request with it instead of sending a bearer token, so the credential
+   * never travels and a captured request cannot be replayed.
+   */
+  deviceGatewaySecret?: string;
+  /** The relay device serving this mailbox, for audit and diagnostics. */
+  relayDeviceId?: string;
 }
 
 export function validateProtonGatewayUrl(value: string): URL {

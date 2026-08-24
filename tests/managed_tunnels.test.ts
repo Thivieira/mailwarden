@@ -292,3 +292,99 @@ describe("device lifecycle with managed tunnels", () => {
     expect(fake.calls.some((call) => call.startsWith("create:"))).toBe(false);
   });
 });
+
+describe("cleanup ledger", () => {
+  test("a failed release is recorded and later reconciled", async () => {
+    const created = await service().provision({
+      deviceId: "dev-orphan",
+      organizationId: "org-orphan",
+      localService: "http://127.0.0.1:8080",
+    });
+
+    // Cloudflare is unreachable at revocation time.
+    let cloudflareDown = true;
+    const flaky = new CloudflareTunnelService(
+      () =>
+        ({
+          ...api,
+          deleteDnsRecord: async (hostname: string) => {
+            if (cloudflareDown) throw new Error("cloudflare unreachable");
+            return api.deleteDnsRecord(hostname);
+          },
+          deleteTunnel: async (tunnelId: string) => {
+            if (cloudflareDown) throw new Error("cloudflare unreachable");
+            return api.deleteTunnel(tunnelId);
+          },
+        }) as unknown as CloudflareTunnelApi
+    );
+
+    const released = await flaky.release(created!.tunnelId, created!.hostname, {
+      tenantId: "org-orphan",
+      deviceId: "dev-orphan",
+    });
+    // Revocation is not blocked by the outage, but the orphan is recorded.
+    expect(released).toBe(false);
+    expect(await flaky.pendingCleanupCount()).toBeGreaterThan(0);
+
+    const [queued] = await db
+      .select()
+      .from(schema.relayTunnelCleanup)
+      .where(eq(schema.relayTunnelCleanup.tunnelId, created!.tunnelId));
+    expect(queued!.lastError).toContain("cloudflare unreachable");
+    expect(queued!.attempts).toBe(1);
+
+    // A retry too soon is skipped by the back-off.
+    expect(await flaky.reconcile(20, new Date())).toEqual({ attempted: 0, released: 0 });
+
+    // Once Cloudflare recovers, the next pass finishes the job.
+    cloudflareDown = false;
+    const later = new Date(Date.now() + 20 * 60_000);
+    const result = await flaky.reconcile(20, later);
+    expect(result.released).toBeGreaterThan(0);
+    expect(api.tunnels.has(created!.tunnelId)).toBe(false);
+    expect(api.dns.has(created!.hostname)).toBe(false);
+
+    const [settled] = await db
+      .select()
+      .from(schema.relayTunnelCleanup)
+      .where(eq(schema.relayTunnelCleanup.tunnelId, created!.tunnelId));
+    expect(settled!.releasedAt).toBeTruthy();
+    expect(settled!.lastError).toBeNull();
+
+    // A released row is not attempted again.
+    expect((await flaky.reconcile(20, new Date(later.getTime() + 60 * 60_000))).attempted).toBe(0);
+  });
+
+  test("repeated failures increment attempts instead of duplicating rows", async () => {
+    const failing = new CloudflareTunnelService(
+      () =>
+        ({
+          ...api,
+          deleteDnsRecord: async () => {
+            throw new Error("still down");
+          },
+          deleteTunnel: async () => {
+            throw new Error("still down");
+          },
+        }) as unknown as CloudflareTunnelApi
+    );
+    // Unique per run: the test database persists, and this assertion is about
+    // what these two calls did, not what every previous run left behind.
+    const tunnelId = `tun_retry_${nanoid(8)}`;
+    const owner = { tenantId: "org-retry", deviceId: "dev-retry" };
+    await failing.release(tunnelId, "retry.relay.mailwarden.app", owner);
+    await failing.release(tunnelId, "retry.relay.mailwarden.app", owner);
+
+    const rows = await db
+      .select()
+      .from(schema.relayTunnelCleanup)
+      .where(eq(schema.relayTunnelCleanup.tunnelId, tunnelId));
+    expect(rows.length).toBe(1);
+    expect(rows[0]!.attempts).toBe(2);
+  });
+
+  test("reconciliation does nothing when managed tunnels are not configured", async () => {
+    configureManagedTunnels({ CLOUDFLARE_TUNNEL_API_TOKEN: undefined });
+    expect(await service().reconcile()).toEqual({ attempted: 0, released: 0 });
+  });
+});

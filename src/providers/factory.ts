@@ -49,8 +49,24 @@ export class ProviderFactory {
         return new GmailProvider(decryptedCreds as GmailCredentials);
       case "outlook":
         return new OutlookProvider(decryptedCreds as OutlookCredentials);
-      case "proton":
-        return new ProtonBridgeProvider(decryptedCreds as ProtonBridgeCredentials);
+      case "proton": {
+        const creds = decryptedCreds as ProtonBridgeCredentials;
+        // A registered relay supersedes whatever the mailbox was configured with:
+        // its per-device secret lets Cloud sign the request, and its endpoint is
+        // the tunnel Mailwarden manages.
+        const { relayDeviceService } = await import("../services/relay-devices");
+        const relay = await relayDeviceService.resolveWorkspaceRelay(principal.tenantId).catch(() => null);
+        if (relay) {
+          return new ProtonBridgeProvider({
+            ...creds,
+            mode: "gateway",
+            gatewayUrl: `${relay.endpoint.replace(/\/+$/, "")}/v1`,
+            deviceGatewaySecret: relay.gatewaySecret,
+            relayDeviceId: relay.deviceId,
+          });
+        }
+        return new ProtonBridgeProvider(creds);
+      }
       default:
         throw new NotFoundError("Supported provider adapter", account.provider);
     }

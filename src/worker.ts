@@ -61,6 +61,19 @@ export default {
           return;
         }
 
+        // Finish any tunnel release that Cloudflare refused during a revocation.
+        // Revocation is authoritative locally, so this is where the external
+        // resources actually get cleaned up.
+        try {
+          const { cloudflareTunnelService } = await import("./services/cloudflare-tunnels");
+          const cleanup = await cloudflareTunnelService.reconcile();
+          if (cleanup.attempted > 0) {
+            logger.info("[WORKER CRON] Relay tunnel reconciliation", cleanup);
+          }
+        } catch (error: any) {
+          logger.warn("[WORKER CRON] Relay tunnel reconciliation failed", { error: error?.message });
+        }
+
         const { syncService } = await import("./services/sync");
         const results = await syncService.syncAllConnectedAccounts(25);
         const successful = results.filter((r: any) => r.ok).length;

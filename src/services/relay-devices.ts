@@ -270,7 +270,10 @@ export class RelayDeviceService {
     // revocation, so the failure is recorded rather than raised.
     let tunnelReleased = false;
     if (device.tunnelId) {
-      tunnelReleased = await cloudflareTunnelService.release(device.tunnelId, device.tunnelHostname);
+      tunnelReleased = await cloudflareTunnelService.release(device.tunnelId, device.tunnelHostname, {
+        tenantId: organizationId,
+        deviceId,
+      });
       if (tunnelReleased) {
         await db
           .update(schema.relayDevices)
@@ -367,6 +370,47 @@ export class RelayDeviceService {
       token: allocated.token,
       issuedAt: now.toISOString(),
     };
+  }
+
+  /**
+   * Picks the relay device that serves a workspace's Proton mailboxes.
+   *
+   * Members never configure a hostname or a key: the organization registers a
+   * relay once and its mailboxes inherit it. A healthy device wins, then the most
+   * recently seen one; a device that has never reported an endpoint cannot be
+   * addressed and is skipped.
+   */
+  async resolveWorkspaceRelay(
+    organizationId: string
+  ): Promise<{ deviceId: string; endpoint: string; gatewaySecret: string } | null> {
+    const rows = await db
+      .select()
+      .from(schema.relayDevices)
+      .where(and(eq(schema.relayDevices.tenantId, organizationId), isNull(schema.relayDevices.revokedAt)));
+
+    type Row = typeof schema.relayDevices.$inferSelect;
+    const candidates = (rows as Row[])
+      .map((row: Row) => ({ row, endpoint: (row.lastHealth as { endpoint?: string } | null)?.endpoint }))
+      .filter((entry): entry is { row: Row; endpoint: string } => Boolean(entry.endpoint))
+      .sort((a: { row: Row }, b: { row: Row }) => {
+        const health = Number(b.row.status === "online") - Number(a.row.status === "online");
+        if (health !== 0) return health;
+        return (b.row.lastSeenAt?.getTime() ?? 0) - (a.row.lastSeenAt?.getTime() ?? 0);
+      });
+
+    const chosen = candidates[0];
+    if (!chosen) return null;
+    try {
+      return {
+        deviceId: chosen.row.id,
+        endpoint: chosen.endpoint,
+        gatewaySecret: await this.getGatewaySecret(organizationId, chosen.row.id),
+      };
+    } catch {
+      // A device without a live credential cannot serve requests; fall back to
+      // whatever the mailbox itself was configured with.
+      return null;
+    }
   }
 
   async getGatewaySecret(organizationId: string, deviceId: string): Promise<string> {
