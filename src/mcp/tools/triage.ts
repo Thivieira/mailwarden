@@ -2,12 +2,20 @@ import { z } from "zod";
 import { externalTriageDecisionSchema, TRIAGE_PROTOCOL_VERSION } from "@mailwarden/triage-contract";
 import type { AuthPrincipal, PermissionScope } from "../../types/auth";
 import { triageService } from "../../services/triage";
+import { inboxStateService } from "../../services/inbox-state";
 
 const eventId = z.string().min(1).max(200).describe("MailScribe triage event ID");
 const READ_SCOPES: PermissionScope[] = ["mail.read"];
 const WRITE_SCOPES: PermissionScope[] = ["profile.manage"];
 
 export const triageTools = [
+  {
+    name: "get_inbox_state",
+    description: "Canonical MailScribe event state: latest external judgments, current deterministic presentation, action queue, briefing lane, and freshness flags.",
+    parameters: z.object({ limit: z.number().int().min(1).max(200).default(100) }),
+    requiredScopes: READ_SCOPES,
+    handler: (principal: AuthPrincipal, params: { limit: number }) => inboxStateService.getInboxState(principal, params),
+  },
   {
     name: "get_triage_context",
     description: "Returns compact unresolved MailScribe event context for external semantic reasoning. Use this before answering what needs attention.",

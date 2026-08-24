@@ -94,6 +94,12 @@ export class TriageEventService {
         eq(schema.triageEvents.tenantId, principal.tenantId),
         eq(schema.triageEvents.userId, principal.userId)
       ));
+      await db.update(schema.triageDecisions).set({ needsReevaluation: true }).where(and(
+        eq(schema.triageDecisions.eventId, eventId),
+        eq(schema.triageDecisions.tenantId, principal.tenantId),
+        eq(schema.triageDecisions.userId, principal.userId),
+        eq(schema.triageDecisions.needsReevaluation, false)
+      ));
     }
 
     if (identity.observedState === "resolved") {

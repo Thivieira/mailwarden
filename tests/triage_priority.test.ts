@@ -112,4 +112,13 @@ describe("L4 policy clamps", () => {
     expect(presentation.safeActionTarget).toBe(false);
     expect(presentation.reviewFlags).toContain("sender_authentication_failed");
   });
+
+  it("suppresses a deterministically resolved event without rewriting its stale judgment", () => {
+    const input = decision();
+    const facts = extractFeatures({ from: { address: "billing@example.com" }, subject: "Payment succeeded", textBody: "Payment succeeded.", receivedAt: "2026-08-24T12:00:00.000Z" }, "2026-08-24T12:05:00.000Z");
+    const result = applyPolicyClamps(input, facts, { observedState: "resolved" });
+    expect(result.presentation.band).toBe("noise");
+    expect(result.judgment.status).toBe("open");
+    expect(result.presentation.clampsApplied.map((clamp) => clamp.id)).toContain("observed_event_resolved");
+  });
 });

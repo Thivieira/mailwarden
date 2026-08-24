@@ -124,7 +124,11 @@ function ceiling(current: PriorityBand, maximum: PriorityBand): PriorityBand {
   return BAND_RANK[current] < BAND_RANK[maximum] ? maximum : current;
 }
 
-export function applyPolicyClamps(decision: ExternalTriageDecision, facts: TriageFacts): PolicyResult {
+export function applyPolicyClamps(
+  decision: ExternalTriageDecision,
+  facts: TriageFacts,
+  constraints: { observedState?: "active" | "resolved" } = {}
+): PolicyResult {
   const derived = derivePriority({
     severity: decision.consequence.severity,
     timeCriticality: decision.timeCriticality,
@@ -174,6 +178,13 @@ export function applyPolicyClamps(decision: ExternalTriageDecision, facts: Triag
     reviewFlags.push("sender_authentication_failed");
     clampsApplied.push({ id: "probable_phishing", effect: "review" });
     clampsApplied.push({ id: "probable_phishing", effect: "remove_action_target" });
+  }
+
+  // Trusted terminal state is the final presentation constraint; no earlier
+  // safety floor may resurrect an event that deterministic evidence resolved.
+  if (constraints.observedState === "resolved") {
+    changeBand("observed_event_resolved", "ceiling", ceiling(band, "noise"));
+    urgency = "none";
   }
 
   return {

@@ -332,9 +332,20 @@ export class TriageService {
     const supplied: SuppliedTriageEvidence = { eventId: context.event.id, factPathsByMessage, contextIds };
     const decision = validateExternalTriageDecision(parsed, supplied);
     const facts = context.members.map((member: any) => member.facts).filter(Boolean) as TriageFacts[];
-    const mergedFacts = facts.at(-1);
+    const latestFacts = facts.at(-1);
+    const mergedFacts = latestFacts ? {
+      ...latestFacts,
+      amounts: facts.flatMap((item) => item.amounts),
+      entityIds: facts.flatMap((item) => item.entityIds),
+      deadlines: facts.flatMap((item) => item.deadlines),
+      credentials: facts.flatMap((item) => item.credentials),
+      errors: facts.flatMap((item) => item.errors),
+      paymentEvents: facts.flatMap((item) => item.paymentEvents),
+      securityEvents: facts.flatMap((item) => item.securityEvents),
+      infrastructureEvents: facts.flatMap((item) => item.infrastructureEvents),
+    } : undefined;
     if (!mergedFacts) throw new Error(`Triage event '${decision.eventId}' has no extracted facts`);
-    const presentation = applyPolicyClamps(decision, mergedFacts).presentation;
+    const presentation = applyPolicyClamps(decision, mergedFacts, { observedState: context.event.observedState }).presentation;
     const factsVersion = [...new Set(context.members.map((member: any) => member.factsVersion).filter(Boolean))].sort().join(",");
     return {
       decision,

@@ -378,3 +378,29 @@ export function extractFeatures(message: TriageFeatureMessage, nowInput: Date | 
     ]),
   };
 }
+
+export function refreshTemporalFacts(facts: TriageFacts, nowInput: Date | string): TriageFacts {
+  const now = new Date(nowInput);
+  if (!Number.isFinite(now.getTime())) throw new TypeError("refreshTemporalFacts requires a valid now value");
+  return {
+    ...facts,
+    deadlines: facts.deadlines.map((fact) => ({
+      ...fact,
+      value: {
+        ...fact.value,
+        temporalState: fact.value.at
+          ? (new Date(fact.value.at).getTime() < now.getTime() ? "past" : "future")
+          : "unknown",
+      },
+    })),
+    credentials: facts.credentials.map((fact) => ({
+      ...fact,
+      value: {
+        ...fact.value,
+        expirationState: Number.isFinite(new Date(fact.value.expiresAt).getTime())
+          ? (new Date(fact.value.expiresAt).getTime() <= now.getTime() ? "expired" : "valid")
+          : "unknown",
+      },
+    })),
+  };
+}

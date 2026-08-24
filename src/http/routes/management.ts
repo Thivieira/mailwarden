@@ -24,6 +24,7 @@ import {
   ApprovalSignInPage,
 } from "../../ui/approval.gen.js";
 import { NoticePage } from "../../ui/pages.gen.js";
+import { inboxStateService } from "../../services/inbox-state";
 
 function hostOf(url: string) {
   try {
@@ -85,6 +86,13 @@ export const managementRoutes = new Hono<Env>()
     const principal = c.get("principal");
     if (!principal) throw new AuthenticationError("Unauthorized");
     return c.json(await privacyService.listAccounts(principal));
+  })
+
+  .get("/triage", async (c) => {
+    const principal = c.get("principal");
+    if (!principal) throw new AuthenticationError("Unauthorized");
+    const limit = c.req.query("limit") ? Number(c.req.query("limit")) : 100;
+    return c.json(await inboxStateService.getInboxState(principal, { limit }));
   })
 
   .get("/privacy/export", async (c) => {
