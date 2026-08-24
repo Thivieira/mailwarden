@@ -11,7 +11,6 @@ import type { ThreadState, OpenLoop } from "../types/intelligence";
 import { authService } from "./auth";
 import { auditService } from "./audit";
 import { relationshipService } from "./relationships";
-import { intelligenceService } from "./intelligence";
 import { policyService } from "./policy";
 import { sanitizeEmailContent } from "../utils/sanitizer";
 import { NotFoundError, TenantIsolationError } from "../utils/errors";
@@ -140,16 +139,12 @@ export class EmailService {
 
     const savedEmail = await this.getEmail(principal, emailId);
 
-    // Build replayable L2 facts and indexed event membership before any legacy
-    // compatibility classification runs. Neither step writes semantic judgment.
+    // Build replayable L2 facts and indexed event membership. This never writes judgment.
     await triageEventService.recordMessage(principal, savedEmail, now);
 
-    // Extract deterministic signals & persist initial classification
-    const signals = await intelligenceService.extractSignals(principal, savedEmail);
-    const classification = await intelligenceService.classifyEmail(principal, savedEmail, signals);
-
-    // Evaluate and execute configured user mail policies (respecting dry-run mode)
-    const policyEvaluation = await policyService.evaluatePolicies(principal, savedEmail, classification, signals);
+    // Explicit message/sender/domain/relationship/account policies remain deterministic.
+    // Classification-scoped policies wait for external event judgment instead of guessing here.
+    const policyEvaluation = await policyService.evaluatePolicies(principal, savedEmail);
     await policyService.executePolicy(principal, savedEmail, policyEvaluation);
 
     return savedEmail;

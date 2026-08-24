@@ -235,10 +235,6 @@ describe("Mailwarden Product Enrichment & Policy Engine", () => {
         newsletter: false,
         automated: false,
         transactional: false,
-        likelyClient: false,
-        likelyRecruiter: false,
-        likelyFinancial: false,
-        likelySecurityRelated: false,
         hasListUnsubscribe: false,
         ruleHits: [],
       });
@@ -295,10 +291,6 @@ describe("Mailwarden Product Enrichment & Policy Engine", () => {
         newsletter: false,
         automated: false,
         transactional: false,
-        likelyClient: false,
-        likelyRecruiter: false,
-        likelyFinancial: false,
-        likelySecurityRelated: false,
         hasListUnsubscribe: false,
         ruleHits: [],
       });
@@ -514,7 +506,7 @@ describe("Mailwarden Product Enrichment & Policy Engine", () => {
         classification: "interesting",
       });
 
-      // Regular newsletter -> should be archived
+      // Without an external judgment, a classification-scoped policy must not guess.
       const regularNews = await emailService.ingestEmail(principal, {
         accountId,
         provider: "mock",
@@ -532,7 +524,8 @@ describe("Mailwarden Product Enrichment & Policy Engine", () => {
       });
 
       const regExp = await policyService.explainPolicyDecision(principal, regularNews.id);
-      expect(regExp.action).toBe("archive");
+      expect(regExp.action).toBe("leave");
+      expect(regExp.explanation).toContain("No matching policy");
 
       // Artificial Analysis newsletter -> should be left visible (sender override wins over classification)
       const aaNews = await emailService.ingestEmail(principal, {

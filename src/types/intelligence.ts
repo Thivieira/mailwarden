@@ -44,6 +44,7 @@ export interface RelationshipProfile {
   updatedAt: Date;
 }
 
+/** @deprecated Use TriageFacts from @mailwarden/triage-features. */
 export interface DeterministicSignals {
   knownSender: boolean;
   knownRelationship: boolean;
@@ -54,10 +55,6 @@ export interface DeterministicSignals {
   newsletter: boolean;
   automated: boolean;
   transactional: boolean;
-  likelyClient: boolean;
-  likelyRecruiter: boolean;
-  likelyFinancial: boolean;
-  likelySecurityRelated: boolean;
   isVerificationOrOtp?: boolean;
   isExpiredOtp?: boolean;
   explicitDeadline?: string;
@@ -103,6 +100,7 @@ export type WorkflowState =
 
 export type TimeSensitivity = "immediate" | "today" | "soon" | "none";
 
+/** @deprecated Persisted event decisions are authoritative; retained for database/API compatibility only. */
 export interface StoredClassification {
   id: string;
   tenantId: string;
@@ -179,10 +177,13 @@ export interface AttentionItem {
   subject: string;
   snippet: string;
   receivedAt: string;
+  /** @deprecated Derived from the canonical event priority band. */
   importance: ImportanceLevel;
+  /** @deprecated Derived from the canonical event lane. */
   workflowState: WorkflowState;
   timeSensitivity: TimeSensitivity;
   relationshipType?: RelationshipType;
+  /** @deprecated Fixed compatibility mapping from P0/P1/P2/P3/noise. */
   attentionScore: number; // 0 to 100
   reasons: string[];
   openLoops?: Array<{ type: string; description: string }>;

@@ -30,6 +30,16 @@ export class TriageEventService {
       set: { featureVersion: facts.featureVersion, facts, contentHash, rfcMessageId: headers["message-id"] ?? null, updatedAt: now },
     });
 
+    const [existingMember] = await db.select({ eventId: schema.triageEventMembers.eventId })
+      .from(schema.triageEventMembers)
+      .where(and(
+        eq(schema.triageEventMembers.tenantId, principal.tenantId),
+        eq(schema.triageEventMembers.userId, principal.userId),
+        eq(schema.triageEventMembers.emailId, email.id)
+      ))
+      .limit(1);
+    if (existingMember) return { eventId: existingMember.eventId, facts };
+
     const keyValues = identity.keys.map((key) => key.value);
     const matching = await db.select().from(schema.triageEventKeys).where(and(
       eq(schema.triageEventKeys.tenantId, principal.tenantId),

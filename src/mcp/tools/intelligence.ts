@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type { AuthPrincipal } from "../../types/auth";
-import { intelligenceService } from "../../services/intelligence";
 import { relationshipService } from "../../services/relationships";
 import { db, schema } from "../../db";
 import { eq, and } from "drizzle-orm";
@@ -36,45 +35,6 @@ async function resolveOwnedAccount(
 }
 
 export const intelligenceTools = [
-  {
-    name: "correct_classification",
-    description: "Explicitly updates or corrects the stored classification of an email (importance, workflow state, category, summary).",
-    parameters: z.object({
-      emailId: z.string().describe("The internal message ID to correct"),
-      importance: z.enum(["critical", "high", "normal", "low"]).optional().describe("Importance level"),
-      category: z.enum([
-        "work",
-        "client",
-        "recruiter",
-        "legal",
-        "financial",
-        "security",
-        "personal",
-        "newsletter",
-        "marketing",
-        "transactional",
-        "automated",
-        "junk",
-        "other",
-      ]).optional().describe("Semantic category"),
-      workflowState: z.enum([
-        "action_required",
-        "waiting_for_reply",
-        "follow_up",
-        "fyi",
-        "news",
-        "automated",
-        "junk",
-      ]).optional().describe("Workflow state"),
-      summary: z.string().optional().describe("Updated summary of message meaning"),
-      reason: z.string().optional().describe("Explanation for correction"),
-    }),
-    handler: async (principal: AuthPrincipal, params: any) => {
-      authService.requireScope(principal, "profile.manage");
-      const result = await intelligenceService.correctClassification(principal, params);
-      return { success: true, classification: result };
-    },
-  },
   {
     name: "set_sender_relationship",
     description: "Explicitly registers or updates a sender's relationship type (e.g. client, coworker, recruiter, vendor).",

@@ -116,4 +116,13 @@ describe("architecture invariants", () => {
       HARM_ACCRUAL_STATES.length
     );
   });
+
+  it("keeps the removed per-message semantic classifier out of ingestion", async () => {
+    const root = join(import.meta.dir, "..");
+    const emailService = await Bun.file(join(root, "src/services/email.ts")).text();
+    const types = await Bun.file(join(root, "src/types/intelligence.ts")).text();
+    expect(existsSync(join(root, "src/services/intelligence.ts"))).toBe(false);
+    expect(emailService).not.toMatch(/classifyEmail|extractSignals|schema\.classifications/);
+    expect(types).not.toMatch(/likelyClient|likelyRecruiter|likelyFinancial/);
+  });
 });

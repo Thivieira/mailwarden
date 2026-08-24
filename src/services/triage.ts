@@ -266,6 +266,7 @@ export class TriageService {
           messageId: member.emailId,
           membershipReason: member.membershipReason,
           supersededByMessageId: member.supersededByEmailId,
+          accountId: message?.accountId,
           from: message ? { address: message.fromAddress, name: message.fromName } : undefined,
           subject: message?.subject,
           snippet: message?.snippet,
@@ -456,6 +457,45 @@ export class TriageService {
     const latest = new Map<string, any>();
     for (const row of rows) if (!latest.has(row.eventId)) latest.set(row.eventId, row);
     return [...latest.values()].filter((row) => row.lane === "briefing" && row.derivedBand !== "noise").slice(0, limit);
+  }
+
+  async getMetrics(principal: AuthPrincipal) {
+    authService.requirePrincipal(principal);
+    authService.requireScope(principal, "mail.read");
+    const owned = (table: any) => and(eq(table.tenantId, principal.tenantId), eq(table.userId, principal.userId));
+    const [messages, events, decisions, rejected, changes] = await Promise.all([
+      db.select({ id: schema.messageFacts.id }).from(schema.messageFacts).where(owned(schema.messageFacts)),
+      db.select().from(schema.triageEvents).where(owned(schema.triageEvents)),
+      db.select().from(schema.triageDecisions).where(owned(schema.triageDecisions)).orderBy(desc(schema.triageDecisions.createdAt)),
+      db.select({ id: schema.auditEvents.id }).from(schema.auditEvents).where(and(
+        eq(schema.auditEvents.tenantId, principal.tenantId),
+        eq(schema.auditEvents.userId, principal.userId),
+        eq(schema.auditEvents.action, "TRIAGE_DECISION_REJECTED")
+      )),
+      db.select().from(schema.triageEventChanges).where(owned(schema.triageEventChanges)),
+    ]);
+    const canonicalEvents = events.filter((event: any) => !event.mergedIntoEventId);
+    const latest = new Map<string, any>();
+    for (const decision of decisions) if (!latest.has(decision.eventId)) latest.set(decision.eventId, decision);
+    const current = canonicalEvents.map((event: any) => latest.get(event.id)).filter(Boolean);
+    const clamps: Record<string, number> = {};
+    for (const decision of current) for (const clamp of decision.clampsApplied ?? []) {
+      clamps[clamp.id] = (clamps[clamp.id] ?? 0) + 1;
+    }
+    return {
+      messagesWithFacts: messages.length,
+      eventsCreated: events.length,
+      canonicalEvents: canonicalEvents.length,
+      clusteredDuplicateMessages: Math.max(0, messages.length - events.length),
+      eventsWithoutJudgment: canonicalEvents.filter((event: any) => !latest.has(event.id)).length,
+      staleJudgments: current.filter((decision: any) => decision.needsReevaluation).length,
+      rejectedDecisions: rejected.length,
+      presentationsChangedByClamp: current.filter((decision: any) => (decision.clampsApplied ?? []).length > 0).length,
+      clamps,
+      semanticCorrections: decisions.filter((decision: any) => decision.judgmentSource === "user_correction").length,
+      eventMerges: changes.filter((change: any) => change.action === "merge").length,
+      eventMergeReversals: changes.filter((change: any) => change.action === "unmerge").length,
+    };
   }
 
   async explain(principal: AuthPrincipal, eventId: string) {

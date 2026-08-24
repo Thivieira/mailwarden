@@ -1,7 +1,6 @@
 import { db, schema } from "../db";
-import { eq, desc } from "drizzle-orm";
-import { intelligenceService } from "../services/intelligence";
-import { relationshipService } from "../services/relationships";
+import { desc } from "drizzle-orm";
+import { triageEventService } from "../services/triage-events";
 import { ALL_SCOPES, type AuthPrincipal } from "../types/auth";
 import { logger } from "../utils/logger";
 
@@ -55,23 +54,18 @@ async function main() {
       updatedAt: row.updatedAt,
     };
 
-    // 1. Re-extract signals
-    const signals = await intelligenceService.extractSignals(principal, normalizedEmail);
-
-    // 2. Re-classify
-    const classification = await intelligenceService.classifyEmail(principal, normalizedEmail, signals);
+    const { eventId, facts } = await triageEventService.recordMessage(principal, normalizedEmail);
 
     logger.info(`[REPLAY] ${normalizedEmail.id} | From: ${normalizedEmail.from.address} | Subject: "${normalizedEmail.subject.slice(0, 30)}..."`, {
-      importance: classification.importance,
-      workflowState: classification.workflowState,
-      category: classification.category,
-      rules: signals.ruleHits,
+      eventId,
+      factsVersion: facts.featureVersion,
+      extractedFacts: facts.paymentEvents.length + facts.securityEvents.length + facts.infrastructureEvents.length,
     });
 
     replayedCount++;
   }
 
-  logger.info(`✅ Replay complete: ${replayedCount} emails processed through signal & classification pipeline.`);
+  logger.info(`✅ Replay complete: ${replayedCount} emails processed through feature extraction and event clustering.`);
 }
 
 main().catch((err) => {

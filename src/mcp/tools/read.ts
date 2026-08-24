@@ -8,7 +8,7 @@ import { privacyService } from "../../services/privacy";
 export const readTools = [
   {
     name: "get_inbox_status",
-    description: "Summarizes cross-account inbox state without downloading entire mailboxes. Returns totals for unread, action required, waiting for reply, top attention items, and account health.",
+    description: "Deprecated-shape compatibility view derived from canonical MailScribe event decisions. Returns unread/account health plus event-level action and attention totals.",
     parameters: z.object({}),
     handler: async (principal: AuthPrincipal) => {
       const summary = await attentionService.getInboxStatus(principal);
@@ -17,7 +17,7 @@ export const readTools = [
   },
   {
     name: "get_attention_queue",
-    description: "Returns the prioritized candidates for user attention ranked by relationship importance, deadlines, open loops, and factual signals.",
+    description: "Deprecated-shape compatibility queue derived from canonical event priority bands. Use get_inbox_state for the complete authoritative state.",
     parameters: z.object({
       limit: z.number().int().min(1).max(50).default(10).describe("Maximum number of attention candidates to return"),
       minScore: z.number().int().min(0).max(100).default(30).describe("Minimum attention score threshold"),

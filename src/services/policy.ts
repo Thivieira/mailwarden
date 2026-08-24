@@ -539,8 +539,8 @@ export class PolicyService {
   async evaluatePolicies(
     principal: AuthPrincipal,
     email: NormalizedEmail,
-    classification: StoredClassification,
-    signals: DeterministicSignals
+    classification?: StoredClassification,
+    signals?: DeterministicSignals
   ): Promise<PolicyEvaluationResult> {
     authService.requirePrincipal(principal);
 
@@ -564,8 +564,8 @@ export class PolicyService {
     let precedenceLevel = 0;
     let precedenceName = "none";
 
-    const userLevel = this.mapSemanticToUserLevel(classification, signals);
-    const confidence = classification.confidence || 0.85;
+    const userLevel = classification ? this.mapSemanticToUserLevel(classification, signals) : undefined;
+    const confidence = classification?.confidence ?? 1;
 
     // 1. Check Message override / Thread override
     for (const p of policies) {
@@ -638,13 +638,13 @@ export class PolicyService {
     }
 
     // 6. Check Classification policy (user-defined first, then system preset)
-    if (!matchedPolicy) {
+    if (!matchedPolicy && classification && userLevel) {
       const classPolicies = policies.filter(
         (p) =>
           p.scope === "classification" &&
           (p.targetValue?.toLowerCase() === userLevel ||
             p.classification === userLevel ||
-            p.targetValue?.toLowerCase() === classification.category.toLowerCase())
+            p.targetValue?.toLowerCase() === classification!.category.toLowerCase())
       );
 
       // Prioritize user-defined rules over system preset defaults
@@ -690,7 +690,8 @@ export class PolicyService {
 
     return {
       messageId: email.id,
-      evaluatedClassification: userLevel,
+      // Deprecated compatibility field. No semantic classification is inferred during ingestion.
+      evaluatedClassification: userLevel ?? "routine",
       confidence,
       matchedPolicy,
       precedenceLevel,

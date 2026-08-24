@@ -65,6 +65,13 @@ export const triageTools = [
     handler: (principal: AuthPrincipal, params: { limit: number }) => triageService.getBriefingCandidates(principal, params.limit),
   },
   {
+    name: "get_triage_metrics",
+    description: "Returns privacy-safe inbox-intelligence counts for event clustering, judgment freshness, validation rejection, clamps, and corrections. It never returns message bodies.",
+    parameters: z.object({}),
+    requiredScopes: READ_SCOPES,
+    handler: (principal: AuthPrincipal) => triageService.getMetrics(principal),
+  },
+  {
     name: "explain_triage_state",
     description: "Explains one event from stored facts, evidence references, external rationale, clamps, and deterministic priority inputs. Never returns hidden chain of thought.",
     parameters: z.object({ eventId }),

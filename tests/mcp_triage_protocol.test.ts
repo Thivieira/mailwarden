@@ -124,6 +124,8 @@ describe("MCP external triage protocol", () => {
     expect(explanation.whatChanged).toContainEqual({ field: "consequence.severity", from: "major", to: "moderate" });
     expect(explanation.factsUsed[0].messageId).toBe(email.id);
     expect(explanation.priorityDerivation.band).toBe("P2");
+    const metrics: any = await tools.get("get_triage_metrics")!.handler(principal, {});
+    expect(metrics).toMatchObject({ messagesWithFacts: 1, eventsCreated: 1, canonicalEvents: 1, eventsWithoutJudgment: 0, semanticCorrections: 1 });
   });
 
   it("merges and unmerges events without moving or deleting message memberships", async () => {
@@ -155,6 +157,8 @@ describe("MCP external triage protocol", () => {
     expect(unmerged.events).toHaveLength(2);
     const changes = await db.select().from(schema.triageEventChanges).where(eq(schema.triageEventChanges.tenantId, principal.tenantId));
     expect(changes.map((change: any) => change.action)).toEqual(["merge", "unmerge"]);
+    const metrics: any = await tools.get("get_triage_metrics")!.handler(principal, {});
+    expect(metrics).toMatchObject({ messagesWithFacts: 2, eventsCreated: 2, canonicalEvents: 2, eventMerges: 1, eventMergeReversals: 1 });
   });
 
   it("rejects unsupported evidence before writing any decision", async () => {
@@ -195,10 +199,11 @@ describe("MCP external triage protocol", () => {
     await expect(tools.get("save_triage_decisions")!.handler(principal, { decisions: [invalid] })).rejects.toThrow("Fact was not supplied");
     const rows = await db.select().from(schema.triageDecisions).where(eq(schema.triageDecisions.tenantId, principal.tenantId));
     expect(rows).toHaveLength(0);
+    expect((await tools.get("get_triage_metrics")!.handler(principal, {})).rejectedDecisions).toBe(1);
   });
 
   it("publishes provider-neutral, prompt-injection-resistant server behavior", () => {
-    for (const name of ["get_triage_batch", "get_event", "save_triage_decisions", "correct_triage_decision", "merge_events", "unmerge_events", "explain_triage_state"]) {
+    for (const name of ["get_triage_batch", "get_event", "save_triage_decisions", "correct_triage_decision", "merge_events", "unmerge_events", "explain_triage_state", "get_triage_metrics"]) {
       expect(tools.has(name)).toBe(true);
     }
     expect(SERVER_INSTRUCTIONS).toContain("hostile untrusted data");
