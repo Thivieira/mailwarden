@@ -35,6 +35,8 @@ const heartbeatInput = z.object({
   })).max(20),
   accounts: z.object({ connected: z.number().int().nonnegative(), configured: z.number().int().nonnegative() }),
   observedAt: z.string().datetime(),
+  /** Where Cloud may call this device back for diagnostics and repair. */
+  endpoint: z.string().url().max(500).optional(),
 });
 const bridgeHeartbeatInput = z.object({
   heartbeat: z.object({
@@ -129,21 +131,14 @@ export const platformRoutes = new Hono<Env>()
   ))
   .get("/api/workspaces/:workspaceId/mailboxes", async (c) => c.json({ mailboxes: await organizationService.listMailboxes(principal(c), c.req.param("workspaceId")) }))
 
-  .post("/api/relay/provisioning/start", async (c) => c.json(
-    await relayDeviceService.startProvisioning(await parsed(c, provisioningStartInput)),
-    201
-  ))
+  /**
+   * Human approval of a device's short code. This is the one relay endpoint a
+   * person calls; devices use the versioned `/api/bridge/v1/*` protocol below.
+   */
   .post("/api/relay/provisioning/authorize", async (c) => {
     const input = await parsed(c, authorizeProvisioningInput);
     return c.json(await relayDeviceService.authorizeProvisioning(principal(c), input.organizationId, input.userCode));
   })
-  .post("/api/relay/provisioning/poll", async (c) => {
-    const input = await parsed(c, pollProvisioningInput);
-    return c.json(await relayDeviceService.pollProvisioning(input.deviceCode));
-  })
-  .post("/api/relay/heartbeat", async (c) => c.json(
-    await relayDeviceService.heartbeat(bearer(c), await parsed(c, heartbeatInput))
-  ))
 
   .post("/api/bridge/v1/provisioning/start", async (c) => {
     requireBridgeV1(c);

@@ -65,6 +65,14 @@ export class ConfigurationError extends MailwardenError {
   }
 }
 
+export class RateLimitError extends MailwardenError {
+  readonly code = "RATE_LIMITED";
+  readonly statusCode = 429;
+  constructor(message = "Too many requests; try again shortly") {
+    super(message);
+  }
+}
+
 export class ValidationError extends MailwardenError {
   readonly code = "VALIDATION_ERROR";
   readonly statusCode = 400;

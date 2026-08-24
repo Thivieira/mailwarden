@@ -11,7 +11,12 @@ import { startDaemon } from "./daemon";
 import { readLocalApiToken } from "./core/local-api";
 import { saveBridgeConfig } from "./core/config";
 import { BRIDGE_UNIT_NAME, planSystemdInstall, planSystemdUninstall } from "./core/service";
-import type { BridgeDiagnosticReport, BridgeHealth, BridgeRepairAction } from "@mailwarden/contracts";
+import {
+  BRIDGE_REPAIR_ACTIONS,
+  type BridgeDiagnosticReport,
+  type BridgeHealth,
+  type BridgeRepairAction,
+} from "@mailwarden/contracts";
 
 const SYMBOLS: Record<string, string> = {
   ok: "●",
@@ -201,15 +206,8 @@ async function commandLogs(core: BridgeCore, argv: string[]): Promise<number> {
 
 async function commandRepair(core: BridgeCore, argv: string[]): Promise<number> {
   const action = argv[1] as BridgeRepairAction | undefined;
-  const known: BridgeRepairAction[] = [
-    "restart_gateway",
-    "restart_tunnel",
-    "refresh_registration",
-    "recheck_proton",
-    "fix_permissions",
-  ];
-  if (!action || !known.includes(action)) {
-    print(`Usage: mailwarden-bridge repair <${known.join("|")}>`);
+  if (!action || !BRIDGE_REPAIR_ACTIONS.includes(action)) {
+    print(`Usage: mailwarden-bridge repair <${BRIDGE_REPAIR_ACTIONS.join("|")}>`);
     return 2;
   }
   // Prefer the daemon: it owns the running gateway and tunnel processes.

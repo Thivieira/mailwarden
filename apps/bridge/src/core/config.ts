@@ -24,6 +24,11 @@ export const bridgeConfigSchema = z.object({
       port: z.number().int().min(1).max(65535).default(8080),
       maxRequestBytes: z.number().int().min(1024).default(1024 * 1024),
       requestsPerMinute: z.number().int().min(1).default(600),
+      /**
+       * URL Cloud uses to reach this gateway, when the tunnel is managed outside
+       * Bridge. With a Mailwarden-managed tunnel the hostname is derived instead.
+       */
+      publicEndpoint: z.string().url().optional(),
     })
     .default({
       host: "127.0.0.1",

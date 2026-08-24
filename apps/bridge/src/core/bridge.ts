@@ -157,6 +157,10 @@ export class BridgeCore {
       requestsPerMinute: this.config.gateway.requestsPerMinute,
       logger: this.log,
       onAccountActivity: (accountId, ok) => this.accounts.record(accountId, ok),
+      control: {
+        diagnostics: () => this.diagnostics(),
+        repair: (action) => this.repair(action),
+      },
     });
     this.log("info", "Proton gateway listening on loopback", { port: this.gateway.port });
     return this.gateway;
@@ -261,7 +265,19 @@ export class BridgeCore {
         detail: secretsAudit.detail,
       },
       accounts: this.accounts.summary(),
+      endpoint: this.publicEndpoint(),
     };
+  }
+
+  /**
+   * The URL Cloud can call back on. A Mailwarden-managed tunnel supplies the
+   * hostname; a relay behind an operator-run tunnel configures it explicitly.
+   * Absent means Cloud-initiated diagnostics and repair are simply unavailable.
+   */
+  publicEndpoint(): string | undefined {
+    if (this.config.gateway.publicEndpoint) return this.config.gateway.publicEndpoint;
+    const hostname = this.config.tunnel.managed ? this.config.tunnel.hostname : undefined;
+    return hostname ? `https://${hostname}` : undefined;
   }
 
   async health(): Promise<BridgeHealth> {

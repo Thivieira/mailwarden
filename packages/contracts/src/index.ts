@@ -100,18 +100,6 @@ export interface RelayHeartbeat {
   connectedAccountCount: number;
 }
 
-export interface RelayProvisioningRequest {
-  organizationId: string;
-  deviceName: string;
-  platform: string;
-}
-
-export interface RelayProvisioningResponse {
-  relayDevice: RelayDevice;
-  provisioningToken: string;
-  expiresAt: string;
-}
-
 export interface ApiError {
   code: string;
   message: string;
@@ -221,6 +209,13 @@ export interface BridgeHealth {
   components: BridgeComponentHealth[];
   accounts: { connected: number; configured: number };
   observedAt: string;
+  /**
+   * Where this device believes Cloud can reach its gateway — normally the managed
+   * tunnel hostname. Absent when the device has no reachable endpoint, which is
+   * what makes Cloud-initiated diagnostics and repair unavailable rather than
+   * silently simulated.
+   */
+  endpoint?: string;
 }
 
 export interface RelayHeartbeatResponse {
@@ -284,6 +279,15 @@ export type BridgeRepairAction =
   | "refresh_registration"
   | "recheck_proton"
   | "fix_permissions";
+
+/** The same list at runtime, so every surface validates against one vocabulary. */
+export const BRIDGE_REPAIR_ACTIONS: BridgeRepairAction[] = [
+  "restart_gateway",
+  "restart_tunnel",
+  "refresh_registration",
+  "recheck_proton",
+  "fix_permissions",
+];
 
 export interface BridgeRepairResult {
   action: BridgeRepairAction;

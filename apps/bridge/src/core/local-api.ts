@@ -11,7 +11,7 @@ import { Hono } from "hono";
 import { chmod, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { timingSafeEqual } from "node:crypto";
-import type { BridgeRepairAction } from "@mailwarden/contracts";
+import { BRIDGE_REPAIR_ACTIONS } from "@mailwarden/contracts";
 import type { BridgeCore } from "./bridge";
 import type { ProvisioningPrompt } from "./identity";
 
@@ -20,14 +20,6 @@ export type SetupState =
   | { state: "pending"; prompt: ProvisioningPrompt }
   | { state: "authorized"; deviceId: string; organizationId: string }
   | { state: "failed"; error: string };
-
-const REPAIR_ACTIONS: BridgeRepairAction[] = [
-  "restart_gateway",
-  "restart_tunnel",
-  "refresh_registration",
-  "recheck_proton",
-  "fix_permissions",
-];
 
 function sameToken(a: string, b: string): boolean {
   const left = Buffer.from(a);
@@ -75,7 +67,17 @@ export function createLocalApi(core: BridgeCore, token: string) {
         revoked: Boolean(revoked),
         deviceId: identity?.credential.deviceId ?? revoked?.deviceId,
         organizationId: identity?.credential.organizationId ?? revoked?.organizationId,
+        /** The registered device as Cloud knows it, for shells that render it. */
+        device: identity?.device,
         tunnelHostname: core.config.tunnel.hostname,
+        endpoint: core.publicEndpoint(),
+        cloudBaseUrl: core.config.cloudBaseUrl,
+        proton: {
+          imapHost: core.config.proton.imapHost,
+          imapPort: core.config.proton.imapPort,
+          smtpHost: core.config.proton.smtpHost,
+          smtpPort: core.config.proton.smtpPort,
+        },
         health: await core.health(),
       });
     })
@@ -84,7 +86,7 @@ export function createLocalApi(core: BridgeCore, token: string) {
     .get("/accounts", (c) => c.json({ accounts: core.accounts.list(), summary: core.accounts.summary() }))
     .post("/repair", async (c) => {
       const body = (await c.req.json().catch(() => ({}))) as { action?: string };
-      const action = REPAIR_ACTIONS.find((candidate) => candidate === body.action);
+      const action = BRIDGE_REPAIR_ACTIONS.find((candidate) => candidate === body.action);
       if (!action) return c.json({ error: "Unknown repair action" }, 400);
       return c.json(await core.repair(action));
     })

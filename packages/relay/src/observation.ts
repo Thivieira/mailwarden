@@ -46,6 +46,8 @@ export interface BridgeObservation {
   };
   secrets: { backend: string; secure: boolean; permissionsOk: boolean; detail: string };
   accounts: { configured: number; connected: number };
+  /** Where Cloud can reach this device's gateway, when it can reach it at all. */
+  endpoint?: string;
 }
 
 function health(
@@ -147,6 +149,7 @@ export function buildHealth(observation: BridgeObservation): BridgeHealth {
     components,
     accounts: { connected: observation.accounts.connected, configured: observation.accounts.configured },
     observedAt: observation.observedAt,
+    endpoint: observation.endpoint,
   };
 }
 

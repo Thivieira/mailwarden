@@ -10,8 +10,9 @@ import type {
   WorkspaceContext,
 } from "@mailwarden/contracts";
 import { mapRawErrorToDiagnostic, type DiagnosticItem } from "@mailwarden/ui";
+import type { BridgeDiagnosticReport, BridgeRepairAction, BridgeRepairResult } from "@mailwarden/contracts";
+import { bridgeControlService } from "./bridge-control";
 import type { AuthPrincipal } from "../types/auth";
-import { ValidationError } from "../utils/errors";
 import { organizationService } from "./organizations";
 import { relayDeviceService } from "./relay-devices";
 
@@ -102,20 +103,36 @@ export class RelayAndDeviceService {
     await relayDeviceService.revokeDevice(principal, organizationId, deviceId);
   }
 
-  async requestProvisioning(_principal?: AuthPrincipal, _organizationId?: string, _input?: unknown): Promise<never> {
-    throw new ValidationError("Bridge provisioning starts on the device; use /api/relay/provisioning/start");
+  /** A human approving a device's short code in the portal. */
+  async approveProvisioning(principal: AuthPrincipal, organizationId: string, userCode: string) {
+    return relayDeviceService.authorizeProvisioning(principal, organizationId, userCode);
   }
 
-  async approveProvisioning(_principal?: AuthPrincipal, _organizationId?: string, _token?: string): Promise<never> {
-    throw new ValidationError("Approve the Bridge user code through /api/relay/provisioning/authorize");
+  /** Live diagnostics from the device itself, through its authenticated gateway. */
+  async getDiagnostics(
+    principal: AuthPrincipal,
+    organizationId: string,
+    deviceId: string
+  ): Promise<BridgeDiagnosticReport> {
+    return bridgeControlService.diagnostics(principal, organizationId, deviceId);
   }
 
-  async getDiagnostics(_principal: AuthPrincipal, _organizationId: string, rawError?: string): Promise<DiagnosticItem> {
+  /** Translates a raw error string into human guidance. Display only. */
+  translateError(rawError?: string): DiagnosticItem {
     return mapRawErrorToDiagnostic(rawError);
   }
 
-  async executeSafeRepair(_principal?: AuthPrincipal, _organizationId?: string, _actionId?: string, _deviceId?: string) {
-    return { success: false, message: "Repair requires a connected Mailwarden Bridge runtime." };
+  /**
+   * Runs a repair on the device. There is no simulated success path: if the
+   * device cannot be reached, the caller gets the reason.
+   */
+  async executeSafeRepair(
+    principal: AuthPrincipal,
+    organizationId: string,
+    deviceId: string,
+    action: BridgeRepairAction
+  ): Promise<BridgeRepairResult> {
+    return bridgeControlService.repair(principal, organizationId, deviceId, action);
   }
 }
 

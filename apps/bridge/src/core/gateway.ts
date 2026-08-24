@@ -12,6 +12,12 @@
  * never contain a Bridge password.
  */
 import { Hono } from "hono";
+import {
+  BRIDGE_REPAIR_ACTIONS,
+  type BridgeDiagnosticReport,
+  type BridgeRepairAction,
+  type BridgeRepairResult,
+} from "@mailwarden/contracts";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
@@ -23,6 +29,7 @@ import {
   RateLimiter,
   readCallContext,
   verifyGatewayRequest,
+  type GatewayAuthMode,
   type GatewayAuthSecrets,
   type GatewayCallContext,
 } from "@mailwarden/relay";
@@ -53,7 +60,20 @@ export interface GatewayOptions {
   probe?: (host: string, port: number, timeoutMs?: number) => Promise<boolean>;
   /** Notified after every account-scoped request so health can report real usage. */
   onAccountActivity?: (accountId: string, ok: boolean) => void;
+  /**
+   * Cloud-initiated control plane. Present only when the gateway runs inside the
+   * Bridge daemon; the standalone legacy gateway has nothing to control, so the
+   * routes simply do not exist there.
+   */
+  control?: GatewayControl;
 }
+
+export interface GatewayControl {
+  diagnostics(): Promise<BridgeDiagnosticReport>;
+  repair(action: BridgeRepairAction): Promise<BridgeRepairResult>;
+}
+
+
 
 export interface ImapClientSettings {
   host: string;
@@ -270,7 +290,7 @@ export function createGatewayApp(options: GatewayOptions) {
     }
   }
 
-  const app = new Hono<{ Variables: { rawBody: string; context: GatewayCallContext } }>()
+  const app = new Hono<{ Variables: { rawBody: string; context: GatewayCallContext; authMode: GatewayAuthMode } }>()
     .basePath("/v1")
     .use("*", async (c, next) => {
       if (!limiter.allow()) return c.json({ error: "Too many requests" }, 429);
@@ -300,8 +320,11 @@ export function createGatewayApp(options: GatewayOptions) {
           path: new URL(c.req.url).pathname,
         });
       }
+      c.set("authMode", result.mode);
 
-      if (c.req.path.endsWith("/health")) return next();
+      // Health and the control plane are device-scoped, not mailbox-scoped: they
+      // carry no tenant/user/account context to validate.
+      if (c.req.path.endsWith("/health") || c.req.path.includes("/control/")) return next();
       try {
         c.set("context", readCallContext(c.req.raw.headers));
       } catch (error) {
@@ -433,6 +456,22 @@ export function createGatewayApp(options: GatewayOptions) {
         sentAt: new Date().toISOString(),
       });
     });
+
+  if (options.control) {
+    const control = options.control;
+    app
+      .get("/control/diagnostics", async (c) => c.json(await control.diagnostics()))
+      .post("/control/repair", async (c) => {
+        // Repair changes device state, so a bearer token that leaked into a log or
+        // a proxy trace must not be enough: this route requires a signed request.
+        if (c.get("authMode") !== "device-signature") {
+          return c.json({ error: "Repair requires a signed device request" }, 403);
+        }
+        const action = BRIDGE_REPAIR_ACTIONS.find((candidate) => candidate === parseJsonBody(c.get("rawBody")).action);
+        if (!action) return c.json({ error: "Unknown repair action" }, 400);
+        return c.json(await control.repair(action));
+      });
+  }
 
   return app;
 }

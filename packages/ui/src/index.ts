@@ -1,4 +1,10 @@
-import type { RelayStatus, MailboxProvider, MailboxStatus, MembershipRole } from "@mailwarden/contracts";
+import type {
+  BridgeRepairAction,
+  RelayStatus,
+  MailboxProvider,
+  MailboxStatus,
+  MembershipRole,
+} from "@mailwarden/contracts";
 
 /**
  * Mailwarden Shared Design Tokens & Visual Hierarchy
@@ -199,7 +205,11 @@ export interface DiagnosticItem {
   headline: string;
   explanation: string;
   suggestedActionLabel?: string;
-  suggestedActionId?: string;
+  /**
+   * A canonical Bridge repair action, so the UI can only ever offer something the
+   * Bridge actually implements. Absent when no automatic repair applies.
+   */
+  suggestedActionId?: BridgeRepairAction;
   isRecoverable: boolean;
   technicalLog?: string;
 }
@@ -221,8 +231,10 @@ export function mapRawErrorToDiagnostic(rawError: string | undefined): Diagnosti
       code: "BRIDGE_NOT_RUNNING",
       headline: "Proton Bridge is not running on the server",
       explanation: "Mailwarden can reach your server gateway, but the local Proton Bridge app is stopped or restarting.",
-      suggestedActionLabel: "Restart Proton Bridge",
-      suggestedActionId: "restart_bridge",
+      // Proton owns the Proton Bridge lifecycle; Mailwarden re-checks it rather
+      // than pretending it can restart someone else's application.
+      suggestedActionLabel: "Check Proton Bridge again",
+      suggestedActionId: "recheck_proton",
       isRecoverable: true,
       technicalLog: rawError,
     };
@@ -246,7 +258,6 @@ export function mapRawErrorToDiagnostic(rawError: string | undefined): Diagnosti
       headline: "Proton Bridge credentials rejected",
       explanation: "The generated 16-character Bridge password may have changed. Please verify your account details in Proton Bridge.",
       suggestedActionLabel: "Update Bridge Password",
-      suggestedActionId: "update_password",
       isRecoverable: true,
       technicalLog: rawError,
     };
@@ -257,8 +268,8 @@ export function mapRawErrorToDiagnostic(rawError: string | undefined): Diagnosti
       code: "SYNC_TIMEOUT",
       headline: "Synchronization timed out",
       explanation: "The Bridge server took longer than 10 seconds to respond. Mailwarden will automatically retry.",
-      suggestedActionLabel: "Retry Connection Now",
-      suggestedActionId: "retry_sync",
+      suggestedActionLabel: "Restart the Mailwarden gateway",
+      suggestedActionId: "restart_gateway",
       isRecoverable: true,
       technicalLog: rawError,
     };
@@ -268,8 +279,8 @@ export function mapRawErrorToDiagnostic(rawError: string | undefined): Diagnosti
     code: "GENERIC_ERROR",
     headline: "Proton Bridge reported an issue",
     explanation: rawError,
-    suggestedActionLabel: "Retry Connection",
-    suggestedActionId: "retry_sync",
+    suggestedActionLabel: "Restart the Mailwarden gateway",
+    suggestedActionId: "restart_gateway",
     isRecoverable: true,
     technicalLog: rawError,
   };

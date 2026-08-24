@@ -1,6 +1,23 @@
 import type { DesktopBridgeState } from "./types";
 import { formatRelayStatusBadge } from "@mailwarden/ui";
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] as string
+  );
+}
+
+function statusCard(title: string, value: string, tone: "green" | "yellow" | "red"): string {
+  const color = tone === "green" ? "var(--online)" : tone === "yellow" ? "var(--degraded)" : "#f87171";
+  return `<div class="card">
+        <div class="card-title">${escapeHtml(title)}</div>
+        <div class="card-value">
+          <span class="dot" style="background: ${color};"></span>
+          <span>${escapeHtml(value)}</span>
+        </div>
+      </div>`;
+}
+
 export function renderDesktopHtml(state: DesktopBridgeState): string {
   const relayBadge = formatRelayStatusBadge(state.relayStatus);
 
@@ -49,7 +66,7 @@ export function renderDesktopHtml(state: DesktopBridgeState): string {
     <div class="header">
       <div class="title">
         <span>🛡️ Mailwarden Bridge</span>
-        <span class="org-badge">${state.activeWorkspace?.name || "FoxDevStudio"}</span>
+        <span class="org-badge">${escapeHtml(state.device?.name || state.deviceName || "Unpaired device")}</span>
       </div>
       <div>
         <span style="font-size: 0.75rem; color: var(--muted);">Desktop Companion</span>
@@ -58,34 +75,20 @@ export function renderDesktopHtml(state: DesktopBridgeState): string {
 
     <!-- Status Metric Cards -->
     <div class="grid">
-      <div class="card">
-        <div class="card-title">Relay</div>
-        <div class="card-value">
-          <span class="dot dot-green"></span>
-          <span>Online</span>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Cloud Tunnel</div>
-        <div class="card-value">
-          <span class="dot dot-green"></span>
-          <span>Secure</span>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Proton Bridge</div>
-        <div class="card-value">
-          <span class="dot dot-green"></span>
-          <span>Running</span>
-        </div>
-      </div>
+      ${statusCard("Relay", state.relayStatus === "online" ? "Online" : state.relayStatus.replace("_", " "), state.relayStatus === "online" ? "green" : state.relayStatus === "degraded" ? "yellow" : "red")}
+      ${statusCard("Mailwarden Cloud", state.cloud.reachable ? "Connected" : state.cloud.configured ? "Unreachable" : "Not configured", state.cloud.reachable ? "green" : "red")}
+      ${statusCard("Proton Bridge", state.protonBridge.status === "running" ? `Running (${state.protonBridge.imapPort})` : state.protonBridge.status === "stopped" ? "Stopped" : "Unknown", state.protonBridge.status === "running" ? "green" : "red")}
+    </div>
+
+    <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="card-title">Status</div>
+      <div style="font-size: 0.875rem; margin-top: 0.35rem;">${escapeHtml(state.message)}</div>
     </div>
 
     <!-- Accounts Roster -->
     <div class="card" style="margin-bottom: 1.5rem;">
       <div class="section-header">
-        <div class="section-title">Connected Accounts (${state.accounts.length})</div>
-        <button class="btn" onclick="alert('Open Mailwarden Portal to link another Proton mailbox.');">+ Add Account</button>
+        <div class="section-title">Accounts served by this relay (${state.accounts.length})</div>
       </div>
       <div class="account-list">
         ${state.accounts
@@ -94,9 +97,11 @@ export function renderDesktopHtml(state: DesktopBridgeState): string {
           <div class="account-item">
             <div style="display: flex; align-items: center; gap: 0.6rem;">
               <span style="background: var(--proton); color: #fff; font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.35rem; border-radius: 3px;">PROTON</span>
-              <span style="font-size: 0.875rem; font-weight: 600;">${acc.email}</span>
+              <span style="font-size: 0.875rem; font-weight: 600;">${escapeHtml(acc.accountId)}</span>
             </div>
-            <span style="font-size: 0.75rem; color: #34d399; font-weight: 600;">● Synchronizing</span>
+            <span style="font-size: 0.75rem; color: ${acc.status === "online" ? "#34d399" : acc.status === "error" ? "#f87171" : "#94a3b8"}; font-weight: 600;">
+              ${acc.status === "online" ? `● Served ${escapeHtml(acc.lastSuccessAt || "")}` : acc.status === "error" ? "● Last request failed" : "● No traffic yet"}
+            </span>
           </div>
         `
           )
@@ -106,14 +111,37 @@ export function renderDesktopHtml(state: DesktopBridgeState): string {
 
     <!-- Actions & Diagnostics -->
     <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-      <button class="btn btn-secondary" onclick="alert('Running local diagnostics: Cloudflare tunnel OK, Gateway 8080 OK, IMAP 1143 OK.');">🔍 Self-Test</button>
-      <button class="btn btn-secondary" onclick="alert('Restart signal sent to local Bridge daemon.');">⚡ Restart Bridge</button>
+      <button class="btn btn-secondary" onclick="runDiagnostics()">🔍 Self-Test</button>
+      <button class="btn btn-secondary" onclick="runRepair('restart_gateway')">⚡ Restart gateway</button>
     </div>
 
     <div class="footer">
-      Mailwarden Bridge Desktop Companion &bull; Device: ${state.device?.name || "Local Workstation"}
+      Mailwarden Bridge Desktop Companion &bull; ${state.version ? escapeHtml(`v${state.version.version} (${state.version.platform})`) : "daemon not running"}
     </div>
+    <pre id="output" style="white-space: pre-wrap; font-size: 0.75rem; color: var(--muted); margin-top: 1rem;"></pre>
   </div>
+  <script>
+    async function runDiagnostics() {
+      var out = document.getElementById('output');
+      out.textContent = 'Running diagnostics…';
+      var res = await fetch('/api/diagnostics');
+      var body = await res.json();
+      out.textContent = body.diagnostics
+        ? body.diagnostics.map(function (d) { return '[' + (d.status === 'pass' ? 'PASS' : 'FAIL') + '] ' + d.title + ': ' + d.explanation; }).join('\n')
+        : 'The Mailwarden Bridge service is not running.';
+    }
+    async function runRepair(action) {
+      var out = document.getElementById('output');
+      out.textContent = 'Running ' + action + '…';
+      var res = await fetch('/api/repair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: action })
+      });
+      var body = await res.json();
+      out.textContent = (body.applied ? 'Repaired: ' : 'Not repaired: ') + body.detail;
+    }
+  </script>
 </body>
 </html>`;
 }

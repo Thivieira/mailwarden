@@ -1,107 +1,134 @@
-import type { DesktopBridgeState, DesktopAccountSummary } from "./types";
-import type { RelayStatus } from "@mailwarden/contracts";
+/**
+ * Desktop → Bridge daemon client.
+ *
+ * The companion talks to the local Bridge daemon over its authenticated loopback
+ * API, using the same 0600 token file the CLI reads. It never parses CLI output,
+ * never manages processes itself, and never invents a state: if the daemon is not
+ * running, that is what the shell shows.
+ */
+import type { BridgeDiagnosticReport, BridgeRepairAction, BridgeRepairResult } from "@mailwarden/contracts";
+import { readLocalApiToken } from "../../bridge/src/core/local-api";
+import { resolveBridgePaths } from "../../bridge/src/core/paths";
+import type { BridgeStatusResponse, DesktopAccountSummary, DesktopBridgeState } from "./types";
+
+const UNREACHABLE: DesktopBridgeState = {
+  appState: "daemon_unreachable",
+  message:
+    "The Mailwarden Bridge service is not running on this machine. Start it with `mailwarden-bridge start`.",
+  relayStatus: "offline",
+  cloud: { configured: false, reachable: false },
+  protonBridge: { status: "unknown", imapPort: 0, smtpPort: 0 },
+  accounts: [],
+};
 
 export class LocalBridgeClient {
-  private baseDaemonUrl: string;
+  constructor(
+    private readonly baseUrl = process.env.MAILWARDEN_BRIDGE_API || "http://127.0.0.1:8765",
+    private readonly tokenFile = resolveBridgePaths().localApiTokenFile
+  ) {}
 
-  constructor(baseDaemonUrl = "http://127.0.0.1:8765") {
-    this.baseDaemonUrl = baseDaemonUrl;
+  private async request<T>(path: string, init?: RequestInit): Promise<T | null> {
+    const token = await readLocalApiToken(this.tokenFile);
+    if (!token) return null;
+    try {
+      const response = await fetch(`${this.baseUrl}/v1${path}`, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          ...(init?.headers as Record<string, string> | undefined),
+        },
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!response.ok) return null;
+      return (await response.json()) as T;
+    } catch {
+      return null;
+    }
   }
 
-  /**
-   * Fetches real-time status from local Bridge daemon
-   */
   async getStatus(): Promise<DesktopBridgeState> {
-    try {
-      const res = await fetch(`${this.baseDaemonUrl}/status`, { signal: AbortSignal.timeout(1500) });
-      if (res.ok) {
-        return (await res.json()) as DesktopBridgeState;
-      }
-    } catch {
-      // Fall back to default connected state when running standalone
-    }
+    const status = await this.request<BridgeStatusResponse>("/status");
+    if (!status) return UNREACHABLE;
 
-    // Default desktop companion state
+    const activity =
+      (await this.request<{ accounts: DesktopAccountSummary[] }>("/accounts")) ?? { accounts: [] };
+    const component = (name: string) => status.health.components.find((entry) => entry.component === name);
+
+    const accounts: DesktopAccountSummary[] = (activity.accounts as any[]).map((entry) => ({
+      accountId: entry.accountId,
+      lastSuccessAt: entry.lastSuccessAt,
+      lastFailureAt: entry.lastFailureAt,
+      status: entry.lastSuccessAt ? "online" : entry.lastFailureAt ? "error" : "idle",
+    }));
+
     return {
-      appState: "connected_ready",
-      activeWorkspace: {
-        id: "org_foxdevstudio",
-        name: "FoxDevStudio",
-        slug: "foxdevstudio",
-        kind: "team",
-        status: "active",
-        plan: "team",
-        createdAt: new Date().toISOString(),
-      },
-      device: {
-        id: "dev_local_desktop",
-        organizationId: "org_foxdevstudio",
-        name: "Thiago's Development Workstation",
-        platform: process.platform,
-        version: "v0.1.0",
-        protocolVersion: 1,
-        status: "online",
-        createdBy: "thiago",
-        createdAt: new Date().toISOString(),
-        lastSeenAt: new Date().toISOString(),
-        capabilities: {
-          protonImap: true,
-          protonSmtp: true,
-          cloudflareTunnel: true,
-        },
-      },
-      relayStatus: "online",
-      cloudConnection: {
-        status: "connected",
-        endpoint: "https://relay.foxdevstudio.com/v1",
+      appState: appStateFor(status),
+      message: messageFor(status),
+      version: status.version,
+      deviceName: status.deviceName,
+      organizationId: status.organizationId,
+      device: status.device,
+      relayStatus: status.health.status,
+      health: status.health,
+      cloud: {
+        configured: Boolean(status.cloudBaseUrl),
+        reachable: component("cloud")?.status === "ok",
+        endpoint: status.cloudBaseUrl || undefined,
       },
       protonBridge: {
-        status: "running",
-        imapPort: 1143,
-        smtpPort: 1025,
+        status:
+          component("protonBridge")?.status === "ok"
+            ? "running"
+            : component("protonBridge")?.status === "down"
+              ? "stopped"
+              : "unknown",
+        imapPort: status.proton.imapPort,
+        smtpPort: status.proton.smtpPort,
       },
-      accounts: [
-        {
-          email: "thiago@foxdevstudio.com",
-          status: "online",
-          lastSyncAt: new Date().toISOString(),
-        },
-        {
-          email: "boss@foxdevstudio.com",
-          status: "online",
-          lastSyncAt: new Date(Date.now() - 60 * 1000).toISOString(),
-        },
-        {
-          email: "brother@foxdevstudio.com",
-          status: "online",
-          lastSyncAt: new Date(Date.now() - 120 * 1000).toISOString(),
-        },
-      ],
-      diagnosticsMessage: undefined,
+      accounts,
     };
   }
 
-  /**
-   * Triggers a safe repair action on the Bridge daemon
-   */
-  async triggerRepair(action: "restart_bridge" | "restart_tunnel" | "retry_sync"): Promise<{ success: boolean; message: string }> {
-    try {
-      const res = await fetch(`${this.baseDaemonUrl}/repair`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-        signal: AbortSignal.timeout(3000),
-      });
-      if (res.ok) {
-        return (await res.json()) as { success: boolean; message: string };
+  async getDiagnostics(): Promise<BridgeDiagnosticReport | null> {
+    return this.request<BridgeDiagnosticReport>("/diagnostics");
+  }
+
+  async repair(action: BridgeRepairAction): Promise<BridgeRepairResult> {
+    const result = await this.request<BridgeRepairResult>("/repair", {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    });
+    return (
+      result ?? {
+        action,
+        applied: false,
+        detail: "The Mailwarden Bridge service did not respond, so nothing was repaired.",
       }
-    } catch {}
-
-    return {
-      success: true,
-      message: `Safe repair '${action}' completed successfully.`,
-    };
+    );
   }
+}
+
+function appStateFor(status: BridgeStatusResponse): DesktopBridgeState["appState"] {
+  if (status.revoked) return "revoked";
+  if (!status.registered) return "pairing_device";
+  if (status.health.status === "online") return "connected_ready";
+  if (status.health.status === "offline") return "offline";
+  return "degraded";
+}
+
+function messageFor(status: BridgeStatusResponse): string {
+  if (status.revoked) {
+    return "This device's registration was revoked. Run `mailwarden-bridge setup` to register it again.";
+  }
+  if (!status.registered) {
+    return "This device is not paired yet. Run `mailwarden-bridge setup` and approve the code in Mailwarden.";
+  }
+  const attention = status.health.components.filter(
+    (entry) => entry.status === "down" || entry.status === "needs_attention"
+  );
+  if (attention.length > 0) return attention.map((entry) => entry.detail).join(" · ");
+  return "Relay is healthy.";
 }
 
 export const localBridgeClient = new LocalBridgeClient();

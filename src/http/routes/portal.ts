@@ -24,6 +24,7 @@ import { PortalLandingPage, PortalDashboardPage } from "../../ui/portal.gen.js";
 import { ALL_SCOPES, type AuthPrincipal } from "../../types/auth";
 import { organizationService } from "../../services/organizations";
 import { AuthorizationError } from "../../utils/errors";
+import { BRIDGE_REPAIR_ACTIONS, type BridgeRepairAction } from "@mailwarden/contracts";
 
 function hostOf(url: string) {
   try {
@@ -308,10 +309,14 @@ export const portalRoutes = new Hono<Env>()
     try {
       const body = await readBody(c);
       const orgId = String(body.orgId || "").trim();
-      const actionId = String(body.actionId || "retry_sync").trim();
+      const deviceId = String(body.deviceId || "").trim();
+      const action = String(body.actionId || "").trim() as BridgeRepairAction;
+      if (!BRIDGE_REPAIR_ACTIONS.includes(action)) throw new Error("Unknown repair action");
 
-      const result = await relayAndDeviceService.executeSafeRepair(session.principal, orgId, actionId);
-      return c.redirect(`/portal?ws=${encodeURIComponent(orgId)}&tab=relay&connected=${encodeURIComponent(result.message)}`);
+      const result = await relayAndDeviceService.executeSafeRepair(session.principal, orgId, deviceId, action);
+      const outcome = `${result.applied ? "Repaired" : "Not repaired"}: ${result.detail}`;
+      const key = result.applied ? "connected" : "error";
+      return c.redirect(`/portal?ws=${encodeURIComponent(orgId)}&tab=devices&${key}=${encodeURIComponent(outcome)}`);
     } catch (err: any) {
       const orgId = c.req.query("ws") || "";
       return c.redirect(`/portal?ws=${encodeURIComponent(orgId)}&tab=relay&error=${encodeURIComponent(err.message || "Repair action failed")}`);

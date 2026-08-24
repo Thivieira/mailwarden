@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { and, eq, gt, isNull, ne } from "drizzle-orm";
+import { and, count, eq, gt, isNull, lt, ne } from "drizzle-orm";
 import { customAlphabet, nanoid } from "nanoid";
 import { getPlanCapabilities } from "@mailwarden/organizations";
 import type {
@@ -15,7 +15,7 @@ import type {
 import { config } from "../config";
 import { db, schema } from "../db";
 import type { AuthPrincipal } from "../types/auth";
-import { AuthenticationError, AuthorizationError, NotFoundError, ValidationError } from "../utils/errors";
+import { AuthenticationError, AuthorizationError, NotFoundError, RateLimitError, ValidationError } from "../utils/errors";
 import { auditService } from "./audit";
 import { encryptionService, type EnvelopeEncryptedPayload } from "./encryption";
 import { organizationService } from "./organizations";
@@ -23,6 +23,13 @@ import { organizationService } from "./organizations";
 const userCode = customAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 8);
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const credentialTtlMs = 90 * 24 * 60 * 60 * 1000;
+/** Tunable so an operator can tighten it without a deploy of new logic. */
+function maxProvisioningStartsPerMinute(): number {
+  const configured = Number(process.env.RELAY_PROVISIONING_STARTS_PER_MINUTE);
+  return Number.isFinite(configured) && configured > 0 ? configured : 30;
+}
+/** Keep expired sessions briefly so a late poll still gets "expired", not "unknown". */
+const PROVISIONING_RETENTION_MS = 60 * 60 * 1000;
 
 function normalizeUserCode(value: string): string {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -47,7 +54,34 @@ function mapDevice(row: typeof schema.relayDevices.$inferSelect): RelayDevice {
 }
 
 export class RelayDeviceService {
+  /**
+   * Provisioning starts on an unauthenticated endpoint — the device has no
+   * credential yet — so it is bounded here rather than left open. The window is
+   * global rather than per caller: an attacker controls their own source address,
+   * and Mailwarden would rather slow everyone briefly than mint unbounded
+   * sessions. Legitimate setup runs once per machine.
+   */
+  private async guardProvisioningRate(now: Date): Promise<void> {
+    const [recent] = await db
+      .select({ total: count() })
+      .from(schema.relayProvisioningSessions)
+      .where(gt(schema.relayProvisioningSessions.createdAt, new Date(now.getTime() - 60_000)));
+    if ((recent?.total ?? 0) >= maxProvisioningStartsPerMinute()) {
+      throw new RateLimitError("Too many Bridge provisioning requests; try again in a minute");
+    }
+  }
+
+  /** Expired sessions carry no value and should not accumulate. */
+  private async purgeExpiredProvisioning(now: Date): Promise<void> {
+    await db
+      .delete(schema.relayProvisioningSessions)
+      .where(lt(schema.relayProvisioningSessions.expiresAt, new Date(now.getTime() - PROVISIONING_RETENTION_MS)));
+  }
+
   async startProvisioning(input: RelayProvisioningStartRequest): Promise<RelayProvisioningStartResponse> {
+    const startedAt = new Date();
+    await this.guardProvisioningRate(startedAt);
+    await this.purgeExpiredProvisioning(startedAt);
     const deviceCode = `mwrp_${nanoid(48)}`;
     const compactUserCode = userCode();
     const displayUserCode = `${compactUserCode.slice(0, 4)}-${compactUserCode.slice(4)}`;

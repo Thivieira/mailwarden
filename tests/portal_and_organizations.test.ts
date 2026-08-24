@@ -176,7 +176,8 @@ describe("Mailwarden Organizations, Portal & Product Experience", () => {
     const d1 = mapRawErrorToDiagnostic("ECONNREFUSED 127.0.0.1:1143");
     expect(d1.code).toBe("BRIDGE_NOT_RUNNING");
     expect(d1.headline).toContain("Proton Bridge is not running");
-    expect(d1.suggestedActionId).toBe("restart_bridge");
+    // Mailwarden re-checks Proton rather than claiming it can restart Proton's app.
+    expect(d1.suggestedActionId).toBe("recheck_proton");
 
     // 2. Cloudflare Tunnel error
     const d2 = mapRawErrorToDiagnostic("502 Bad Gateway cloudflared tunnel offline");
@@ -191,14 +192,15 @@ describe("Mailwarden Organizations, Portal & Product Experience", () => {
   });
 
   // 6. Safe Repair Action Execution
-  test("Executes safe repair action successfully", async () => {
+  test("Refuses to repair a device that has never reported a reachable endpoint", async () => {
     const { organization } = await workspaceService.createOrganization(principal, {
       name: "FoxDevStudio Test",
     });
 
-    const res = await relayAndDeviceService.executeSafeRepair(principal, organization.id, "restart_bridge");
-    expect(res.success).toBe(false);
-    expect(res.message).toContain("requires a connected Mailwarden Bridge");
+    // No device at all: the caller is told, not given a simulated success.
+    await expect(
+      relayAndDeviceService.executeSafeRepair(principal, organization.id, "missing-device", "restart_gateway")
+    ).rejects.toThrow(/Relay device/i);
   });
 
   // 7. Plan Capabilities

@@ -6,6 +6,7 @@ import {
   formatMembershipRole,
   type DiagnosticItem,
 } from "@mailwarden/ui";
+import type { RelayDevice } from "@mailwarden/contracts";
 
 export interface PortalDashboardPageProps {
   host: string;
@@ -68,15 +69,7 @@ export interface PortalDashboardPageProps {
     lastSeenAt?: string;
     errorMessage?: string;
   };
-  relayDevices?: Array<{
-    id: string;
-    name: string;
-    platform: string;
-    version: string;
-    status: "online" | "degraded" | "offline" | "needs_attention" | "provisioning";
-    createdAt: string;
-    lastSeenAt?: string;
-  }>;
+  relayDevices?: RelayDevice[];
   planCapabilities?: {
     canCreateOrganization: boolean;
     maxOrganizationSeats: number;
@@ -270,13 +263,17 @@ export function PortalLandingPage(props: {
 export function PortalDashboardPage(props: PortalDashboardPageProps) {
   const isOrg = props.activeWorkspace.kind === "team";
   const activeTab = props.currentTab || "overview";
+  // No relay data means no relay: never invent a healthy one.
   const relay = props.relayStatus || {
-    status: "online",
-    endpointUrl: "https://relay.foxdevstudio.com/v1",
-    connectedAccountsCount: 3,
-    activeDevicesCount: 1,
-    lastSeenAt: new Date().toISOString(),
+    status: "offline" as const,
+    connectedAccountsCount: 0,
+    activeDevicesCount: 0,
+    lastSeenAt: undefined,
   };
+  const devices = props.relayDevices || [];
+  const activeDevices = devices.filter((device) => !device.revokedAt);
+  /** The endpoint a registered device reported, or nothing. Never a placeholder. */
+  const relayEndpoint = activeDevices.map((device) => device.health?.endpoint).find(Boolean);
   const relayBadge = formatRelayStatusBadge(relay.status);
 
   return (
@@ -402,7 +399,7 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
               { id: "members", label: `Members (${props.members?.length || 1})`, icon: "\uD83D\uDC65" },
               { id: "mailboxes", label: `Mailboxes (${props.accounts.length})`, icon: "\uD83D\uDCEC" },
               { id: "relay", label: "Proton Relay", icon: "\u26A1" },
-              { id: "devices", label: `Bridge Devices (${props.relayDevices?.length || 1})`, icon: "\uD83D\uDCBB" },
+              { id: "devices", label: `Bridge Devices (${devices.length})`, icon: "\uD83D\uDCBB" },
               { id: "plan", label: "Plan & Security", icon: "\uD83D\uDEE1\uFE0F" },
             ].map((tab) => (
               <a
@@ -692,7 +689,7 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                       Bridge Devices
                     </div>
                     <div style="font-size: 1.75rem; font-weight: 700; color: var(--foreground); margin: 0.25rem 0;">
-                      {props.relayDevices?.length || 1}
+                      {devices.length}
                     </div>
                     <a
                       href={`/portal?ws=${props.activeWorkspace.id}&tab=devices`}
@@ -950,7 +947,7 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                         Gateway Endpoint
                       </div>
                       <div style="font-family: monospace; font-size: 0.8125rem; color: #38bdf8; margin-top: 0.25rem;">
-                        {relay.endpointUrl || "https://relay.foxdevstudio.com/v1"}
+                        {relayEndpoint || "Not reported yet"}
                       </div>
                     </div>
 
@@ -1002,17 +999,18 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                 </div>
                 <div class="card-content">
                   <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                    {(props.relayDevices || [
-                      {
-                        id: "dev_foxdev_alma",
-                        name: "FoxDevStudio Central Server",
-                        platform: "AlmaLinux 9 (x86_64)",
-                        version: "v0.1.0",
-                        status: "online",
-                        createdAt: new Date().toISOString(),
-                        lastSeenAt: new Date().toISOString(),
-                      },
-                    ]).map((dev) => {
+                    {devices.length === 0 && (
+                      <div style="padding: 1.25rem; background: rgba(255,255,255,0.02); border: 1px dashed var(--border); border-radius: var(--radius-md); text-align: center;">
+                        <div style="font-weight: 700; font-size: 0.9375rem; color: var(--foreground);">
+                          No Bridge devices yet
+                        </div>
+                        <div style="font-size: 0.8125rem; color: var(--muted-foreground); margin-top: 0.35rem;">
+                          Install Mailwarden Bridge on the server that runs Proton Bridge, run
+                          <span style="font-family: monospace;"> mailwarden-bridge setup</span>, then approve its code here.
+                        </div>
+                      </div>
+                    )}
+                    {devices.map((dev) => {
                       const devBadge = formatRelayStatusBadge(dev.status as any);
                       return (
                         <div
@@ -1025,7 +1023,14 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                                 {dev.name}
                               </div>
                               <div style="font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.15rem;">
-                                <span>{dev.platform}</span> &bull; <span>{dev.version}</span> &bull; <span>Heartbeat: active</span>
+                                <span>{dev.platform}</span> &bull; <span>{dev.version}</span> &bull;{" "}
+                                <span>
+                                  {dev.revokedAt
+                                    ? "Revoked"
+                                    : dev.lastSeenAt
+                                      ? `Last heartbeat ${new Date(dev.lastSeenAt).toUTCString()}`
+                                      : "No heartbeat yet"}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -1039,6 +1044,7 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                             <button
                               type="button"
                               data-action="open-diagnostics"
+                              data-device={dev.id}
                               style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.35rem 0.65rem; border-radius: var(--radius-sm); font-size: 0.75rem; font-weight: 600; cursor: pointer;"
                             >
                               Diagnostics
@@ -1086,7 +1092,7 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
                         Bridge Devices
                       </div>
                       <div style="font-size: 1.25rem; font-weight: 700; color: var(--foreground); margin-top: 0.25rem;">
-                        {props.relayDevices?.length || 1} / {props.planCapabilities?.maxRelayDevices || 3} relays active
+                        {devices.length} / {props.planCapabilities?.maxRelayDevices || 3} relays active
                       </div>
                     </div>
 
@@ -1304,59 +1310,93 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
           </div>
         </div>
 
-        {/* MODAL 4: Diagnostics & Safe Repair Modal */}
-        <div
-          id="diagnosticsModal"
-          class="modal-backdrop"
-          style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; padding: 1rem;"
-        >
-          <div
-            style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); width: 100%; max-width: 32rem; padding: 1.5rem; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);"
-          >
-            <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0 0 0.5rem 0; color: var(--foreground);">
-              \uD83D\uDD0D Relay Health &amp; Diagnostics
-            </h3>
-            <p style="font-size: 0.8125rem; color: var(--muted-foreground); margin: 0 0 1.25rem 0;">
-              Automated self-test of Cloudflare Tunnel, Mailwarden Gateway, and Proton Bridge daemon.
-            </p>
-
-            <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem;">
-              <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 0.85rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius-md);">
-                <span style="font-size: 0.8125rem; font-weight: 600;">Cloudflare Tunnel:</span>
-                <span style="font-size: 0.75rem; color: #34d399; font-weight: 600;">✓ Connected (relay.foxdevstudio.com)</span>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 0.85rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius-md);">
-                <span style="font-size: 0.8125rem; font-weight: 600;">Gateway REST Daemon:</span>
-                <span style="font-size: 0.75rem; color: #34d399; font-weight: 600;">✓ Responsive (HTTP 200)</span>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 0.85rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius-md);">
-                <span style="font-size: 0.8125rem; font-weight: 600;">Proton Bridge Local IMAP (1143):</span>
-                <span style="font-size: 0.75rem; color: #34d399; font-weight: 600;">✓ Ready (STARTTLS)</span>
-              </div>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <form method="post" action="/portal/organizations/relay/repair">
-                <input type="hidden" name="orgId" value={props.activeWorkspace.id} />
-                <input type="hidden" name="actionId" value="retry_sync" />
-                <button
-                  type="submit"
-                  style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.45rem 0.85rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
-                >
-                  \u26A1 Run Safe Connection Test
-                </button>
-              </form>
-
-              <button
-                type="button"
-                data-action="close-diagnostics"
-                style="background: var(--primary); color: var(--primary-foreground); border: none; padding: 0.45rem 0.85rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+        {/* MODAL 4: Diagnostics & Safe Repair — one per registered device, from real heartbeat health */}
+        {devices.map((dev) => {
+          const health = dev.health;
+          const controllable = Boolean(health?.endpoint) && !dev.revokedAt;
+          return (
+            <div
+              id={`diagnosticsModal_${dev.id}`}
+              class="modal-backdrop"
+              style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; padding: 1rem;"
+            >
+              <div
+                style="background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); width: 100%; max-width: 32rem; padding: 1.5rem; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);"
               >
-                Close
-              </button>
+                <h3 style="font-size: 1.125rem; font-weight: 700; margin: 0 0 0.5rem 0; color: var(--foreground);">
+                  \uD83D\uDD0D {dev.name}
+                </h3>
+                <p style="font-size: 0.8125rem; color: var(--muted-foreground); margin: 0 0 1.25rem 0;">
+                  {health
+                    ? `Reported by the device at ${new Date(health.observedAt).toUTCString()}.`
+                    : "This device has not reported health yet. It reports on its first heartbeat."}
+                </p>
+
+                <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem;">
+                  {(health?.components || []).map((component) => (
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 0.65rem 0.85rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius-md);">
+                      <span style="font-size: 0.8125rem; font-weight: 600; text-transform: capitalize;">
+                        {component.component}
+                      </span>
+                      <span
+                        style={`font-size: 0.75rem; font-weight: 600; text-align: right; color: ${
+                          component.status === "ok"
+                            ? "#34d399"
+                            : component.status === "degraded" || component.status === "needs_attention"
+                              ? "#fbbf24"
+                              : component.status === "down"
+                                ? "#f87171"
+                                : "#9ca3af"
+                        };`}
+                      >
+                        {component.detail}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                  {controllable ? (
+                    <form method="post" action="/portal/organizations/relay/repair" style="display: flex; gap: 0.5rem; align-items: center;">
+                      <input type="hidden" name="orgId" value={props.activeWorkspace.id} />
+                      <input type="hidden" name="deviceId" value={dev.id} />
+                      <select
+                        name="actionId"
+                        style="background: var(--input); color: var(--foreground); border: 1px solid var(--border); padding: 0.4rem 0.5rem; border-radius: var(--radius-md); font-size: 0.8125rem;"
+                      >
+                        <option value="recheck_proton">Check Proton Bridge again</option>
+                        <option value="restart_gateway">Restart the Mailwarden gateway</option>
+                        <option value="restart_tunnel">Reconnect the secure tunnel</option>
+                        <option value="refresh_registration">Refresh this device's registration</option>
+                        <option value="fix_permissions">Repair credential file permissions</option>
+                      </select>
+                      <button
+                        type="submit"
+                        style="background: var(--secondary); border: 1px solid var(--border); color: var(--foreground); padding: 0.45rem 0.85rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                      >
+                        \u26A1 Run repair
+                      </button>
+                    </form>
+                  ) : (
+                    <span style="font-size: 0.75rem; color: var(--muted-foreground); max-width: 22rem;">
+                      Remote repair needs a reachable relay endpoint. Run{" "}
+                      <span style="font-family: monospace;">mailwarden-bridge doctor</span> on the device itself.
+                    </span>
+                  )}
+
+                  <button
+                    type="button"
+                    data-action="close-diagnostics"
+                    data-device={dev.id}
+                    style="background: var(--primary); color: var(--primary-foreground); border: none; padding: 0.45rem 0.85rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; cursor: pointer;"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          );
+        })}
 
         {/* MODAL 5: Proton Mail Connection Modal */}
         <div
@@ -1389,7 +1429,13 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
             <form method="post" action="/portal/accounts/connect-proton">
               <input type="hidden" name="workspaceId" value={props.activeWorkspace.id} />
               <input type="hidden" name="mode" value="gateway" />
-              <input type="hidden" name="gatewayUrl" value={isOrg ? "https://relay.foxdevstudio.com/v1" : "http://localhost:8788"} />
+              <input type="hidden" name="gatewayUrl" value={relayEndpoint ? `${relayEndpoint}/v1` : ""} />
+              {!relayEndpoint && (
+                <p style="font-size: 0.8125rem; color: #fbbf24; margin: 0 0 1rem 0;">
+                  No Mailwarden Bridge has reported a reachable relay endpoint yet. Pair a Bridge device first;
+                  Proton accounts connect through it.
+                </p>
+              )}
 
               <div style="margin-bottom: 1rem;">
                 <label for="protonEmailInput" style="display: block; font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.35rem; color: var(--foreground);">
@@ -1554,9 +1600,9 @@ export function PortalDashboardPage(props: PortalDashboardPageProps) {
             } else if (action === 'close-bridge-wizard') {
               setModal('bridgeWizardModal', false);
             } else if (action === 'open-diagnostics') {
-              setModal('diagnosticsModal', true);
+              setModal('diagnosticsModal_' + target.getAttribute('data-device'), true);
             } else if (action === 'close-diagnostics') {
-              setModal('diagnosticsModal', false);
+              setModal('diagnosticsModal_' + target.getAttribute('data-device'), false);
             } else if (action === 'open-proton-modal') {
               setModal('protonModal', true);
             } else if (action === 'close-proton-modal') {
